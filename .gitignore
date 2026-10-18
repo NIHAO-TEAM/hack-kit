@@ -1,0 +1,19 @@
+# Ссылки на скиллы создаёт scripts/link-skills.*; источник — .agents/skills
+.claude/skills
+frontend/.claude/skills
+backend/.claude/skills
+.claude/settings.local.json
+
+# Секреты
+.env
+.env.*
+!.env.example
+
+# Сборка и артефакты
+node_modules/
+dist/
+coverage/
+frontend/shots/
+e2e/test-results/
+e2e/playwright-report/
+*.log

@@ -1,0 +1,43 @@
+# Границы модулей — правилами, а не договорённостью (по образцу Goden, UMIRHack 2026).
+# Заменить example.com/app на модуль из go.mod и дополнять при появлении нового модуля.
+version: "2"
+
+linters:
+  enable:
+    - depguard
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    depguard:
+      rules:
+        platform-no-domain:
+          files: ["**/internal/platform/**"]
+          deny:
+            - pkg: example.com/app/internal/orders
+              desc: platform не импортирует доменные модули
+            - pkg: example.com/app/internal/inventory
+              desc: platform не импортирует доменные модули
+        db-only-own-module:
+          files: ["**/internal/*/db/**"]
+          deny:
+            - pkg: example.com/app/internal/api
+              desc: сгенерированный SQL-код модуля не знает об HTTP
+        domain-no-io:
+          files:
+            - "**/internal/*/*.go"
+            - "!**/internal/*/service.go"
+            - "!**/internal/*/http.go"
+            - "!**/internal/*/projection.go"
+            - "!$test"
+          deny:
+            - pkg: net/http
+              desc: решения в агрегате — чистые функции
+            - pkg: github.com/jackc/pgx/v5
+              desc: решения в агрегате не ходят в базу
+
+formatters:
+  enable:
+    - gofmt

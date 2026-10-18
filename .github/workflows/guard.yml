@@ -1,0 +1,42 @@
+# .github/workflows/guard.yml
+#
+# Метка go:<id> — это согласование изменения человеком и запуск исполнителя.
+# Её может ставить только человек из team.md. Поставил бот или посторонний — метка снимается.
+# Routine исполнителя тоже проверяет, кто поставил метку: это второй рубеж, а не единственный.
+
+name: Guard
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  go-label:
+    if: startsWith(github.event.label.name, 'go:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      ACTOR: ${{ github.event.sender.login }}
+      ACTOR_TYPE: ${{ github.event.sender.type }}
+      LABEL: ${{ github.event.label.name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: team.md
+      - name: Метку ставил человек из team.md
+        run: |
+          # Логины людей — колонка «GitHub» таблицы «Люди» в team.md.
+          humans=$(sed -n '/^## Люди/,/^## /p' team.md | grep -oE '`@[A-Za-z0-9-]+`' | tr -d '`@')
+          if [ "$ACTOR_TYPE" != "User" ] || ! printf '%s\n' $humans | grep -qx "$ACTOR"; then
+            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "$LABEL"
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" \
+              --body "[guard] метка $LABEL снята: её поставил $ACTOR, а согласовывать могут только люди из team.md."
+            exit 0
+          fi
+          echo "$LABEL поставил $ACTOR — ок"
