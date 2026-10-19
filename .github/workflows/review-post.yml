@@ -4,7 +4,8 @@
 #   [review] round: N verdict: APPROVED|CHANGES_REQUESTED
 #   head: <40-символьный sha>
 # Проверяет формат, автора (ревьюер из team.md) и что head не устарел, затем ставит метки:
-# round-N (или needs-human после 3-го), protected, и последним — будильник исполнителя wake:<id>.
+# round-N (или needs-human после 3-го), protected, и последним — комментарий бота
+# «[ci] итог ревью принят …»: по нему просыпается подписанная на PR сессия исполнителя.
 # Итог «CI красный» публикует ci.yml сам (от github-actions[bot], сюда не попадает).
 
 name: Review post
@@ -62,12 +63,14 @@ jobs:
             gh pr comment "$PR" --body "[ci] итог ревью про $head, а head PR уже $now — итог устарел, ревью запросит следующий прогон CI."
             exit 0
           fi
-          { echo "n=$n"; echo "verdict=$verdict"; echo "ok=true"; } >> "$GITHUB_OUTPUT"
+          { echo "n=$n"; echo "verdict=$verdict"; echo "head=$head"; echo "ok=true"; } >> "$GITHUB_OUTPUT"
 
       - name: Метки и будильник исполнителя
         if: steps.parse.outputs.ok == 'true'
         env:
           N: ${{ steps.parse.outputs.n }}
+          VERDICT: ${{ steps.parse.outputs.verdict }}
+          HEAD_SHA: ${{ steps.parse.outputs.head }}
         run: |
           # Будильники снимаются до любых других меток.
           for l in $(gh pr view "$PR" --json labels --jq '.labels[].name | select(startswith("wake:") or . == "review-me")'); do
@@ -86,9 +89,7 @@ jobs:
             gh pr edit "$PR" --add-label protected
           fi
 
-          # Последним: будильник исполнителя.
-          id=$(gh pr view "$PR" --json labels \
-            --jq '[.labels[].name | select(startswith("go:"))][0] // "" | sub("^go:"; "")')
-          [ -n "$id" ] || { echo "на PR нет метки go:<id> — будить некого"; exit 0; }
-          gh label create "wake:$id" --color 0E8A16 >/dev/null 2>&1 || true
-          gh pr edit "$PR" --add-label "wake:$id"
+          # Последним: сигнал исполнителю от бота. Сессия исполнителя подписана на события PR,
+          # а события от собственного аккаунта подписка может не присылать — ревьюер пишет
+          # от аккаунта человека, поэтому итог дублируется комментарием github-actions[bot].
+          gh pr comment "$PR" --body "$(printf '[ci] итог ревью принят: round %s verdict: %s\nhead: %s' "$N" "$VERDICT" "$HEAD_SHA")"
