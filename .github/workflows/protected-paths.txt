@@ -1,0 +1,11 @@
+^tests/invariants/
+^e2e/
+^deploy/
+^\.github/
+^\.agents/
+^[^/]+/\.agents/
+^AGENTS\.md$
+^[^/]+/AGENTS\.md$
+^CLAUDE\.md$
+^team\.md$
+^api/openapi\.yaml$
