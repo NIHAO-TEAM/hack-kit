@@ -3,9 +3,12 @@
 # Метка go:<id> — согласование изменения человеком и назначение исполнителя <id>.
 # Её может ставить только человек из team.md. Поставил бот или посторонний — метка снимается.
 #
-# Если метку поставил человек и PR — черновик, guard будит исполнителя меткой wake:<id>:
-# у каждого исполнителя одна routine с триггером на wake:<id>, и она по шагу 0
-# в .github/agents/executor.md сама понимает, старт это или ответ на ревью.
+# Если метку поставил человек, guard будит исполнителя меткой wake:<id> (у исполнителя одна
+# routine с триггером на wake:<id>). Новая сессия ведёт этот PR до конца: подписывается на его
+# события и отвечает на ревью в той же сессии.
+#   - На PR ещё нет [start] — это старт.
+#   - [start] уже есть — человек перезапускает исполнителя, потому что прошлая сессия умерла.
+#     guard пишет «[guard] перезапуск», и только с этим комментарием новая сессия перехватывает PR.
 # Routine исполнителя тоже проверяет, кто поставил go:<id>: это второй рубеж.
 
 name: Guard
@@ -25,7 +28,6 @@ jobs:
       issues: write
     env:
       PR: ${{ github.event.pull_request.number }}
-      DRAFT: ${{ github.event.pull_request.draft }}
       ACTOR: ${{ github.event.sender.login }}
       ACTOR_TYPE: ${{ github.event.sender.type }}
       LABEL: ${{ github.event.label.name }}
@@ -46,12 +48,15 @@ jobs:
           fi
           echo "$LABEL поставил $ACTOR — ок"
 
-          if [ "$DRAFT" != "true" ]; then
-            echo "PR не черновик — старт не нужен, будить исполнителя не будем"; exit 0
+          id=${LABEL#go:}
+          started=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"[start] $id\"))] | length" | awk '{s+=$1} END {print s+0}')
+          if [ "$started" -gt 0 ]; then
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" \
+              --body "[guard] перезапуск исполнителя $id по метке от $ACTOR: прошлая сессия считается завершённой, новая перехватывает PR."
           fi
 
           # Будильник снимается и ставится заново последним действием: новое событие labeled.
-          id=${LABEL#go:}
           gh label create "wake:$id" --color 0E8A16 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
           gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "wake:$id" >/dev/null 2>&1 || true
           gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label "wake:$id"
