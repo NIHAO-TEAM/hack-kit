@@ -7,10 +7,10 @@
 Из папки `e2e/`:
 
 ```
-npx playwright test
+npx playwright test -c playwright.config.ts
 ```
 
-Команда уточнится, когда появится конфиг Playwright.
+Конфиг — [playwright.config.ts](playwright.config.ts): один проект `firefox`, адрес стенда из `E2E_BASE_URL`, тесты в `tests/`.
 
 ## Правила
 
