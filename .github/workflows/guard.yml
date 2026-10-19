@@ -3,9 +3,9 @@
 # Метка go:<id> — согласование изменения человеком и назначение исполнителя <id>.
 # Её может ставить только человек из team.md. Поставил бот или посторонний — метка снимается.
 #
-# Если метку поставил человек, guard будит исполнителя меткой wake:<id> (у исполнителя одна
-# routine с триггером на wake:<id>). Новая сессия ведёт этот PR до конца: подписывается на его
-# события и отвечает на ревью в той же сессии.
+# Если метку поставил человек, guard запускает routine исполнителя через её API-триггер
+# (секреты FIRE_<ID>_URL и FIRE_<ID>_TOKEN, id в верхнем регистре, «-» → «_»; exec-1 → FIRE_EXEC_1_*).
+# Новая сессия ведёт этот PR до конца: подписывается на его события и отвечает на ревью в ней же.
 #   - На PR ещё нет [start] — это старт.
 #   - [start] уже есть — человек перезапускает исполнителя, потому что прошлая сессия умерла.
 #     guard пишет «[guard] перезапуск», и только с этим комментарием новая сессия перехватывает PR.
@@ -35,8 +35,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: team.md
+          sparse-checkout: |
+            team.md
+            .github/scripts
+          sparse-checkout-cone-mode: false
+
       - name: Метку ставил человек из team.md
+        id: check
         run: |
           # Логины людей — колонка «GitHub» таблицы «Люди» в team.md.
           humans=$(sed -n '/^## Люди/,/^## /p' team.md | grep -oE '`@[A-Za-z0-9-]+`' | tr -d '`@')
@@ -51,13 +56,28 @@ jobs:
           id=${LABEL#go:}
           started=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq "[.[] | select(.body | startswith(\"[start] $id\"))] | length" | awk '{s+=$1} END {print s+0}')
+          kind=старт
           if [ "$started" -gt 0 ]; then
+            kind=перезапуск
             gh pr comment "$PR" -R "$GITHUB_REPOSITORY" \
               --body "[guard] перезапуск исполнителя $id по метке от $ACTOR: прошлая сессия считается завершённой, новая перехватывает PR."
           fi
+          { echo "id=$id"; echo "sid=$(printf '%s' "$id" | tr 'a-z-' 'A-Z_')"; echo "kind=$kind"; echo "ok=true"; } >> "$GITHUB_OUTPUT"
 
-          # Будильник снимается и ставится заново последним действием: новое событие labeled.
-          gh label create "wake:$id" --color 0E8A16 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
-          gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "wake:$id" >/dev/null 2>&1 || true
-          gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label "wake:$id"
-          echo "разбудил $id меткой wake:$id"
+      - name: Запустить исполнителя
+        if: steps.check.outputs.ok == 'true'
+        env:
+          FIRE_URL: ${{ secrets[format('FIRE_{0}_URL', steps.check.outputs.sid)] }}
+          FIRE_TOKEN: ${{ secrets[format('FIRE_{0}_TOKEN', steps.check.outputs.sid)] }}
+          ID: ${{ steps.check.outputs.id }}
+          KIND: ${{ steps.check.outputs.kind }}
+        run: |
+          if bash .github/scripts/fire.sh "PR #$PR в $GITHUB_REPOSITORY, исполнитель $ID, $KIND (метка go:$ID от $ACTOR)"; then
+            echo "исполнитель $ID запущен: $KIND"
+          else
+            gh label create needs-human --color B60205 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
+            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label needs-human || true
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" \
+              --body "[guard] не удалось запустить исполнителя $ID через API-триггер (секреты FIRE_${{ steps.check.outputs.sid }}_URL/_TOKEN). Нужен человек."
+            exit 1
+          fi
