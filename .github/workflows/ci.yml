@@ -264,6 +264,14 @@ jobs:
           } > review-summary.md
           echo "source=ci" >> "$GITHUB_ENV"
 
+      # Будильник снимается до любых других меток: пока wake:<id> висит на PR, каждая новая
+      # метка (round-N, protected) запускала бы routine исполнителя ещё раз.
+      - name: Снять будильник исполнителя
+        run: |
+          for l in $(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name | select(startswith("wake:"))'); do
+            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "$l" || true
+          done
+
       - name: Маркер, итог и метки
         id: post
         run: |
