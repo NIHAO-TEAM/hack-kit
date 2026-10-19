@@ -185,12 +185,25 @@ jobs:
             gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "$l" || true
           done
 
+      - uses: actions/checkout@v4
+        if: steps.fresh.outputs.ok == 'true' && needs.checks.result == 'success'
+        with:
+          sparse-checkout: .github/scripts
+
+      # Ревьюер — routine с API-триггером (секреты FIRE_REVIEWER_URL / FIRE_REVIEWER_TOKEN).
       - name: Запросить ревью
         if: steps.fresh.outputs.ok == 'true' && needs.checks.result == 'success'
+        env:
+          FIRE_URL: ${{ secrets.FIRE_REVIEWER_URL }}
+          FIRE_TOKEN: ${{ secrets.FIRE_REVIEWER_TOKEN }}
         run: |
           gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "$(printf '[ci] checks зелёные, ревью запрошено\nround: %s\nhead: %s' "$N" "$HEAD_SHA")"
-          gh label create review-me --color 5319E7 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
-          gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label review-me
+          if ! bash .github/scripts/fire.sh "PR #$PR в $GITHUB_REPOSITORY: ревью, round $N, head $HEAD_SHA"; then
+            gh label create needs-human --color B60205 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
+            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label needs-human || true
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "[ci] не удалось запустить ревьюера через API-триггер (секреты FIRE_REVIEWER_URL/_TOKEN). Нужен человек."
+            exit 1
+          fi
 
       - name: Итог «CI красный»
         if: steps.fresh.outputs.ok == 'true' && needs.checks.result != 'success'

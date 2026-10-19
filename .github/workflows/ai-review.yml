@@ -35,6 +35,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Что перезапустить
+        id: what
         run: |
           read -r state draft base head <<<"$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" \
             --json state,isDraft,baseRefName,headRefOid \
@@ -74,5 +75,25 @@ jobs:
           done
           gh pr comment "$PR" -R "$GITHUB_REPOSITORY" \
             --body "$(printf '[ci] оспаривание: ревью запрошено повторно\nround: %s\nhead: %s' "$n" "$head")"
-          gh label create review-me --color 5319E7 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
-          gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label review-me
+          { echo "n=$n"; echo "head=$head"; echo "fire=true"; } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.what.outputs.fire == 'true'
+        with:
+          sparse-checkout: .github/scripts
+
+      # Ревьюер — routine с API-триггером (секреты FIRE_REVIEWER_URL / FIRE_REVIEWER_TOKEN).
+      - name: Запустить ревьюера
+        if: steps.what.outputs.fire == 'true'
+        env:
+          FIRE_URL: ${{ secrets.FIRE_REVIEWER_URL }}
+          FIRE_TOKEN: ${{ secrets.FIRE_REVIEWER_TOKEN }}
+          N: ${{ steps.what.outputs.n }}
+          HEAD_SHA: ${{ steps.what.outputs.head }}
+        run: |
+          if ! bash .github/scripts/fire.sh "PR #$PR в $GITHUB_REPOSITORY: повторное ревью по оспариванию, round $N, head $HEAD_SHA"; then
+            gh label create needs-human --color B60205 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
+            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label needs-human || true
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "[ci] не удалось запустить ревьюера через API-триггер (секреты FIRE_REVIEWER_URL/_TOKEN). Нужен человек."
+            exit 1
+          fi
