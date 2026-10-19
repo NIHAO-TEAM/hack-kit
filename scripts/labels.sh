@@ -8,7 +8,7 @@ mk() { gh label create "$1" --color "$2" --description "$3" --force >/dev/null &
 mk change      1D76DB "Изменение из changes/"
 mk critic      5319E7 "Отчёт критика"
 mk risk:low    C2E0C6 "Быстрая полоса ревью: тексты, документация"
-mk protected   B60205 "Трогает защищённые пути: сливает человек"
+mk protected   B60205 "Трогает защищённые пути: внимание ревьюеру"
 mk needs-human B60205 "Нужен человек"
 mk review-me   5319E7 "Будильник ревьюера (ставит CI)"
 for n in 1 2 3; do mk "round-$n" FBCA04 "Раунд ревью $n"; done
