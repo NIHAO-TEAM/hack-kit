@@ -1,8 +1,12 @@
 # .github/workflows/guard.yml
 #
-# Метка go:<id> — это согласование изменения человеком и запуск исполнителя.
+# Метка go:<id> — согласование изменения человеком и назначение исполнителя <id>.
 # Её может ставить только человек из team.md. Поставил бот или посторонний — метка снимается.
-# Routine исполнителя тоже проверяет, кто поставил метку: это второй рубеж, а не единственный.
+#
+# Если метку поставил человек и PR — черновик, guard будит исполнителя меткой wake:<id>:
+# у каждого исполнителя одна routine с триггером на wake:<id>, и она по шагу 0
+# в .github/agents/executor.md сама понимает, старт это или ответ на ревью.
+# Routine исполнителя тоже проверяет, кто поставил go:<id>: это второй рубеж.
 
 name: Guard
 
@@ -21,6 +25,7 @@ jobs:
       issues: write
     env:
       PR: ${{ github.event.pull_request.number }}
+      DRAFT: ${{ github.event.pull_request.draft }}
       ACTOR: ${{ github.event.sender.login }}
       ACTOR_TYPE: ${{ github.event.sender.type }}
       LABEL: ${{ github.event.label.name }}
@@ -40,3 +45,14 @@ jobs:
             exit 0
           fi
           echo "$LABEL поставил $ACTOR — ок"
+
+          if [ "$DRAFT" != "true" ]; then
+            echo "PR не черновик — старт не нужен, будить исполнителя не будем"; exit 0
+          fi
+
+          # Будильник снимается и ставится заново последним действием: новое событие labeled.
+          id=${LABEL#go:}
+          gh label create "wake:$id" --color 0E8A16 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
+          gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "wake:$id" >/dev/null 2>&1 || true
+          gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label "wake:$id"
+          echo "разбудил $id меткой wake:$id"

@@ -1,0 +1,94 @@
+# .github/workflows/review-post.yml
+#
+# Разбирает итог ревьюера-routine — комментарий, который начинается с «[review]»:
+#   [review] round: N verdict: APPROVED|CHANGES_REQUESTED
+#   head: <40-символьный sha>
+# Проверяет формат, автора (ревьюер из team.md) и что head не устарел, затем ставит метки:
+# round-N (или needs-human после 3-го), protected, и последним — будильник исполнителя wake:<id>.
+# Итог «CI красный» публикует ci.yml сам (от github-actions[bot], сюда не попадает).
+
+name: Review post
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  post:
+    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '[review]')
+    concurrency:
+      group: review-post-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    env:
+      PR: ${{ github.event.issue.number }}
+      AUTHOR: ${{ github.event.comment.user.login }}
+      BODY: ${{ github.event.comment.body }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            team.md
+            .github/workflows/protected-paths.txt
+          sparse-checkout-cone-mode: false
+
+      - name: Разобрать итог
+        id: parse
+        run: |
+          needs_human() {
+            gh label create needs-human --color B60205 >/dev/null 2>&1 || true
+            gh pr edit "$PR" --add-label needs-human || true
+            gh pr comment "$PR" --body "[ci] $1 Нужен человек."
+            exit 0
+          }
+          reviewers=$(sed -n '/^## Ревьюер/,/^## /p' team.md | grep -oE '`@[A-Za-z0-9-]+`' | tr -d '`@')
+          printf '%s\n' $reviewers | grep -qx "$AUTHOR" \
+            || needs_human "Итог [review] оставил $AUTHOR, а ревьюер в team.md — ${reviewers:-не указан}. Итог не принят."
+          first=$(printf '%s\n' "$BODY" | sed -n '1p' | tr -d '\r')
+          second=$(printf '%s\n' "$BODY" | sed -n '2p' | tr -d '\r')
+          n=$(printf '%s' "$first" | sed -nE 's/^\[review\] round: ([0-9]+) verdict: (APPROVED|CHANGES_REQUESTED)$/\1/p')
+          verdict=$(printf '%s' "$first" | sed -nE 's/^\[review\] round: ([0-9]+) verdict: (APPROVED|CHANGES_REQUESTED)$/\2/p')
+          head=$(printf '%s' "$second" | sed -nE 's/^head: ([0-9a-f]{40})$/\1/p')
+          [ -n "$n" ] && [ -n "$verdict" ] && [ -n "$head" ] \
+            || needs_human "Итог ревью в неверном формате: первые строки должны быть «[review] round: N verdict: APPROVED|CHANGES_REQUESTED» и «head: <sha>»."
+          now=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
+          if [ "$now" != "$head" ]; then
+            gh pr comment "$PR" --body "[ci] итог ревью про $head, а head PR уже $now — итог устарел, ревью запросит следующий прогон CI."
+            exit 0
+          fi
+          { echo "n=$n"; echo "verdict=$verdict"; echo "ok=true"; } >> "$GITHUB_OUTPUT"
+
+      - name: Метки и будильник исполнителя
+        if: steps.parse.outputs.ok == 'true'
+        env:
+          N: ${{ steps.parse.outputs.n }}
+        run: |
+          # Будильники снимаются до любых других меток.
+          for l in $(gh pr view "$PR" --json labels --jq '.labels[].name | select(startswith("wake:") or . == "review-me")'); do
+            gh pr edit "$PR" --remove-label "$l" || true
+          done
+
+          for l in round-1 round-2 round-3 needs-human protected; do gh label create "$l" >/dev/null 2>&1 || true; done
+          for l in round-1 round-2 round-3; do gh pr edit "$PR" --remove-label "$l" >/dev/null 2>&1 || true; done
+          if [ "$N" -le 3 ]; then
+            gh pr edit "$PR" --add-label "round-$N"
+          else
+            gh pr edit "$PR" --add-label needs-human
+          fi
+
+          if gh pr diff "$PR" --name-only | grep -qE -f .github/workflows/protected-paths.txt; then
+            gh pr edit "$PR" --add-label protected
+          fi
+
+          # Последним: будильник исполнителя.
+          id=$(gh pr view "$PR" --json labels \
+            --jq '[.labels[].name | select(startswith("go:"))][0] // "" | sub("^go:"; "")')
+          [ -n "$id" ] || { echo "на PR нет метки go:<id> — будить некого"; exit 0; }
+          gh label create "wake:$id" --color 0E8A16 >/dev/null 2>&1 || true
+          gh pr edit "$PR" --add-label "wake:$id"

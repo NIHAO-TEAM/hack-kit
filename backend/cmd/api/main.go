@@ -2,14 +2,24 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"time"
 )
 
+func healthz(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		log.Printf("healthz: %v", err)
+	}
+}
+
 func newMux() *http.ServeMux {
-	return http.NewServeMux()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", healthz)
+	return mux
 }
 
 func main() {
