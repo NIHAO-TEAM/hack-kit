@@ -28,7 +28,7 @@
 
 | Агент | Где работает | Чей аккаунт или токен | Модель |
 |---|---|---|---|
-| Ревьюер | routine `reviewer` (метка `review-me`), итог разбирает `review-post.yml` | Onisar | Opus 5.5 |
+| Ревьюер | routine `reviewer` (API-триггер), итог разбирает `review-post.yml` | Onisar | Opus 5.5 |
 | Критик | routine, каждую ночь | Onisar | Opus 5.5 |
 | Пахан, утро | routine, по будням 08:07 | владелец продукта | Opus 5.5 |
 | Пахан, сессия | локальный Claude Code | владелец продукта | Opus 5.5 |
