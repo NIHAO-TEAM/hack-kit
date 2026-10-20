@@ -2,7 +2,7 @@
 
 ## 1. Документация
 
-- [ ] 1.1 Заменить строку про `X-Correlation-Id` в `backend/AGENTS.md` на правило про `X-Request-Id` (формулировка из `proposal.md`) — проверка: `grep -n "Correlation" backend/AGENTS.md` пусто, `grep -n "X-Request-Id" backend/AGENTS.md` находит строку
+- [x] 1.1 Заменить строку про `X-Correlation-Id` в `backend/AGENTS.md` на правило про `X-Request-Id` (формулировка из `proposal.md`) — проверка: `grep -n "Correlation" backend/AGENTS.md` пусто, `grep -n "X-Request-Id" backend/AGENTS.md` находит строку
 
 ## 2. Готовность
 

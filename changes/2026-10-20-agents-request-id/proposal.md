@@ -1,4 +1,4 @@
-Статус: черновик
+Статус: в работе
 
 # Правило backend/AGENTS.md: X-Request-Id вместо X-Correlation-Id
 
