@@ -4,7 +4,7 @@
 #   [review] round: N verdict: APPROVED|CHANGES_REQUESTED
 #   head: <40-символьный sha>
 # Проверяет формат, автора (ревьюер из team.md) и что head не устарел, затем ставит метки:
-# round-N (или needs-human после 3-го), protected, manual-merge, и последним — комментарий бота
+# round-N (или needs-human за замечания после MAX_ROUNDS-го), protected, manual-merge, и последним — комментарий бота
 # «[ci] итог ревью принят …»: по нему просыпается подписанная на PR сессия исполнителя.
 # Итог «CI красный» публикует ci.yml сам (от github-actions[bot], сюда не попадает).
 
@@ -73,11 +73,14 @@ jobs:
           VERDICT: ${{ steps.parse.outputs.verdict }}
           HEAD_SHA: ${{ steps.parse.outputs.head }}
         run: |
-          for l in round-1 round-2 round-3 needs-human protected manual-merge; do gh label create "$l" >/dev/null 2>&1 || true; done
-          for l in round-1 round-2 round-3; do gh pr edit "$PR" --remove-label "$l" >/dev/null 2>&1 || true; done
-          if [ "$N" -le 3 ]; then
+          # Лимит раундов тот же, что MAX_ROUNDS в .github/agents/executor.md. Раунды считает ревьюер,
+          # красный CI в счёт не идёт. Одобренный PR под лимит не попадает: needs-human только за замечания.
+          MAX_ROUNDS=4
+          for l in round-1 round-2 round-3 round-4 needs-human protected manual-merge; do gh label create "$l" >/dev/null 2>&1 || true; done
+          for l in round-1 round-2 round-3 round-4; do gh pr edit "$PR" --remove-label "$l" >/dev/null 2>&1 || true; done
+          if [ "$N" -le "$MAX_ROUNDS" ]; then
             gh pr edit "$PR" --add-label "round-$N"
-          else
+          elif [ "$VERDICT" = "CHANGES_REQUESTED" ]; then
             gh pr edit "$PR" --add-label needs-human
           fi
 

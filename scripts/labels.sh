@@ -11,7 +11,7 @@ mk risk:low     C2E0C6 "Быстрая полоса ревью: тексты, д
 mk protected    B60205 "Трогает защищённые пути: внимание ревьюеру"
 mk manual-merge B60205 "Трогает правила процесса: сливает человек"
 mk needs-human  B60205 "Нужен человек"
-for n in 1 2 3; do mk "round-$n" FBCA04 "Раунд ревью $n"; done
+for n in 1 2 3 4; do mk "round-$n" FBCA04 "Раунд ревью $n"; done
 
 for id in "$@"; do
   mk "go:$id" 0E8A16 "Согласовано человеком, исполнитель $id"

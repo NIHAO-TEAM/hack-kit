@@ -69,8 +69,9 @@ jobs:
           if [ "$last_head" = "$head" ] && [ "$GITHUB_RUN_ATTEMPT" = "1" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"; echo "head $head уже проверен — пропуск"; exit 0
           fi
-          # Раунд = число прошлых итогов с CHANGES_REQUESTED + 1.
-          prev=$(jq '[.[] | select(.body | test("verdict: CHANGES_REQUESTED"))] | length' history.json)
+          # Раунд = число прошлых итогов ревьюера с CHANGES_REQUESTED + 1. Итоги «CI красный» (source: ci) не считаются:
+          # два сбоя сети не должны съедать раунды правок.
+          prev=$(jq '[.[] | select((.body | test("verdict: CHANGES_REQUESTED")) and (.body | test("\nsource: ci") | not))] | length' history.json)
           echo "n=$((prev + 1))" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
@@ -112,9 +113,16 @@ jobs:
 
       - name: go vet и golangci-lint (границы модулей)
         working-directory: backend
+        # Линтер ставится отдельно с повторами: сбой proxy.golang.org не должен краснить PR
+        # (так было 20.10.2026 и стоило исполнителю раунда оспаривания).
         run: |
           go vet ./...
-          go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6 run ./...
+          for i in 1 2 3; do
+            go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6 && break
+            [ "$i" = 3 ] && { echo "golangci-lint не скачался за 3 попытки"; exit 1; }
+            sleep $((i * 10))
+          done
+          "$(go env GOPATH)/bin/golangci-lint" run ./...
 
       - name: go test -race (с PostgreSQL)
         working-directory: backend
@@ -215,18 +223,12 @@ jobs:
             echo
             echo '```'
             { gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/logs" 2>/dev/null \
-                | sed 's/^[0-9TZ:.-]* //' | grep -E -A15 -- '--- FAIL|^FAIL|panic:|##\[error\]|Не отформатировано|Тесты пропущены|error TS|Error:' \
+                | sed 's/^[0-9TZ:.-]* //' | grep -E -A15 -- '--- FAIL|^FAIL|panic:|##\[error\]|Не отформатировано|Тесты пропущены|error TS|Error:|не скачался|go: |dial tcp|stream error|INTERNAL_ERROR' \
                 | tail -n 120; } || echo "(лог недоступен, см. ссылку)"
             echo '```'
           } > body.md
           gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body-file body.md
-          for l in round-1 round-2 round-3 needs-human; do gh label create "$l" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true; done
-          for l in round-1 round-2 round-3; do gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "$l" >/dev/null 2>&1 || true; done
-          if [ "$N" -le 3 ]; then
-            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label "round-$N"
-          else
-            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label needs-human
-          fi
+          # Метки раундов не трогаем: красный CI раундом не считается, лимит MAX_CI_RED держит исполнитель.
           # Итог от github-actions[bot] сам приходит в подписку сессии исполнителя: будильник не нужен.
 
   # Красный main — сигнал людям: защита ветки этого не допускает,
