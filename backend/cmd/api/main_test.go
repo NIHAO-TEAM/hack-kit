@@ -56,11 +56,13 @@ func TestRequestID(t *testing.T) {
 		header     string
 		wantStatus int
 		wantSame   bool
+		want       string
 	}{
-		{"заголовка нет", http.MethodGet, "", http.StatusOK, false},
-		{"корректный UUID возвращается", http.MethodGet, given, http.StatusOK, true},
-		{"мусор заменяется", http.MethodGet, "not-a-uuid", http.StatusOK, false},
-		{"405 тоже с заголовком", http.MethodPost, "", http.StatusMethodNotAllowed, false},
+		{"заголовка нет", http.MethodGet, "", http.StatusOK, false, ""},
+		{"корректный UUID возвращается", http.MethodGet, given, http.StatusOK, true, ""},
+		{"верхний регистр нормализуется", http.MethodGet, strings.ToUpper(given), http.StatusOK, false, given},
+		{"мусор заменяется", http.MethodGet, "not-a-uuid", http.StatusOK, false, ""},
+		{"405 тоже с заголовком", http.MethodPost, "", http.StatusMethodNotAllowed, false, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -81,7 +83,10 @@ func TestRequestID(t *testing.T) {
 			if tt.wantSame && got != tt.header {
 				t.Errorf("X-Request-Id = %q, ждали %q", got, tt.header)
 			}
-			if !tt.wantSame && tt.header != "" && got == tt.header {
+			if tt.want != "" && got != tt.want {
+				t.Errorf("X-Request-Id = %q, ждали %q", got, tt.want)
+			}
+			if !tt.wantSame && tt.want == "" && tt.header != "" && got == tt.header {
 				t.Errorf("X-Request-Id = %q, ждали новый", got)
 			}
 		})
