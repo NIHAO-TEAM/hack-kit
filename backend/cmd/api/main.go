@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -40,8 +41,9 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: newMux(),
+		Addr:              addr,
+		Handler:           newMux(),
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	log.Printf("api: слушаю %s", addr)
