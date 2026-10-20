@@ -133,3 +133,43 @@ func TestRequestID(t *testing.T) {
 		})
 	}
 }
+
+func TestPing(t *testing.T) {
+	tests := []struct {
+		name       string
+		method     string
+		wantStatus int
+	}{
+		{"GET отвечает pong", http.MethodGet, http.StatusOK},
+		{"POST запрещён", http.MethodPost, http.StatusMethodNotAllowed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			newHandler().ServeHTTP(rec, httptest.NewRequest(tt.method, "/ping", nil))
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("статус %d, ждали %d", rec.Code, tt.wantStatus)
+			}
+			if tt.wantStatus == http.StatusMethodNotAllowed {
+				if !strings.Contains(rec.Header().Get("Allow"), http.MethodGet) {
+					t.Errorf("Allow = %q, ждали GET", rec.Header().Get("Allow"))
+				}
+				return
+			}
+			if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+				t.Errorf("Content-Type = %q", ct)
+			}
+			if cc := rec.Header().Get("Cache-Control"); cc != "no-store" {
+				t.Errorf("Cache-Control = %q", cc)
+			}
+			var body map[string]string
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if len(body) != 1 || body["ping"] != "pong" {
+				t.Errorf("тело %v", body)
+			}
+		})
+	}
+}
