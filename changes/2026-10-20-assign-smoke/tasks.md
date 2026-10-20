@@ -2,7 +2,7 @@
 
 ## 1. Тест
 
-- [ ] 1.1 Тест `HEAD /healthz`: 200, `Content-Type: application/json`, пустое тело, заголовок `X-Request-Id` — проверка: `go test -race ./...`
+- [x] 1.1 Тест `HEAD /healthz`: 200, `Content-Type: application/json`, пустое тело, заголовок `X-Request-Id` — проверка: `go test -race ./...`
 
 ## 2. Готовность
 

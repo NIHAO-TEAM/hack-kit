@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -171,5 +172,33 @@ func TestPing(t *testing.T) {
 				t.Errorf("тело %v", body)
 			}
 		})
+	}
+}
+
+func TestHealthzHead(t *testing.T) {
+	srv := httptest.NewServer(newHandler())
+	defer srv.Close()
+
+	resp, err := http.Head(srv.URL + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("статус %d, ждали 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	if resp.Header.Get("X-Request-Id") == "" {
+		t.Error("нет X-Request-Id")
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(body) != 0 {
+		t.Errorf("тело не пустое: %q", body)
 	}
 }
