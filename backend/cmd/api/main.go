@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -69,9 +68,8 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:              addr,
-		Handler:           newHandler(),
-		ReadHeaderTimeout: 5 * time.Second,
+		Addr:    addr,
+		Handler: newHandler(),
 	}
 
 	log.Printf("api: слушаю %s", addr)
