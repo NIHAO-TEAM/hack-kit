@@ -28,7 +28,11 @@ func version(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+// pingCount — сколько раз вызвали /ping с момента старта.
+var pingCount int
+
 func ping(w http.ResponseWriter, _ *http.Request) {
+	pingCount++
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := json.NewEncoder(w).Encode(map[string]string{"ping": "pong"}); err != nil {
