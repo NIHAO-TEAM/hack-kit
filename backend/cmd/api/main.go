@@ -16,9 +16,21 @@ func healthz(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+func version(w http.ResponseWriter, _ *http.Request) {
+	v := os.Getenv("APP_VERSION")
+	if v == "" {
+		v = "dev"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"version": v}); err != nil {
+		log.Printf("version: %v", err)
+	}
+}
+
 func newMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthz)
+	mux.HandleFunc("GET /version", version)
 	return mux
 }
 
