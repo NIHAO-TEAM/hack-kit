@@ -223,12 +223,23 @@ jobs:
             echo
             echo '```'
             { gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/logs" 2>/dev/null \
-                | sed 's/^[0-9TZ:.-]* //' | grep -E -A15 -- '--- FAIL|^FAIL|panic:|##\[error\]|Не отформатировано|Тесты пропущены|error TS|Error:|не скачался|go: |dial tcp|stream error|INTERNAL_ERROR' \
+                | sed 's/^[0-9TZ:.-]* //' | grep -E -A15 -- '--- FAIL|^FAIL|panic:|##\[error\]|Не отформатировано|Тесты пропущены|error TS|Error:|не скачался|dial tcp|stream error|INTERNAL_ERROR' \
                 | tail -n 120; } || echo "(лог недоступен, см. ссылку)"
             echo '```'
           } > body.md
           gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body-file body.md
-          # Метки раундов не трогаем: красный CI раундом не считается, лимит MAX_CI_RED держит исполнитель.
+          # Метки раундов не трогаем: красный CI раундом не считается. Исполнитель останавливается сам
+          # после MAX_CI_RED красных подряд (executor.md); это страховка на случай, если он потерял счёт
+          # (перезапуск сессии): серия красных итогов подряд без единого итога ревьюера → needs-human.
+          CI_RED_BACKSTOP=5
+          streak=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | startswith("[review]")) | if (.body | test("\nsource: ci")) then "ci" else "rv" end' \
+            | tac | awk '$0 == "ci" {n++; next} {exit} END {print n + 0}')
+          if [ "$streak" -ge "$CI_RED_BACKSTOP" ]; then
+            gh label create needs-human --color B60205 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
+            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label needs-human
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "[ci] CI красный $streak раз подряд без ревью — нужен человек."
+          fi
           # Итог от github-actions[bot] сам приходит в подписку сессии исполнителя: будильник не нужен.
 
   # Красный main — сигнал людям: защита ветки этого не допускает,
