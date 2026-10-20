@@ -65,8 +65,8 @@ jobs:
             exit 0
           fi
 
-          # Раунд = число прошлых итогов с CHANGES_REQUESTED + 1.
-          n=$(( $(jq '[.[] | select(.body | test("verdict: CHANGES_REQUESTED"))] | length' "$RUNNER_TEMP/history.json") + 1 ))
+          # Раунд = число прошлых итогов ревьюера с CHANGES_REQUESTED + 1 (итоги «CI красный» не считаются).
+          n=$(( $(jq '[.[] | select((.body | test("verdict: CHANGES_REQUESTED")) and (.body | test("\nsource: ci") | not))] | length' "$RUNNER_TEMP/history.json") + 1 ))
 
           gh pr comment "$PR" -R "$GITHUB_REPOSITORY" \
             --body "$(printf '[ci] оспаривание: ревью запрошено повторно\nround: %s\nhead: %s' "$n" "$head")"

@@ -52,10 +52,10 @@
 |---|---|---|
 | `change` | пахан | PR изменения, попадает на доску |
 | `go:<id>` | **только человек** (проверяют `guard.yml` и сам исполнитель) | согласовано + назначено, запускает исполнителя |
-| `round-1…3` | CI | номер раунда |
+| `round-1…4` | CI | номер раунда ревью (красный CI раундом не считается) |
 | `protected` | CI | PR трогает защищённые пути (`tests/invariants/`, `e2e/`, `deploy/`, `api/openapi.yaml` и др.): внимание ревьюеру. Слияние не останавливает |
 | `manual-merge` | CI | PR трогает правила процесса (`.github/`, `.agents/`, `AGENTS.md`, `CLAUDE.md`, `team.md`): после APPROVED исполнитель не сливает, сливает человек |
-| `needs-human` | агенты, CI | нужен человек |
+| `needs-human` | агенты, CI | нужен человек (в том числе 5 красных CI подряд без ревью) |
 | `risk:low` | пахан, критик | быстрая полоса ревью |
 | `critic` | критик | отчёт критика |
 
@@ -81,7 +81,7 @@ ci.yml: checks
       routine reviewer (API-триггер)
          │ ревью, замечания к строкам, итог [review] round 1 … / head: …
          ▼
-      review-post.yml: формат, автор, head → round-1, protected, manual-merge → [ci] итог ревью принят (бот) ─► в подписку S
+      review-post.yml: формат, автор, head → round-N (needs-human только за замечания сверх MAX_ROUNDS), protected, manual-merge → [ci] итог ревью принят (бот) ─► в подписку S
    ▼
 та же сессия S (подписка на PR)
    ├─ CHANGES_REQUESTED → правки → push → [fix] round 1 … → снова ci.yml
