@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -22,6 +24,23 @@ func newMux() *http.ServeMux {
 	return mux
 }
 
+// withRequestID гарантирует заголовок X-Request-Id в каждом ответе: корректный
+// UUID из запроса возвращается нормализованным, иначе генерируется новый.
+func withRequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := uuid.NewString()
+		if parsed, err := uuid.Parse(r.Header.Get("X-Request-Id")); err == nil {
+			id = parsed.String()
+		}
+		w.Header().Set("X-Request-Id", id)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func newHandler() http.Handler {
+	return withRequestID(newMux())
+}
+
 func main() {
 	addr := os.Getenv("ADDR")
 	if addr == "" {
@@ -30,7 +49,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           newMux(),
+		Handler:           newHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
