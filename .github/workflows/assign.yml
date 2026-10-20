@@ -1,0 +1,54 @@
+# .github/workflows/assign.yml
+#
+# Автоназначение: изменения утверждённого этапа (docs/plan.md, статус «утверждён» или «в работе») запускают
+# исполнителя без метки go:* от человека. Человек утверждает этап слиянием PR с планом, а не каждое изменение.
+# Изменения вне утверждённых этапов по-прежнему ждут метку go:<id> от человека (guard.yml).
+#
+# Работает на pull_request_target и push в main: код берётся из main, код PR не выкачивается и не запускается.
+# Сам алгоритм и условия — .github/scripts/assign.sh.
+#
+# Когда срабатывает:
+#   - открыт или переоткрыт черновик, ему поставили метку change, он стал готовым к ревью;
+#   - закрыт любой PR (освободилось место у исполнителя);
+#   - docs/plan.md или team.md изменены в main (этап утверждён, исполнитель стал доступен);
+#   - вручную (workflow_dispatch).
+
+name: Assign
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, labeled, closed]
+  push:
+    branches: [main]
+    paths: [docs/plan.md, team.md]
+  workflow_dispatch:
+
+concurrency:
+  group: assign
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  assign:
+    # На метки реагируем только на change: остальные (go:*, round-N) шум.
+    if: github.event_name != 'pull_request_target' || github.event.action != 'labeled' || github.event.label.name == 'change'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SECRETS_JSON: ${{ toJSON(secrets) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            docs/plan.md
+            team.md
+            .github/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Раздать утверждённые изменения
+        run: bash .github/scripts/assign.sh
