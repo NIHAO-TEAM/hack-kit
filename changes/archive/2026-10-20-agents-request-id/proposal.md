@@ -1,4 +1,4 @@
-Статус: в работе
+Статус: на ревью
 
 # Правило backend/AGENTS.md: X-Request-Id вместо X-Correlation-Id
 
