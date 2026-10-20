@@ -6,7 +6,7 @@
 #   - оспорен итог «CI красный» (строка «source: ci») — нестабильный тест: перезапускаем CI
 #     на этом коммите, дальше всё как обычно (ci.yml);
 #   - оспорен итог ревьюера — тесты на этом head уже зелёные: снова запрашиваем ревью
-#     комментарием «[ci] … оспаривание» и меткой review-me (routine reviewer).
+#     комментарием «[ci] … оспаривание» и API-триггером routine reviewer.
 
 name: AI Review
 
@@ -68,11 +68,6 @@ jobs:
           # Раунд = число прошлых итогов с CHANGES_REQUESTED + 1.
           n=$(( $(jq '[.[] | select(.body | test("verdict: CHANGES_REQUESTED"))] | length' "$RUNNER_TEMP/history.json") + 1 ))
 
-          # Будильники снимаются до любых других меток, review-me ставится последним.
-          for l in $(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json labels \
-              --jq '.labels[].name | select(startswith("wake:") or . == "review-me")'); do
-            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "$l" || true
-          done
           gh pr comment "$PR" -R "$GITHUB_REPOSITORY" \
             --body "$(printf '[ci] оспаривание: ревью запрошено повторно\nround: %s\nhead: %s' "$n" "$head")"
           { echo "n=$n"; echo "head=$head"; echo "fire=true"; } >> "$GITHUB_OUTPUT"

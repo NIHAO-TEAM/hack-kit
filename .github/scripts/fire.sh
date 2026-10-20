@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Запуск routine через её API-триггер (https://code.claude.com/docs/en/routines, «Add an API trigger»).
 # Использование: FIRE_URL=… FIRE_TOKEN=… .github/scripts/fire.sh "<текст запуска>"
-# URL и токен — из секретов репозитория. В лог ничего из них не печатается: репозиторий публичный.
+# URL и токен — из секретов репозитория. В лог ничего из них не печатается: логи Actions видны всем, у кого есть доступ к репозиторию.
 # Текст запуска routine получает как данные (блок routine-fire-payload), а не как инструкции.
 set -euo pipefail
 

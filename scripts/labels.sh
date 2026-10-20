@@ -5,15 +5,14 @@ set -eu
 
 mk() { gh label create "$1" --color "$2" --description "$3" --force >/dev/null && echo "метка: $1"; }
 
-mk change      1D76DB "Изменение из changes/"
-mk critic      5319E7 "Отчёт критика"
-mk risk:low    C2E0C6 "Быстрая полоса ревью: тексты, документация"
-mk protected   B60205 "Трогает защищённые пути: внимание ревьюеру"
-mk needs-human B60205 "Нужен человек"
-mk review-me   5319E7 "Будильник ревьюера (ставит CI)"
+mk change       1D76DB "Изменение из changes/"
+mk critic       5319E7 "Отчёт критика"
+mk risk:low     C2E0C6 "Быстрая полоса ревью: тексты, документация"
+mk protected    B60205 "Трогает защищённые пути: внимание ревьюеру"
+mk manual-merge B60205 "Трогает правила процесса: сливает человек"
+mk needs-human  B60205 "Нужен человек"
 for n in 1 2 3; do mk "round-$n" FBCA04 "Раунд ревью $n"; done
 
 for id in "$@"; do
-  mk "go:$id"   0E8A16 "Согласовано человеком, исполнитель $id"
-  mk "wake:$id" C5DEF5 "Будильник исполнителя $id (ставит CI)"
+  mk "go:$id" 0E8A16 "Согласовано человеком, исполнитель $id"
 done

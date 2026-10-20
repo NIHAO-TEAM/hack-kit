@@ -3,14 +3,12 @@
 # Проверки PR в main и запрос ревью. Модель здесь не запускается: ревьюер — routine
 # на claude.ai-аккаунте человека (.github/agents/reviewer.md), секрет токена не нужен.
 #
-#   prep ── checks ──┬─ зелёный → [ci] «ревью запрошено» + метка review-me → routine reviewer
+#   prep ── checks ──┬─ зелёный → [ci] «ревью запрошено» + API-триггер routine reviewer
 #                    └─ красный → итог «[review] … source: ci» от бота → сессия исполнителя (подписка на PR)
 #
-# Итог ревьюера ([review] …) разбирает review-post.yml: раунд, protected, сигнал исполнителю от бота.
+# Итог ревьюера ([review] …) разбирает review-post.yml: раунд, protected, manual-merge, сигнал исполнителю от бота.
 # Оспаривание исполнителем — ai-review.yml.
 #
-# Будильник ревьюера — метка review-me (routine с фильтром на неё). Фильтр срабатывает на любую
-# новую метку, пока нужная висит на PR, поэтому будильники снимаются первыми, review-me — последним.
 # Исполнитель — одна сессия на PR, подписана на события PR; его будят комментарии бота.
 #
 # Тесты с БД без PostgreSQL пропускаются (t.Skip). Здесь база есть всегда, и любой пропуск
@@ -175,15 +173,6 @@ jobs:
           now=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
           if [ "$now" != "$HEAD_SHA" ]; then echo "head сменился ($HEAD_SHA → $now) — пропуск"; exit 0; fi
           echo "ok=true" >> "$GITHUB_OUTPUT"
-
-      # Будильники снимаются до любых других меток.
-      - name: Снять будильники
-        if: steps.fresh.outputs.ok == 'true'
-        run: |
-          for l in $(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json labels \
-              --jq '.labels[].name | select(startswith("wake:") or . == "review-me")'); do
-            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "$l" || true
-          done
 
       - uses: actions/checkout@v4
         if: steps.fresh.outputs.ok == 'true' && needs.checks.result == 'success'
