@@ -8,4 +8,5 @@
 ^[^/]+/AGENTS\.md$
 ^CLAUDE\.md$
 ^team\.md$
+^docs/plan\.md$
 ^api/openapi\.yaml$
