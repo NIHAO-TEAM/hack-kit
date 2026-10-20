@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -29,12 +29,7 @@ func version(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-// pingCount — сколько раз вызвали /ping с момента старта.
-var pingCount int
-
 func ping(w http.ResponseWriter, _ *http.Request) {
-	pingCount++
-	w.Header().Set("X-Ping-Count", strconv.Itoa(pingCount))
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := json.NewEncoder(w).Encode(map[string]string{"ping": "pong"}); err != nil {
@@ -74,8 +69,9 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: newHandler(),
+		Addr:              addr,
+		Handler:           newHandler(),
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	log.Printf("api: слушаю %s", addr)
