@@ -12,7 +12,6 @@ components:
       description: UUID запроса. Корректный возвращается нормализованным, иначе сервер генерирует новый.
       schema:
         type: string
-        format: uuid
   headers:
     RequestId:
       description: UUID запроса (из запроса или новый).
