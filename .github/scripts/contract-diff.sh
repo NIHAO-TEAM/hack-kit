@@ -20,7 +20,16 @@ W=$RUNNER_TEMP/contract
 mkdir -p "$W"
 
 base=$(gh api "repos/$REPO/compare/main...$HEAD_SHA" --jq .merge_base_commit.sha)
-get() { gh api "repos/$REPO/contents/$SPEC?ref=$1" -H "Accept: application/vnd.github.raw" > "$2" 2>/dev/null; }
+# «Файла нет» — только ответ 404. Любая другая ошибка (5xx, лимит, обрыв) — падение скрипта: иначе сбой API
+# выглядел бы как «контракт создан» или «не менялся», и ослабление прошло бы без проверки. Падение ловит ci.yml
+# и ставит contract-breaking. exit в функции завершает весь скрипт, вызывающий код не меняется.
+get() {
+  local err
+  if err=$(gh api "repos/$REPO/contents/$SPEC?ref=$1" -H "Accept: application/vnd.github.raw" 2>&1 >"$2"); then return 0; fi
+  grep -q 'HTTP 404' <<<"$err" && return 1
+  echo "чтение $SPEC@$1: $err" >&2
+  exit 1
+}
 has_base=0; has_head=0
 get "$base" "$W/base.yaml" && has_base=1
 get "$HEAD_SHA" "$W/head.yaml" && has_head=1
