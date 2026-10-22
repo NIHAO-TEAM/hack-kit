@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func healthz(w http.ResponseWriter, _ *http.Request) {
+func healthz(w http.ResponseWriter,   _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
 		log.Printf("healthz: %v", err)
