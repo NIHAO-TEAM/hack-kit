@@ -110,7 +110,7 @@ ci.yml: checks
 
 ## Настройка в день 0 (люди)
 
-1. **GitHub.** Установить [Claude GitHub App](https://github.com/apps/claude) на репозиторий (нужно, чтобы routines могли комментировать PR, подписываться на его события и сливать; ставить **до** создания routines). Settings → Actions → Workflow permissions: Read and write. Защита `main` — если тариф позволяет (GitHub Pro на аккаунте владельца или публичный репозиторий; бесплатная организация для приватного репозитория её не даёт): Settings → Branches → правило для `main`: Require a pull request before merging (одобрений 0), Require status checks: `checks` и `merge-gate`; «Do not allow bypassing» **не** включать, иначе человек не сольёт `manual-merge`. Предел: все агенты работают от аккаунта владельца (админа), GitHub не отличает их от человека. Защита останавливает обычный `gh pr merge` (он требует `--admin`, а он исполнителю запрещён), но не слияние через API от админа, например инструментом GitHub MCP. Полная гарантия — только отдельный аккаунт без прав админа для агентов. Без защиты `merge-gate` остаётся видимым сигналом, исполнитель проверяет его перед слиянием.
+1. **GitHub.** Установить [Claude GitHub App](https://github.com/apps/claude) на репозиторий (нужно, чтобы routines могли комментировать PR, подписываться на его события и сливать; ставить **до** создания routines). Settings → Actions → Workflow permissions: Read and write. Защита `main` и открытие репозитория — раздел «Публичный репозиторий на время хака» ниже.
 2. **Метки:** `scripts/labels.sh exec-1 exec-2 …`.
 3. **`team.md`:** люди, исполнители, аккаунт ревьюера (раздел «Ревьюер»: от него `review-post.yml` принимает итоги).
 4. **Routines** — каждый на своём аккаунте, на [claude.ai/code/routines](https://claude.ai/code/routines). Будятся **API-триггером**: workflow вызывает `/fire` (`.github/scripts/fire.sh`). У каждой routine — «Добавить триггер → API», URL и токен кладутся в секреты репозитория `FIRE_<ID>_URL` и `FIRE_<ID>_TOKEN` (id в верхнем регистре, `-` → `_`: `exec-1` → `FIRE_EXEC_1_*`, ревьюер → `FIRE_REVIEWER_*`). Токен умеет только запускать свою routine. Коннектор **Context7** (`https://mcp.context7.com/mcp`) каждый человек добавляет у себя на claude.ai/customize/connectors и включает в своих routines:
@@ -150,6 +150,31 @@ ci.yml: checks
 - Не создавайте триггеры через API (`create_webhook_trigger`): неизвестный фильтр сервер молча отбрасывает и создаёт триггер **без фильтра**.
 
 5. **Проверка до старта:** тестовый PR с меткой `go:exec-1` → `[start]` → снять черновик → `[ci] ревью запрошено` → `[review]` → `[ci] итог ревью принят` → `[fix]` или `[merge]` **из той же сессии** (у routine `exec-1` один запуск на PR). Пока эта цепочка не прошла целиком, работу не раздаём.
+
+
+## Публичный репозиторий на время хака
+
+Решение владельца 22.10: на время хака репозиторий открыт. Это даёт бесплатную защиту ветки, но комментировать PR и открывать PR из форков сможет кто угодно.
+
+**Перед открытием (один раз):**
+
+1. История без секретов: `git log --all -p` по шаблонам токенов (`sk-ant-`, `ghp_`, `github_pat_`, `AKIA`, приватные ключи, URL триггеров routines). 22.10 — чисто. Логи Actions тоже станут публичными: значения секретов в них замаскированы, видны только имена.
+2. Settings → Moderation options → **Interaction limits** → «Limit to repository collaborators», срок на весь хак (1 неделя или 1 месяц). Посторонние не смогут комментировать, открывать PR и issues — это главная защита от спама и prompt injection в комментариях.
+3. Settings → Actions → General → Fork pull request workflows from outside collaborators: **Require approval for all outside collaborators**.
+4. Settings → Collaborators: участники команды с ролью **Write** (не Admin и не Maintain). Тогда их агенты не обойдут защиту ветки даже через API.
+5. Settings → Branches → правило для `main`: Require a pull request before merging (одобрений 0), Require status checks: `checks` и `merge-gate`. «Do not allow bypassing» не включать: владелец (Admin) сливает `manual-merge` галкой обхода. Если `manual-merge` должен сливать кто-то ещё, добавьте его в список обхода (Allow specified actors to bypass) — иначе такие PR сливает только владелец.
+
+**Что держит что:**
+
+| Угроза | Защита |
+|---|---|
+| Посторонний комментарий `[review]` / `[fix] … оспорены` | `review-post.yml`, `ai-review.yml` принимают только OWNER/MEMBER/COLLABORATOR (`author_association`); плюс interaction limits |
+| Prompt injection в комментариях | исполнитель и ревьюер читают только `github-actions[bot]`, людей из `team.md` и ревьюера; плюс interaction limits |
+| Метка `go:*` от постороннего | метки ставят только коллабораторы; `guard.yml` сверяет автора с `team.md` |
+| PR из форка с секретами | `guard.yml`/`assign.yml` (`pull_request_target`) не запускают код из PR; кандидату нужна метка `change`, её посторонний не поставит; `ci.yml` на форке без секретов и ждёт одобрения |
+| Агент сливает мимо `manual-merge` | агенты на аккаунтах с ролью Write — защита ветки (`merge-gate`) не пустит; агенты на аккаунте владельца (Admin) — только инструкция и `merge-gate` как сигнал |
+
+После хака: репозиторий снова приватный — interaction limits можно снять, правило ветки на бесплатном тарифе перестанет действовать.
 
 ## Тексты запуска
 
