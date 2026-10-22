@@ -9,7 +9,8 @@ mk change       1D76DB "Изменение из changes/"
 mk critic       5319E7 "Отчёт критика"
 mk risk:low     C2E0C6 "Быстрая полоса ревью: тексты, документация"
 mk protected    B60205 "Трогает защищённые пути: внимание ревьюеру"
-mk manual-merge B60205 "Трогает правила процесса: сливает человек"
+mk manual-merge B60205 "Правила процесса, сторожа или ломающий контракт: сливает человек"
+mk contract-breaking B60205 "Ломающая или ослабляющая правка api/openapi.yaml (oasdiff)"
 mk needs-human  B60205 "Нужен человек"
 for n in 1 2 3 4; do mk "round-$n" FBCA04 "Раунд ревью $n"; done
 

@@ -69,7 +69,8 @@
 | `go:<id>` | **человек** (проверяют `guard.yml` и сам исполнитель) или `assign.yml` для изменений утверждённого этапа | согласовано + назначено, запускает исполнителя |
 | `round-1…4` | CI | номер раунда ревью (красный CI раундом не считается) |
 | `protected` | CI | PR трогает защищённые пути (`tests/invariants/`, `e2e/`, `deploy/`, `api/openapi.yaml` и др.): внимание ревьюеру. Слияние не останавливает |
-| `manual-merge` | CI | PR трогает правила процесса (`.github/`, `.agents/`, `AGENTS.md`, `CLAUDE.md`, `team.md`, `docs/plan.md`): после APPROVED исполнитель не сливает, сливает человек |
+| `manual-merge` | CI | PR трогает правила процесса (`.github/`, `.agents/`, `AGENTS.md`, `CLAUDE.md`, `team.md`, `docs/plan.md`), сторожей (`tests/invariants/`, `e2e/`) или стоит `contract-breaking`: после APPROVED исполнитель не сливает, сливает человек |
+| `contract-breaking` | CI (`contract-diff.sh`, oasdiff) | правка `api/openapi.yaml` ломает клиентов или ослабляет проверку запроса; даёт `manual-merge` |
 | `needs-human` | агенты, CI | нужен человек (в том числе 5 красных CI подряд без ревью) |
 | `risk:low` | пахан, критик | быстрая полоса ревью |
 | `critic` | критик | отчёт критика |
@@ -96,7 +97,7 @@ ci.yml: checks
       routine reviewer (API-триггер)
          │ ревью, замечания к строкам, итог [review] round 1 … / head: …
          ▼
-      review-post.yml: формат, автор, head → round-N (needs-human только за замечания сверх MAX_ROUNDS), protected, manual-merge → [ci] итог ревью принят (бот) ─► в подписку S
+      review-post.yml: формат, автор, head → round-N (needs-human только за замечания сверх MAX_ROUNDS), protected, manual-merge, статус merge-gate → [ci] итог ревью принят (бот) ─► в подписку S
    ▼
 та же сессия S (подписка на PR)
    ├─ CHANGES_REQUESTED → правки → push → [fix] round 1 … → снова ci.yml
@@ -109,7 +110,7 @@ ci.yml: checks
 
 ## Настройка в день 0 (люди)
 
-1. **GitHub.** Установить [Claude GitHub App](https://github.com/apps/claude) на репозиторий (нужно, чтобы routines могли комментировать PR, подписываться на его события и сливать; ставить **до** создания routines). Settings → Actions → Workflow permissions: Read and write. Защита `main` (обязательная проверка `checks`) — если тариф позволяет: в бесплатном приватном репозитории она недоступна, тогда правило «не сливать красное» держит только инструкция исполнителя.
+1. **GitHub.** Установить [Claude GitHub App](https://github.com/apps/claude) на репозиторий (нужно, чтобы routines могли комментировать PR, подписываться на его события и сливать; ставить **до** создания routines). Settings → Actions → Workflow permissions: Read and write. Защита `main` — если тариф позволяет (GitHub Pro на аккаунте владельца или публичный репозиторий; бесплатная организация для приватного репозитория её не даёт): Settings → Branches → правило для `main`: Require a pull request before merging (одобрений 0), Require status checks: `checks` и `merge-gate`; «Do not allow bypassing» **не** включать, иначе человек не сольёт `manual-merge`. Предел: все агенты работают от аккаунта владельца (админа), GitHub не отличает их от человека. Защита останавливает обычный `gh pr merge` (он требует `--admin`, а он исполнителю запрещён), но не слияние через API от админа, например инструментом GitHub MCP. Полная гарантия — только отдельный аккаунт без прав админа для агентов. Без защиты `merge-gate` остаётся видимым сигналом, исполнитель проверяет его перед слиянием.
 2. **Метки:** `scripts/labels.sh exec-1 exec-2 …`.
 3. **`team.md`:** люди, исполнители, аккаунт ревьюера (раздел «Ревьюер»: от него `review-post.yml` принимает итоги).
 4. **Routines** — каждый на своём аккаунте, на [claude.ai/code/routines](https://claude.ai/code/routines). Будятся **API-триггером**: workflow вызывает `/fire` (`.github/scripts/fire.sh`). У каждой routine — «Добавить триггер → API», URL и токен кладутся в секреты репозитория `FIRE_<ID>_URL` и `FIRE_<ID>_TOKEN` (id в верхнем регистре, `-` → `_`: `exec-1` → `FIRE_EXEC_1_*`, ревьюер → `FIRE_REVIEWER_*`). Токен умеет только запускать свою routine. Коннектор **Context7** (`https://mcp.context7.com/mcp`) каждый человек добавляет у себя на claude.ai/customize/connectors и включает в своих routines:

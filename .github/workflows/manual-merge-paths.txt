@@ -6,3 +6,5 @@
 ^CLAUDE\.md$
 ^team\.md$
 ^docs/plan\.md$
+^tests/invariants/
+^e2e/
