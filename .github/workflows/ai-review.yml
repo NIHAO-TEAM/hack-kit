@@ -16,10 +16,13 @@ on:
 
 jobs:
   dispute:
+    # Оспаривание пишет исполнитель от аккаунта своего человека — коллаборатора. Посторонний в публичном
+    # репозитории не должен перезапускать CI и ревьюера своим комментарием.
     if: >-
       github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '[fix]') &&
-      contains(github.event.comment.body, 'замечания оспорены')
+      contains(github.event.comment.body, 'замечания оспорены') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     concurrency:
       group: ai-review-dispute-${{ github.event.issue.number }}
       cancel-in-progress: true

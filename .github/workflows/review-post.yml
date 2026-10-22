@@ -16,7 +16,12 @@ on:
 
 jobs:
   post:
-    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '[review]')
+    # Только владелец и коллабораторы: в публичном репозитории комментировать может любой, а отказ ниже
+    # ставит needs-human — посторонний «[review]» иначе останавливал бы чужой PR.
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '[review]') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     concurrency:
       group: review-post-${{ github.event.issue.number }}
       cancel-in-progress: false
