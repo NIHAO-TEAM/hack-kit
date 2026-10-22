@@ -1,0 +1,85 @@
+openapi: 3.0.3
+info:
+  title: hack-kit — заглушка API
+  version: "0.1.0"
+  description: Контракт заглушки backend/cmd/api. Служит базой для проверки contract-diff.sh в CI.
+components:
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: UUID запроса. Корректный возвращается нормализованным, иначе сервер генерирует новый.
+      schema:
+        type: string
+        format: uuid
+  headers:
+    RequestId:
+      description: UUID запроса (из запроса или новый).
+      schema:
+        type: string
+        format: uuid
+paths:
+  /healthz:
+    get:
+      summary: Проверка живости
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Сервер работает
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+  /version:
+    get:
+      summary: Версия сборки
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Версия из APP_VERSION, по умолчанию dev
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version]
+                properties:
+                  version:
+                    type: string
+  /ping:
+    get:
+      summary: Проверка связи без кэша
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Ответ pong, заголовок Cache-Control no-store
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ping]
+                properties:
+                  ping:
+                    type: string
+                    enum: [pong]
