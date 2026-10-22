@@ -92,6 +92,13 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://ci:ci@localhost:5432/ci?sslmode=disable
       INVARIANTS_DATABASE_URL: postgres://ci:ci@localhost:5432/ci?sslmode=disable
+    # Явный bash = -eo pipefail: без него «… | tee» скрыл бы код падения проверки.
+    defaults:
+      run:
+        shell: bash
+    # Вывод каждой проверки дублируется в $RUNNER_TEMP/ci.log с заголовком шага: при падении из него
+    # собирается хвост для итога «CI красный» (артефакт ci-tail-<попытка>, его читает route). API логов
+    # для этого не годится: внутри того же запуска он отдавал пустоту (находка 18).
     steps:
       - uses: actions/checkout@v4
 
@@ -102,45 +109,53 @@ jobs:
       - name: Сгенерированный код совпадает с контрактом
         working-directory: backend
         run: |
-          make generate
-          git diff --exit-code || { echo "make generate дал дифф: сгенерированный код не совпадает с api/openapi.yaml"; exit 1; }
+          {
+            echo "### Сгенерированный код совпадает с контрактом"
+            make generate
+            git diff --exit-code || { echo "make generate дал дифф: сгенерированный код не совпадает с api/openapi.yaml"; exit 1; }
+          } 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
 
       - name: gofmt
         working-directory: backend
         run: |
-          out=$(gofmt -l $(git ls-files '*.go'))
-          if [ -n "$out" ]; then echo "Не отформатировано gofmt:"; echo "$out"; exit 1; fi
+          {
+            echo "### gofmt"
+            out=$(gofmt -l $(git ls-files '*.go'))
+            if [ -n "$out" ]; then echo "Не отформатировано gofmt:"; echo "$out"; exit 1; fi
+          } 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
 
       - name: go vet и golangci-lint (границы модулей)
         working-directory: backend
         # Линтер ставится отдельно с повторами: сбой proxy.golang.org не должен краснить PR
         # (так было 20.10.2026 и стоило исполнителю раунда оспаривания).
         run: |
-          go vet ./...
-          for i in 1 2 3; do
-            go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6 && break
-            [ "$i" = 3 ] && { echo "golangci-lint не скачался за 3 попытки"; exit 1; }
-            sleep $((i * 10))
-          done
-          "$(go env GOPATH)/bin/golangci-lint" run ./...
+          {
+            echo "### go vet и golangci-lint"
+            go vet ./...
+            for i in 1 2 3; do
+              go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6 && break
+              [ "$i" = 3 ] && { echo "golangci-lint не скачался за 3 попытки"; exit 1; }
+              sleep $((i * 10))
+            done
+            "$(go env GOPATH)/bin/golangci-lint" run ./...
+          } 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
 
       - name: go test -race (с PostgreSQL)
         working-directory: backend
         # -p 1: пакеты с БД работают с одной базой и не должны идти параллельно.
         run: |
-          set +e
-          go test -race -p 1 -count=1 -v ./... > "$RUNNER_TEMP/go-test.log" 2>&1
-          status=$?
-          set -e
-          grep -E '^(--- FAIL|FAIL|ok|panic:)' "$RUNNER_TEMP/go-test.log" || true
-          if grep -q -- '--- SKIP' "$RUNNER_TEMP/go-test.log"; then
-            echo "Тесты пропущены, хотя PostgreSQL есть:"; grep -- '--- SKIP' "$RUNNER_TEMP/go-test.log"; exit 1
-          fi
-          exit "$status"
-
-      - name: Хвост лога тестов
-        if: failure()
-        run: grep -E -B2 -A20 -- '--- FAIL|^panic:' "$RUNNER_TEMP/go-test.log" | head -300 || true
+          {
+            echo "### go test -race"
+            set +e
+            go test -race -p 1 -count=1 -v ./... > "$RUNNER_TEMP/go-test.log" 2>&1
+            status=$?
+            set -e
+            grep -E '^(--- FAIL|FAIL|ok|panic:)' "$RUNNER_TEMP/go-test.log" || true
+            if grep -q -- '--- SKIP' "$RUNNER_TEMP/go-test.log"; then
+              echo "Тесты пропущены, хотя PostgreSQL есть:"; grep -- '--- SKIP' "$RUNNER_TEMP/go-test.log"; exit 1
+            fi
+            exit "$status"
+          } 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -155,8 +170,35 @@ jobs:
       - name: Фронтенд — pnpm check (типы, линтеры, слои, контраст, тесты, сборка, CSS)
         working-directory: frontend
         run: |
-          pnpm install --frozen-lockfile
-          pnpm check
+          {
+            echo "### pnpm check"
+            pnpm install --frozen-lockfile
+            pnpm check
+          } 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
+
+      - name: Хвост лога для исполнителя
+        if: failure()
+        run: |
+          {
+            if [ -s "$RUNNER_TEMP/go-test.log" ] && grep -qE -- '--- FAIL|^panic:' "$RUNNER_TEMP/go-test.log"; then
+              echo "### упавшие тесты Go"
+              grep -E -B2 -A20 -- '--- FAIL|^panic:' "$RUNNER_TEMP/go-test.log" | head -n 150 || true
+            fi
+            if [ -s "$RUNNER_TEMP/ci.log" ]; then
+              echo "### последние строки проверок (последний заголовок ### — шаг, на котором остановились)"
+              tail -n 80 "$RUNNER_TEMP/ci.log"
+            else
+              echo "Проверки не начинались: упала подготовка (checkout, setup-go, установка). См. лог запуска."
+            fi
+          } > "$RUNNER_TEMP/ci-tail.txt"
+          cat "$RUNNER_TEMP/ci-tail.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ci-tail-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-tail.txt
+          retention-days: 3
 
   # Зелёные тесты → запрос ревью. Красные → итог «CI красный» и будильник исполнителя.
   route:
@@ -194,6 +236,13 @@ jobs:
           FIRE_URL: ${{ secrets.FIRE_REVIEWER_URL }}
           FIRE_TOKEN: ${{ secrets.FIRE_REVIEWER_TOKEN }}
         run: |
+          # Правка контракта: список изменений от oasdiff и метка contract-breaking → manual-merge. До запроса ревью,
+          # чтобы ревьюер видел список. Скрипт упал — считаем ломающим: лучше лишний раз позвать человека.
+          if ! bash .github/scripts/contract-diff.sh; then
+            gh label create contract-breaking --color B60205 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
+            gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label contract-breaking || true
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "[ci] контракт: проверка api/openapi.yaml не выполнена (лог запуска), метка contract-breaking: PR сливает человек." || true
+          fi
           gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "$(printf '[ci] checks зелёные, ревью запрошено\nround: %s\nhead: %s' "$N" "$HEAD_SHA")"
           if ! bash .github/scripts/fire.sh "PR #$PR в $GITHUB_REPOSITORY: ревью, round $N, head $HEAD_SHA"; then
             gh label create needs-human --color B60205 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
@@ -201,6 +250,13 @@ jobs:
             gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "[ci] не удалось запустить ревьюера через API-триггер (секреты FIRE_REVIEWER_URL/_TOKEN). Нужен человек."
             exit 1
           fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.fresh.outputs.ok == 'true' && needs.checks.result != 'success'
+        continue-on-error: true
+        with:
+          name: ci-tail-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-tail
 
       - name: Итог «CI красный»
         if: steps.fresh.outputs.ok == 'true' && needs.checks.result != 'success'
@@ -222,9 +278,15 @@ jobs:
             echo "Хвост лога:"
             echo
             echo '```'
-            { gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/logs" 2>/dev/null \
-                | sed 's/^[0-9TZ:.-]* //' | grep -E -A15 -- '--- FAIL|^FAIL|panic:|##\[error\]|Не отформатировано|Тесты пропущены|error TS|Error:|не скачался|dial tcp|stream error|INTERNAL_ERROR' \
-                | tail -n 120; } || echo "(лог недоступен, см. ссылку)"
+            # Хвост собран в задании checks (артефакт). Нет артефакта — запасной путь через API логов.
+            tail_file="$RUNNER_TEMP/ci-tail/ci-tail.txt"
+            if [ -s "$tail_file" ]; then
+              head -n 250 "$tail_file" | sed 's/```/ʼʼʼ/g'
+            else
+              { gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/logs" 2>/dev/null \
+                  | sed 's/^[0-9TZ:.-]* //' | grep -E -A15 -- '--- FAIL|^FAIL|panic:|##\[error\]|Не отформатировано|Тесты пропущены|error TS|Error:|не скачался|dial tcp|stream error|INTERNAL_ERROR' \
+                  | tail -n 120; } || echo "(лог недоступен, см. ссылку)"
+            fi
             echo '```'
           } > body.md
           gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body-file body.md

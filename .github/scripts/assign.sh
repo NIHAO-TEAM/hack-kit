@@ -9,6 +9,10 @@
 # порядку создания, пока у подходящего исполнителя есть место. Остальные ждут: скрипт вызывается снова,
 # когда PR закрыт, план или team.md изменены, открыт новый черновик.
 #
+# Изменение с «!» перед именем в строке этапа (`!orders-contract`) блокирующее: контракт, миграции, общие
+# сценарии. Пока оно не слито (нет папки в changes/archive/ на main), остальные изменения этапа не
+# назначаются: параллельные PR иначе правят один openapi.yaml и ловят конфликты друг за другом.
+#
 # Метку go:<id> ставит бот. События от GITHUB_TOKEN другие workflow не запускают, поэтому guard.yml
 # здесь не срабатывает, исполнителя будит сам скрипт (fire.sh). Исполнитель при этом сам перепроверяет
 # план в main (executor.md, шаг 0).
@@ -40,6 +44,26 @@ stage_of() {
       return 0
     fi
   done < <(grep '^|' "$PLAN" || true)
+  return 1
+}
+
+# Слитые изменения: папки changes/archive/ на main (архив делается в том же PR, что и код).
+ARCHIVE=$(gh api "repos/$REPO/contents/changes/archive" --jq '.[].name' 2>/dev/null || true)
+archived() {
+  local short
+  short=$(sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}-//' <<<"$1")
+  grep -Eqx "([0-9]{4}-[0-9]{2}-[0-9]{2}-)?${short}" <<<"$ARCHIVE"
+}
+
+# Первое неслитое блокирующее изменение («!имя») этапа $1, кроме самого кандидата ($2 полное имя, $3 без даты).
+blocked_by() {
+  local line b
+  line=$(grep -E "^\| *$1 *\|" "$PLAN" | head -n1)
+  for b in $(grep -oE '!`?[0-9a-z-]+' <<<"$line" | tr -d '!`'); do
+    if [ "$b" = "$2" ] || [ "$b" = "$3" ] || archived "$b"; then continue; fi
+    printf '%s' "$b"
+    return 0
+  done
   return 1
 }
 
@@ -85,6 +109,9 @@ for c in "${CANDS[@]}"; do
   name=${branch#change/}
   short=$(sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}-//' <<<"$name")
   stage=$(stage_of "$name" "$short") || { echo "#$pr $name: нет в утверждённом этапе — жду метку go: от человека"; continue; }
+  if blocker=$(blocked_by "$stage" "$name" "$short"); then
+    echo "#$pr $name (этап $stage): ждёт слияния блокирующего $blocker — в очереди"; continue
+  fi
 
   need=$(parts_of "$branch")
   picked=""
