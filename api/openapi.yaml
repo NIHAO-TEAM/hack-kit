@@ -83,3 +83,17 @@ paths:
                   ping:
                     type: string
                     enum: [pong]
+    head:
+      summary: Проверка связи без кэша, без тела ответа
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Заголовки как у GET, тела нет
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
