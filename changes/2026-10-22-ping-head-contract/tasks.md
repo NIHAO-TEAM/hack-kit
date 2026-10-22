@@ -6,7 +6,7 @@
 
 ## 2. Тест
 
-- [ ] 2.1 Тест `HEAD /ping`: 200, пустое тело, `Cache-Control: no-store`, `X-Request-Id` — проверка: `go test -race ./...`
+- [x] 2.1 Тест `HEAD /ping`: 200, пустое тело, `Cache-Control: no-store`, `X-Request-Id` — проверка: `go test -race ./...`
 
 ## 3. Готовность
 

@@ -202,3 +202,31 @@ func TestHealthzHead(t *testing.T) {
 		t.Errorf("тело не пустое: %q", body)
 	}
 }
+
+func TestPingHead(t *testing.T) {
+	srv := httptest.NewServer(newHandler())
+	defer srv.Close()
+
+	resp, err := http.Head(srv.URL + "/ping")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("статус %d, ждали 200", resp.StatusCode)
+	}
+	if cc := resp.Header.Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("Cache-Control = %q", cc)
+	}
+	if resp.Header.Get("X-Request-Id") == "" {
+		t.Error("нет X-Request-Id")
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(body) != 0 {
+		t.Errorf("тело не пустое: %q", body)
+	}
+}
