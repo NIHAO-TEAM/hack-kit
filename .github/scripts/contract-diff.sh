@@ -76,7 +76,7 @@ breaking=0
         echo "🚨 Ломающие изменения. Метка \`contract-breaking\`: после APPROVED PR сливает человек."
         echo
         echo '```'
-        head -n 80 "$W/breaking.txt"
+        head -n 80 "$W/breaking.txt" | sed "s# at $W/head.yaml##"
         echo '```'
       fi
       if [ -n "$relaxed" ]; then
@@ -88,7 +88,7 @@ breaking=0
       echo "Все изменения (ревьюер сверяет каждую строку с \`proposal.md\`):"
       echo
       echo '```'
-      head -n 150 "$W/changelog.txt"
+      head -n 150 "$W/changelog.txt" | sed "s# at $W/head.yaml##"
       echo '```'
     fi
   fi
