@@ -80,11 +80,15 @@ parts_of() {
   true
 }
 
+# Открытые PR — одним обычным запросом. Фильтры --draft и --label у «gh pr list» идут через поисковый API,
+# а его индекс отстаёт: 22.10 запуск сразу после смены меток получил пустой список и пропустил кандидата.
+OPEN_PRS=$(gh pr list -R "$REPO" --state open --limit 300 --json number,isDraft,headRefName,labels,createdAt)
+
 declare -A LOAD
 load_of() {
   local id=$1
   if [ -z "${LOAD[$id]:-}" ]; then
-    LOAD[$id]=$(gh pr list -R "$REPO" --state open --label "go:$id" --json number --jq length)
+    LOAD[$id]=$(jq --arg l "go:$id" '[.[] | select([.labels[].name] | index($l))] | length' <<<"$OPEN_PRS")
   fi
   printf '%s' "${LOAD[$id]}"
 }
@@ -98,12 +102,11 @@ fire_executor() { # id pr stage
   bash .github/scripts/fire.sh "PR #$pr в $REPO, исполнитель $id, старт (автоназначение по этапу $stage)"
 }
 
-mapfile -t CANDS < <(gh pr list -R "$REPO" --state open --draft --label change \
-  --json number,headRefName,labels,createdAt \
-  --jq 'sort_by(.createdAt) | .[]
+mapfile -t CANDS < <(jq -r 'sort_by(.createdAt) | .[]
+        | select(.isDraft and ([.labels[].name] | index("change")))
         | select(.headRefName | startswith("change/"))
         | select([.labels[].name | select(startswith("go:") or . == "needs-human")] | length == 0)
-        | "\(.number)|\(.headRefName)"')
+        | "\(.number)|\(.headRefName)"' <<<"$OPEN_PRS")
 
 assigned=0
 for c in "${CANDS[@]}"; do
