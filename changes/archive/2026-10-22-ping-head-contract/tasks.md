@@ -11,4 +11,4 @@
 ## 3. Готовность
 
 - [x] 3.1 `make check` в `backend/` зелёный
-- [ ] 3.2 Архив изменения (`change-archive`): сценарии в `specs/ping/spec.md`, папка в `changes/archive/`
+- [x] 3.2 Архив изменения (`change-archive`): сценарии в `specs/ping/spec.md`, папка в `changes/archive/`
