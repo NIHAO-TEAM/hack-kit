@@ -3,6 +3,8 @@
 package analytics
 
 import (
+	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,11 +25,33 @@ type AnalyticsAPI struct {
 	pool *pgxpool.Pool
 	bus  *events.Bus
 	clk  clock.Clock
+	feed Feed
 }
 
 // New создаёт обработчик модуля; пул, шину и часы создаёт cmd/api.
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *AnalyticsAPI {
 	return &AnalyticsAPI{pool: pool, bus: bus, clk: clk}
+}
+
+// WithFeed подключает источник портфеля клиентов; без него клиенты отвечают 503.
+func (a *AnalyticsAPI) WithFeed(f Feed) *AnalyticsAPI {
+	a.feed = f
+	return a
+}
+
+func (a *AnalyticsAPI) portfolio() *Portfolio {
+	if a.feed == nil {
+		return nil
+	}
+	return a.feed.Portfolio()
+}
+
+func writeJSON(w http.ResponseWriter, _ *http.Request, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("analytics: ответ: %v", err)
+	}
 }
 
 // flush сбрасывает буфер ответа клиенту; работает и через обёртки, у которых есть Unwrap.

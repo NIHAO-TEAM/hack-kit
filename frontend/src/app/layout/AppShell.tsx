@@ -17,7 +17,7 @@ import { RealtimeProvider } from '../realtime';
 import { Route } from '../routes/_app';
 
 const sections: {
-  to: '/queue' | '/summary' | '/model' | '/source';
+  to: '/queue' | '/summary' | '/model' | '/source' | '/about';
   label: string;
   right: Right;
 }[] = [
@@ -25,6 +25,7 @@ const sections: {
   { to: '/summary', label: 'Сводка', right: 'summary.view' },
   { to: '/model', label: 'Модель', right: 'model.view' },
   { to: '/source', label: 'Источник', right: 'source.view' },
+  { to: '/about', label: 'О модели', right: 'summary.view' },
 ];
 
 export function AppShell() {
