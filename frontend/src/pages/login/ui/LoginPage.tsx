@@ -1,4 +1,13 @@
-import { Alert, Button, Paper, PasswordInput, Stack, TextInput, Title } from '@mantine/core';
+import {
+  Alert,
+  Button,
+  Container,
+  Paper,
+  PasswordInput,
+  Stack,
+  TextInput,
+  Title,
+} from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useState } from 'react';
 import { loginErrorText } from '@entities/session';
@@ -32,33 +41,35 @@ export function LoginPage({
   }
 
   return (
-    <Paper withBorder p="xl" maw={400} mx="auto" mt="15vh" component="main">
-      <form onSubmit={form.onSubmit(submit)} noValidate>
-        <Stack>
-          <Title order={1} size="h3">
-            Контур удержания
-          </Title>
-          <TextInput
-            label="Логин"
-            autoComplete="username"
-            data-autofocus
-            {...form.getInputProps('login')}
-          />
-          <PasswordInput
-            label="Пароль"
-            autoComplete="current-password"
-            {...form.getInputProps('password')}
-          />
-          {error ? (
-            <Alert color="red" role="alert">
-              {error}
-            </Alert>
-          ) : null}
-          <Button type="submit" loading={pending}>
-            Войти
-          </Button>
-        </Stack>
-      </form>
-    </Paper>
+    <Container size={400} px="md" mt="15vh" component="main">
+      <Paper withBorder p="xl">
+        <form onSubmit={form.onSubmit(submit)} noValidate>
+          <Stack>
+            <Title order={1} size="h3">
+              Контур удержания
+            </Title>
+            <TextInput
+              label="Логин"
+              autoComplete="username"
+              data-autofocus
+              {...form.getInputProps('login')}
+            />
+            <PasswordInput
+              label="Пароль"
+              autoComplete="current-password"
+              {...form.getInputProps('password')}
+            />
+            {error ? (
+              <Alert color="red" role="alert">
+                {error}
+              </Alert>
+            ) : null}
+            <Button type="submit" loading={pending}>
+              Войти
+            </Button>
+          </Stack>
+        </form>
+      </Paper>
+    </Container>
   );
 }

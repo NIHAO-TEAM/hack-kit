@@ -16,6 +16,7 @@ import { Route as AppModelRouteImport } from './routes/_app.model'
 import { Route as AppQueueRouteImport } from './routes/_app.queue'
 import { Route as AppSourceRouteImport } from './routes/_app.source'
 import { Route as AppSummaryRouteImport } from './routes/_app.summary'
+import { Route as AppDevUiRouteImport } from './routes/_app.dev.ui'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -51,6 +52,11 @@ const AppSummaryRoute = AppSummaryRouteImport.update({
   path: '/summary',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDevUiRoute = AppDevUiRouteImport.update({
+  id: '/dev/ui',
+  path: '/dev/ui',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/queue': typeof AppQueueRoute
   '/source': typeof AppSourceRoute
   '/summary': typeof AppSummaryRoute
+  '/dev/ui': typeof AppDevUiRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/queue': typeof AppQueueRoute
   '/source': typeof AppSourceRoute
   '/summary': typeof AppSummaryRoute
+  '/dev/ui': typeof AppDevUiRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -77,12 +85,14 @@ export interface FileRoutesById {
   '/_app/queue': typeof AppQueueRoute
   '/_app/source': typeof AppSourceRoute
   '/_app/summary': typeof AppSummaryRoute
+  '/_app/dev/ui': typeof AppDevUiRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/model' | '/queue' | '/source' | '/summary'
+  fullPaths:
+    '/' | '/login' | '/model' | '/queue' | '/source' | '/summary' | '/dev/ui'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/model' | '/queue' | '/source' | '/summary'
+  to: '/' | '/login' | '/model' | '/queue' | '/source' | '/summary' | '/dev/ui'
   id:
     | '__root__'
     | '/'
@@ -92,6 +102,7 @@ export interface FileRouteTypes {
     | '/_app/queue'
     | '/_app/source'
     | '/_app/summary'
+    | '/_app/dev/ui'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -151,6 +162,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSummaryRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/dev/ui': {
+      id: '/_app/dev/ui'
+      path: '/dev/ui'
+      fullPath: '/dev/ui'
+      preLoaderRoute: typeof AppDevUiRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -159,6 +177,7 @@ interface AppRouteChildren {
   AppQueueRoute: typeof AppQueueRoute
   AppSourceRoute: typeof AppSourceRoute
   AppSummaryRoute: typeof AppSummaryRoute
+  AppDevUiRoute: typeof AppDevUiRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -166,6 +185,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppQueueRoute: AppQueueRoute,
   AppSourceRoute: AppSourceRoute,
   AppSummaryRoute: AppSummaryRoute,
+  AppDevUiRoute: AppDevUiRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
