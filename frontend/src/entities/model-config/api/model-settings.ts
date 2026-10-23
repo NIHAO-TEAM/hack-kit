@@ -38,3 +38,12 @@ export async function previewSettings(body: ModelSettingsPatch): Promise<DryRunR
 export async function saveSettings(body: ModelSettingsPatch): Promise<ModelSettings> {
   return (await patch(body, false)) as ModelSettings;
 }
+
+/** Предпросмотр как запрос: ключ — тело, поэтому одинаковые правки не пересчитываются. */
+export const previewQuery = (body: ModelSettingsPatch) =>
+  queryOptions({
+    queryKey: [...modelSettingsKey, 'preview', body],
+    queryFn: () => previewSettings(body),
+    retry: false,
+    staleTime: 0,
+  });

@@ -1,6 +1,12 @@
-import { Card, NumberInput, SegmentedControl, Slider, Stack, Text } from '@mantine/core';
+import { Card, Group, NumberInput, SegmentedControl, Slider, Stack, Text } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { featureHint, featureTitle, type ModelSettings } from '@entities/model-config';
+import {
+  featureHint,
+  featureTitle,
+  type ModelSettings,
+  type ModelSettingsPatch,
+} from '@entities/model-config';
+import { PreviewPanel } from './PreviewPanel';
 
 export type FormValues = {
   weights: Record<string, number>;
@@ -20,43 +26,55 @@ export function toFormValues(s: ModelSettings): FormValues {
   };
 }
 
+export function toPatch(v: FormValues): ModelSettingsPatch {
+  return {
+    weights: v.weights,
+    thresholds: { high: v.high, medium: v.medium },
+    horizonDays: v.horizonDays,
+    priceBasis: v.priceBasis,
+  };
+}
+
 export function SettingsForm({ settings }: { settings: ModelSettings }) {
   const form = useForm<FormValues>({ initialValues: toFormValues(settings) });
 
   return (
-    <Stack>
-      {Object.keys(form.values.weights).map((id) => (
-        <Card key={id} withBorder>
-          <Text fw={500} id={`weight-${id}`}>
-            {featureTitle(id)}
-          </Text>
-          <Text size="sm" c="dimmed">
-            {featureHint(id)}
-          </Text>
-          <Slider
-            min={0}
-            max={1}
-            step={0.05}
-            aria-labelledby={`weight-${id}`}
-            {...form.getInputProps(`weights.${id}`)}
-          />
+    <Group align="flex-start" wrap="wrap">
+      <Stack flex="1 1 420px">
+        {Object.keys(form.values.weights).map((id) => (
+          <Card key={id} withBorder>
+            <Text fw={500}>{featureTitle(id)}</Text>
+            <Text size="sm" c="dimmed">
+              {featureHint(id)}
+            </Text>
+            <Slider
+              min={0}
+              max={1}
+              step={0.05}
+              thumbLabel={featureTitle(id)}
+              {...form.getInputProps(`weights.${id}`)}
+            />
+          </Card>
+        ))}
+        <Card withBorder>
+          <Stack>
+            <NumberInput label="Порог высокого уровня" {...form.getInputProps('high')} />
+            <NumberInput label="Порог среднего уровня" {...form.getInputProps('medium')} />
+            <NumberInput label="Горизонт, дней" min={1} {...form.getInputProps('horizonDays')} />
+            <SegmentedControl
+              aria-label="Основа цены"
+              data={[
+                { value: 'per_period', label: 'За период' },
+                { value: 'per_month', label: 'За месяц' },
+              ]}
+              {...form.getInputProps('priceBasis')}
+            />
+          </Stack>
         </Card>
-      ))}
-      <Card withBorder>
-        <Stack>
-          <NumberInput label="Порог высокого уровня" {...form.getInputProps('high')} />
-          <NumberInput label="Порог среднего уровня" {...form.getInputProps('medium')} />
-          <NumberInput label="Горизонт, дней" min={1} {...form.getInputProps('horizonDays')} />
-          <SegmentedControl
-            aria-label="Основа цены"
-            data={[
-              { value: 'per_period', label: 'За период' },
-              { value: 'per_month', label: 'За месяц' },
-            ]}
-            {...form.getInputProps('priceBasis')}
-          />
-        </Stack>
-      </Card>
-    </Stack>
+      </Stack>
+      <Stack flex="0 1 320px" pos="sticky" top={16}>
+        <PreviewPanel patch={toPatch(form.values)} changed={form.isDirty()} />
+      </Stack>
+    </Group>
   );
 }

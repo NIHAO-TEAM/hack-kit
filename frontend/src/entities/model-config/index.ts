@@ -1,5 +1,6 @@
 export {
   modelSettingsKey,
+  previewQuery,
   previewSettings,
   saveSettings,
   settingsQuery,
