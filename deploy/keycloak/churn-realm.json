@@ -104,15 +104,18 @@
           "type": "password",
           "value": "${KC_SECURE_PASSWORD}",
           "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "demo",
+          "secretData": "{\"value\":\"${KC_SECURE_TOTP_SECRET}\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"period\":30,\"algorithm\":\"HmacSHA1\",\"counter\":0}"
         }
       ],
       "realmRoles": [
         "marketer"
       ],
-      "requiredActions": [
-        "CONFIGURE_TOTP",
-        "webauthn-register-passwordless"
-      ]
+      "requiredActions": []
     }
   ]
 }
