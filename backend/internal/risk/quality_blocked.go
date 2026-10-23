@@ -11,3 +11,6 @@ func (qualityBlocked) Eval(ctx ServiceCtx) (string, bool) {
 	s := ctx.Service
 	return "заблокирована, срок в будущем", s.Status == StatusBlocked && s.ExpiresAt.After(ctx.AsOf)
 }
+func (qualityBlocked) Subject() string {
+	return "в статусе «заблокирована» со сроком в будущем"
+}
