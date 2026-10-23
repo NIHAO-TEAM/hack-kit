@@ -4,6 +4,8 @@
 
 ## 1. Контракт и данные
 
+- [x] 1.0 Контракт: `asOf`, `source`, `422` — проверка: `make generate`, `go build ./...`
+
 - [ ] 1.1 Запросы `sqlc` модуля `source`: `COPY` трёх таблиц, `snapshots` — проверка: `make generate && git diff --exit-code`
 - [ ] 1.2 Копия `cases/analizator/data.json` в `internal/source/seed/organizers.json` (`embed`) — проверка: тест «вшитый файл совпадает с `cases/analizator/data.json`»
 
