@@ -21,6 +21,7 @@ var implemented = map[string]bool{
 	"putSnapshot": true, "getSourceStatus": true,
 	"listCustomers": true, "getCustomer": true,
 	"getSummary": true, "getMetrics": true, "getMetricsAlias": true,
+	"emulatorTick": true, "emulatorActions": true,
 }
 
 func TestEveryUnimplementedPathAnswers501(t *testing.T) {
