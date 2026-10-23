@@ -113,12 +113,12 @@ func run() error {
 	}
 
 	// Воркер пересчёта: первый расчёт идёт сразу, дальше по source.changed и model.changed.
-	rc := app.NewRecalc(pool, bus, clock.System{})
-	rc.Start(ctx)
+	recalc := app.NewRecalc(pool, bus, clock.System{})
+	recalc.Start(ctx)
 
 	srv := &http.Server{
 		Addr:              cfg.addr,
-		Handler:           app.New(pool, bus, clock.System{}, authAPI, rc),
+		Handler:           app.New(pool, bus, clock.System{}, authAPI, recalc),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("api: слушаю %s", cfg.addr)

@@ -1,0 +1,104 @@
+# .github/workflows/deploy-ingress.yml
+#
+# Один вход на 80/443 на проде: Traefik из k3s. Запускается после «Deploy k8s» на main или вручную.
+#  1. диагностика слушателей (без секретов);
+#  2. остановка стека Compose, если он держит 80/443 (deploy/k3s/single-ingress.sh);
+#  3. диагностика ещё раз и 20 HTTPS-запросов подряд к /healthz с проверкой сертификата;
+#     не все 200 — helm rollback на прошлую ревизию и красный job.
+#
+# Нужны (заводят люди): секрет DEPLOY_SSH_KEY, переменные репозитория PROD_HOST, PROD_USER, PROD_DOMAIN.
+
+name: Deploy ingress
+
+on:
+  workflow_run:
+    workflows: [Deploy k8s]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  ingress:
+    # Только push в main этого репозитория: PR из форка с веткой main сюда не попадает.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROD_HOST: ${{ vars.PROD_HOST }}
+      PROD_USER: ${{ vars.PROD_USER }}
+      PROD_DOMAIN: ${{ vars.PROD_DOMAIN }}
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Проверка настроек
+        run: |
+          for v in PROD_HOST PROD_USER PROD_DOMAIN; do
+            if [ -z "${!v}" ]; then echo "::error::не задана переменная репозитория $v"; exit 1; fi
+          done
+          if [ -z "${{ secrets.DEPLOY_SSH_KEY != '' && 'yes' || '' }}" ]; then
+            echo "::error::не задан секрет DEPLOY_SSH_KEY"; exit 1
+          fi
+
+      - name: SSH-ключ
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 15 "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Диагностика до
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$PROD_USER@$PROD_HOST" \
+            "SHA='$SHA' REPO_URL='$REPO_URL' bash -s" <<'REMOTE'
+          set -euo pipefail
+          SRC="$HOME/churn/src"
+          mkdir -p "$HOME/churn"
+          if [ ! -d "$SRC/.git" ]; then git clone --quiet "$REPO_URL" "$SRC"; fi
+          git -C "$SRC" fetch --quiet origin "$SHA" || git -C "$SRC" fetch --quiet origin
+          git -C "$SRC" checkout --quiet --force "$SHA"
+          bash "$SRC/deploy/k3s/diagnose.sh"
+          REMOTE
+
+      - name: Один вход
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$PROD_USER@$PROD_HOST" \
+            'KUBECONFIG=/etc/rancher/k3s/k3s.yaml bash "$HOME/churn/src/deploy/k3s/single-ingress.sh"'
+
+      - name: Диагностика после
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$PROD_USER@$PROD_HOST" \
+            'bash "$HOME/churn/src/deploy/k3s/diagnose.sh"'
+
+      - name: 20 HTTPS-запросов подряд
+        id: check
+        run: bash deploy/k3s/ingress-check.sh
+
+      - name: Откат при нестабильном входе
+        if: failure() && steps.check.outcome == 'failure'
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$PROD_USER@$PROD_HOST" bash -s <<'REMOTE'
+          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+          rev="$(helm -n churn history churn -o json | grep -o '"revision":[0-9]*' | tail -2 | head -1 | cut -d: -f2)"
+          [ -n "$rev" ] && helm rollback churn "$rev" -n churn --wait --timeout 5m
+          REMOTE
+
+      - name: Убрать ключ
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

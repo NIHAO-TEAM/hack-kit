@@ -1,6 +1,8 @@
 import { HttpResponse, http } from 'msw';
 import type { components } from '@shared/api';
 import data from './data.json';
+import { customerDetailHandler } from './customer-detail';
+import { modelSettingsHandlers } from './model-settings';
 
 type User = components['schemas']['User'];
 type CustomerRow = components['schemas']['CustomerRow'];
@@ -86,19 +88,6 @@ export const handlers = [
     const items = rows().sort((a, b) => b.expectedLossCents - a.expectedLossCents);
     return HttpResponse.json({ items, total: items.length });
   }),
-  http.get(`${API}/customers/:id`, ({ params }) => {
-    if (!getCurrent()) return problem(401, 'Нет сессии');
-    const id = Number(params.id);
-    const customer = rows().find((r) => r.id === id);
-    if (!customer) return problem(404, 'Клиент не найден');
-    return HttpResponse.json({
-      customer,
-      account: accounts.find((a) => a.id === id),
-      services: services.filter((s) => s.ownerId === id),
-      features: [],
-      actions: [],
-    });
-  }),
   http.get(`${API}/analytics/summary`, () => {
     if (!getCurrent()) return problem(401, 'Нет сессии');
     const all = rows();
@@ -117,15 +106,20 @@ export const handlers = [
       version: 1,
     });
   }),
-  http.get(`${API}/model/settings`, () => {
-    if (!getCurrent()) return problem(401, 'Нет сессии');
-    return HttpResponse.json({
-      weights: {},
-      thresholds: { high: 0.7, medium: 0.4 },
-      horizonDays: 30,
-      priceBasis: 'per_month',
-      asOfMode: 'snapshot',
-      version: 1,
-    });
-  }),
+  ...modelSettingsHandlers,
+  customerDetailHandler(
+    (id) => {
+      const customer = rows().find((r) => r.id === id);
+      if (!customer) return undefined;
+      return {
+        customer,
+        account: accounts.find((a) => a.id === id),
+        services: services.filter((s) => s.ownerId === id),
+        features: [],
+        actions: [],
+      };
+    },
+    () => getCurrent() !== null,
+    problem,
+  ),
 ];

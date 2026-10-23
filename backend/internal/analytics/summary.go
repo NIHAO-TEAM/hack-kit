@@ -27,5 +27,5 @@ func (a *AnalyticsAPI) GetSummary(w responseWriter, r *request) {
 		q := o.QualityCounts
 		out.QualityCounts = &q
 	}
-	writeJSON(w, out)
+	writeJSON(w, r, out)
 }

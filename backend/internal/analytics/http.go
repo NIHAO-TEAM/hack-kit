@@ -4,6 +4,7 @@ package analytics
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"sync"
 
@@ -27,6 +28,7 @@ type AnalyticsAPI struct {
 	pool *pgxpool.Pool
 	bus  *events.Bus
 	clk  clock.Clock
+	feed Feed
 	// overview отдаёт последний результат пересчёта; nil, пока сервер не подключил воркер.
 	overview OverviewFunc
 
@@ -37,6 +39,19 @@ type AnalyticsAPI struct {
 // New создаёт обработчик модуля; пул, шину и часы создаёт cmd/api.
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *AnalyticsAPI {
 	return &AnalyticsAPI{pool: pool, bus: bus, clk: clk}
+}
+
+// WithFeed подключает источник портфеля клиентов; без него клиенты отвечают 503.
+func (a *AnalyticsAPI) WithFeed(f Feed) *AnalyticsAPI {
+	a.feed = f
+	return a
+}
+
+func (a *AnalyticsAPI) portfolio() *Portfolio {
+	if a.feed == nil {
+		return nil
+	}
+	return a.feed.Portfolio()
 }
 
 // WithOverview подключает источник последнего результата пересчёта для сводки и метрик.
@@ -58,7 +73,10 @@ func notReady(w responseWriter, r *request) {
 	httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "первый пересчёт ещё не закончился")
 }
 
-func writeJSON(w responseWriter, v any) {
+func writeJSON(w http.ResponseWriter, _ *http.Request, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(v)
+	w.Header().Set("Cache-Control", "no-store")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("analytics: ответ: %v", err)
+	}
 }
