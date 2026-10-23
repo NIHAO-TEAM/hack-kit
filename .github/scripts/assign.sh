@@ -17,7 +17,7 @@
 # на запуске, а этапы идут друг за другом сами, без человека (ночью тоже).
 #
 # Метку go:<id> ставит бот. События от GITHUB_TOKEN другие workflow не запускают, поэтому guard.yml
-# здесь не срабатывает, исполнителя будит сам скрипт (fire.sh). Исполнитель при этом сам перепроверяет
+# здесь не срабатывает, исполнителя будит сам скрипт (wake-exec.sh). Исполнитель при этом сам перепроверяет
 # план в main (executor.md, шаг 0).
 #
 # Окружение: GH_TOKEN, GITHUB_REPOSITORY, RUNNER_TEMP, FIRE_<ID>_URL / FIRE_<ID>_TOKEN исполнителей
@@ -143,14 +143,8 @@ load_of() {
   printf '%s' "${LOAD[$id]}"
 }
 
-fire_executor() { # id pr stage
-  local id=$1 pr=$2 stage=$3 sid
-  sid=$(printf '%s' "$id" | tr 'a-z-' 'A-Z_')
-  local url_var="FIRE_${sid}_URL" token_var="FIRE_${sid}_TOKEN"
-  FIRE_URL=${!url_var:-}
-  FIRE_TOKEN=${!token_var:-}
-  export FIRE_URL FIRE_TOKEN
-  bash .github/scripts/fire.sh "PR #$pr в $REPO, исполнитель $id, старт (автоназначение по этапу $stage)"
+fire_executor() { # id pr stage; новый PR без сессии — аренду не смотрим (wake-exec.sh)
+  WAKE_FORCE=1 bash .github/scripts/wake-exec.sh "$2" "$1" старт "автоназначение по этапу $3"
 }
 
 mapfile -t CANDS < <(jq -r 'sort_by(.createdAt) | .[]

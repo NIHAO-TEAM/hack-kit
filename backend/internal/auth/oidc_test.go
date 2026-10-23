@@ -230,3 +230,32 @@ func TestSSODisabledWithoutConfig(t *testing.T) {
 		t.Errorf("статус %d", resp.StatusCode)
 	}
 }
+
+func getAuthConfig(t *testing.T, s *apitest.Stand) gen.AuthConfig {
+	t.Helper()
+	resp, err := http.Get(s.URL + "/api/v1/auth/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("статус %d", resp.StatusCode)
+	}
+	var cfg gen.AuthConfig
+	if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+func TestAuthConfigWithoutOIDC(t *testing.T) {
+	if getAuthConfig(t, apitest.New(t)).SsoEnabled {
+		t.Error("без OIDC_* ssoEnabled должен быть false")
+	}
+}
+
+func TestAuthConfigWithOIDC(t *testing.T) {
+	if !getAuthConfig(t, ssoStand(t, newFakeIdP(t, "marketer"))).SsoEnabled {
+		t.Error("с OIDC_* ssoEnabled должен быть true")
+	}
+}

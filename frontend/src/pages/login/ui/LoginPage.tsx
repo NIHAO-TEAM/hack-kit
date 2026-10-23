@@ -12,6 +12,7 @@ import { useForm } from '@mantine/form';
 import { useEffect, useState } from 'react';
 import { loginErrorText } from '@entities/session';
 
+const AUTH_CONFIG_URL = '/api/v1/auth/config';
 const SSO_LOGIN_URL = '/api/v1/auth/oidc/login';
 
 export function LoginPage({
@@ -21,13 +22,14 @@ export function LoginPage({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [ssoOff, setSsoOff] = useState(false);
+  const [ssoEnabled, setSsoEnabled] = useState(false);
 
-  // 501 — SSO не настроен на сервере: кнопка не нужна. Другие ответы и сбои сети кнопку оставляют.
+  // Пока ответа нет и при ошибке запроса кнопки SSO нет: вход по паролю работает без неё.
   useEffect(() => {
     const ctrl = new AbortController();
-    fetch(SSO_LOGIN_URL, { redirect: 'manual', signal: ctrl.signal })
-      .then((res) => setSsoOff(res.status === 501))
+    fetch(AUTH_CONFIG_URL, { signal: ctrl.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((cfg: { ssoEnabled?: boolean } | null) => setSsoEnabled(cfg?.ssoEnabled === true))
       .catch(() => {});
     return () => ctrl.abort();
   }, []);
@@ -79,11 +81,11 @@ export function LoginPage({
             <Button type="submit" loading={pending}>
               Войти
             </Button>
-            {ssoOff ? null : (
+            {ssoEnabled ? (
               <Button component="a" href={SSO_LOGIN_URL} variant="default">
                 Войти через SSO
               </Button>
-            )}
+            ) : null}
           </Stack>
         </form>
       </Paper>

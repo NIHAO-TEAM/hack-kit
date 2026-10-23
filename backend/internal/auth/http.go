@@ -240,6 +240,14 @@ func (a *AuthAPI) flowCookie(value string, maxAge int) *http.Cookie {
 	}
 }
 
+// GetAuthConfig — GET /api/v1/auth/config: открытый признак для экрана входа, настроен ли SSO.
+func (a *AuthAPI) GetAuthConfig(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(gen.AuthConfig{SsoEnabled: a.oidc != nil}); err != nil {
+		log.Printf("auth: ответ config: %v", err)
+	}
+}
+
 // OidcLogin — GET /api/v1/auth/oidc/login: перенаправляет на провайдера с PKCE, state и nonce.
 func (a *AuthAPI) OidcLogin(w http.ResponseWriter, r *http.Request) {
 	if a.oidc == nil {

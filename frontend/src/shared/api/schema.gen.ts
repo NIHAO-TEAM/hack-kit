@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Настройки входа для экрана входа (открыт) */
+        get: operations["getAuthConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/oidc/login": {
         parameters: {
             query?: never;
@@ -491,6 +508,10 @@ export interface components {
             id: number;
             login: string;
             role: components["schemas"]["Role"];
+        };
+        AuthConfig: {
+            /** @description Вход через SSO настроен на сервере. Адрес провайдера и другие настройки не раскрываются. */
+            ssoEnabled: boolean;
         };
         LoginRequest: {
             login: string;
@@ -1191,6 +1212,26 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    getAuthConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Что показывать на экране входа */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthConfig"];
+                };
+            };
         };
     };
     oidcLogin: {

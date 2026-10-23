@@ -45,3 +45,19 @@
 - WHEN снаружи открывают `/sso/admin` или `/sso/realms/master`
 - THEN `404` (Caddy)
 - Тест: проверяется на стенде после выката (в среде исполнителя нет Docker)
+
+### Requirement: кнопка SSO по конфигурации
+
+Экран входа SHALL показывать вход через SSO только когда SSO включён.
+
+#### Scenario: стенд без Keycloak
+
+- WHEN `OIDC_*` не заданы и пользователь открывает экран входа
+- THEN `GET /api/v1/auth/config` отвечает `{ssoEnabled: false}` без входа, кнопки «Войти через SSO» нет, вход по паролю работает
+- Тест: `TestAuthConfigWithoutOIDC`, `LoginPage.test.tsx` («SSO выключен», «сбой запроса настроек»)
+
+#### Scenario: SSO настроен
+
+- WHEN `OIDC_*` заданы
+- THEN `ssoEnabled: true`, кнопка есть
+- Тест: `TestAuthConfigWithOIDC`, `LoginPage.test.tsx` («SSO включён»)
