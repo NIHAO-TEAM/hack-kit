@@ -18,6 +18,7 @@ var wantAccess = map[string]struct{ marketer, analyst, jury, admin bool }{
 	"patchModelSettings": {false, true, true, true},
 	"listAudit":          {false, true, true, true},
 	"putSnapshot":        {false, true, true, true},
+	"setSourcePolling":   {false, true, true, true},
 	"patchService":       {false, true, true, true}, "patchAccount": {false, true, true, true},
 	"emulatorTick": {false, true, true, true}, "emulatorActions": {false, true, true, true},
 }

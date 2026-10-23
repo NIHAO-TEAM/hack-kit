@@ -26,6 +26,22 @@ const base = {
 
 let state = { ...base };
 
+/** Опрос биллинга в моке: `?polling=paused|failing|off` в адресе, по умолчанию норма. */
+function pollingMock() {
+  const mode = new URLSearchParams(globalThis.location?.search).get('polling');
+  if (mode === 'off') return undefined;
+  if (mode === 'paused') return { paused: true, intervalSeconds: 60, errorsTotal: 0 };
+  if (mode === 'failing') {
+    return {
+      paused: false,
+      intervalSeconds: 60,
+      errorsTotal: 3,
+      lastError: 'биллинг ответил 503',
+    };
+  }
+  return { paused: false, intervalSeconds: 60, errorsTotal: 0 };
+}
+
 /** Сброс состояния между тестами. */
 export function resetSourceMock(): void {
   state = { ...base };
@@ -50,7 +66,11 @@ const bump = () => {
 };
 
 export const sourceHandlers = [
-  http.get('/api/v1/source/status', () => HttpResponse.json(state)),
+  http.get('/api/v1/source/status', () => HttpResponse.json({ ...state, polling: pollingMock() })),
+  http.put('/api/v1/source/polling', async ({ request }) => {
+    const body = (await request.json()) as { paused: boolean };
+    return HttpResponse.json({ paused: body.paused, intervalSeconds: 60, errorsTotal: 0 });
+  }),
   http.patch('/api/v1/source/accounts/:id', async ({ params }) => {
     if (Number(params.id) > 10) return problem(404, 'счёт не найден');
     bump();
