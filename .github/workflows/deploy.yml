@@ -25,7 +25,13 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # Только push в main этого репозитория: PR из форка с веткой main сюда не попадает.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -82,10 +88,10 @@ jobs:
           }
 
           export APP_TAG="$SHA"
-          compose up -d --build --remove-orphans
           # Первый выкат дольше: сборка, выпуск сертификата.
           limit=120; [ -z "$prev" ] && limit=300
-          if wait_healthy "$limit"; then
+          # Ошибка самого `compose up` (например, app не стал healthy) тоже ведёт к откату.
+          if compose up -d --build --remove-orphans && wait_healthy "$limit"; then
             echo "$SHA" > "$APP_DIR/current_tag"
             # Храним два последних образа приложения.
             docker images churn-app --format '{{.Tag}}' | grep -v -x -e "$SHA" -e "$prev" -e latest \
@@ -94,7 +100,7 @@ jobs:
             exit 0
           fi
 
-          echo "::error::/healthz не отвечает после выката $SHA"
+          echo "::error::выкат $SHA не прошёл: compose up упал или /healthz не отвечает"
           if [ -n "$prev" ] && docker image inspect "churn-app:$prev" >/dev/null 2>&1; then
             echo "возвращаю прошлую версию $prev"
             APP_TAG="$prev" compose up -d --no-build --remove-orphans || true
