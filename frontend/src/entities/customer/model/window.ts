@@ -5,13 +5,13 @@ const WAIT_DAYS = 5;
 
 /** Идут 5 дней ожидания: срок прошёл, биллинг ещё не удалил услугу. Время — время стенда. */
 export function inWaitWindow(row: CustomerRow, asOf: string): boolean {
-  if (!row.rescueExpiresAt) return false;
+  if (!row.expiresAt) return false;
   const now = Date.parse(asOf);
-  const expires = Date.parse(row.rescueExpiresAt);
+  const expires = Date.parse(row.expiresAt);
   return now >= expires && now < expires + WAIT_DAYS * DAY;
 }
 
 /** Когда биллинг удалит услугу, мс; для сортировки полосы «скоро удалит». */
 export function deletionAt(row: CustomerRow): number {
-  return row.rescueExpiresAt ? Date.parse(row.rescueExpiresAt) + WAIT_DAYS * DAY : Infinity;
+  return row.expiresAt ? Date.parse(row.expiresAt) + WAIT_DAYS * DAY : Infinity;
 }

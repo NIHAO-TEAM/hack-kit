@@ -2,14 +2,14 @@ import { inWaitWindow } from './window';
 import type { CustomerRow } from '../api/customers';
 
 const AS_OF = '2026-10-19T15:00:00.000Z';
-const row = (rescueExpiresAt?: string): CustomerRow => ({
+const row = (expiresAt?: string): CustomerRow => ({
   id: 1,
   email: 'a@example.test',
   balance: 0,
   totalReplenished: 0,
   level: 'high',
   expectedLossCents: 0,
-  rescueExpiresAt,
+  expiresAt,
 });
 
 describe('inWaitWindow', () => {

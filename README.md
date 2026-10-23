@@ -37,11 +37,18 @@ docker compose up -d
 
 Описание модели и архитектуры — в `docs/model.md` и `docs/architecture.md` (будут заполнены позже).
 
+## Безопасность
+
+- Заголовки в каждом ответе (`httpx.SecurityHeaders`): CSP без `unsafe-inline` для скриптов, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `frame-ancestors 'none'`. Скрипты лежат файлами (`theme-init.js`, `init.js` Swagger UI), встроенных нет.
+- Зависимости: `govulncheck` в `make check`, `pnpm audit --prod` в `pnpm check`.
+- Логи не содержат паролей, токенов, логинов и балансов; образ работает не от root (`distroless:nonroot`).
+- Секреты только из переменных окружения; в репозитории их нет.
+
 ## Дополнительно
 
 Функции сверх обязательных:
 
-- пока нет
+- Образец «как добавить признак модели»: PR с `backend/internal/risk/feature_bonus_locked.go` (один файл признака + тест + строка оракула), см. `changes/archive/2026-10-23-feature-bonus-locked/`.
 
 ## Разработка
 

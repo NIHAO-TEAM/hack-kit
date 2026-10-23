@@ -20,10 +20,13 @@ import (
 type Recalc struct {
 	Engine   *analytics.Engine[risk.Result]
 	Settings *model.Store
+	snaps    *snapshots
+	cache    cacheHolder
 }
 
 // NewRecalc собирает воркер: настройки из model_settings, снимок из таблиц организаторов.
 func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
+	snaps := &snapshots{}
 	store := model.NewStore(pool, bus, ValidateSettings)
 	reader := source.NewReader(pool)
 	compute := func(ctx context.Context) (analytics.Computed[risk.Result], error) {
@@ -36,6 +39,7 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 			return analytics.Computed[risk.Result]{}, err
 		}
 		rs := ToRiskSnapshot(snap)
+		snaps.put(dataVersion, rs)
 		return analytics.Computed[risk.Result]{
 			Result:          risk.Score(rs, st, rs.AsOf),
 			DataVersion:     dataVersion,
@@ -45,6 +49,7 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 	return &Recalc{
 		Engine:   analytics.NewEngine(compute, bus, clk, source.TopicChanged, model.TopicChanged),
 		Settings: store,
+		snaps:    snaps,
 	}
 }
 

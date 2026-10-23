@@ -21,8 +21,8 @@
 
 - backend: нет
 - frontend: `pages/queue`, `widgets/queue-table`, `entities/customer`, `entities/summary`
-- контракт `api/openapi.yaml`: да, только добавление — необязательные поля `CustomerRow` (`topReason`, `topAction`, `rescueExpiresAt`, `toBilling`)
-- защищённые пути: `api/openapi.yaml` (добавление, причина выше)
+- контракт `api/openapi.yaml`: нет — используются поля `CustomerRow`, влитые в `customers-api` (`topReason`, `topAction`, `expiresAt`, `deleteAt`, `billing`)
+- защищённые пути: нет
 - зависит от: `design-tokens`
 
 ## Связанные решения

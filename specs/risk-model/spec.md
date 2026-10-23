@@ -116,3 +116,11 @@
 - WHEN модель считает набор организаторов при `asOf = 2026-10-19T15:00:00Z`
 - THEN скор, уровень, признаки и деньги каждого клиента совпадают с `testdata/golden/organizers.json`
 - Тест: `backend/internal/risk`, `TestGolden/organizers.json`
+
+### Requirement: признак добавляется без переделки
+
+#### Scenario: включить вес
+
+- WHEN аналитик ставит вес «бонус заблокирован» 0,3
+- THEN у клиентов с заблокированным бонусом и нехваткой средств растёт скор; при весе 0 числа прежние
+- Тест: `backend/internal/risk`, `TestBonusLockedWeight`

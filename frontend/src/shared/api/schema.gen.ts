@@ -600,26 +600,42 @@ export interface components {
             totalReplenished: number;
             /**
              * Format: double
-             * @description Риск оттока 0..1; null для unscored.
+             * @description Риск оттока в процентах 0..100 (как порог модели); null для unscored и lost.
              */
             score?: number | null;
             level: components["schemas"]["RiskLevel"];
             /** Format: int64 */
             expectedLossCents: number;
-            /** @description Главная причина риска простыми словами; нет — когда оценки нет. */
+            /** @description Главная причина простыми словами; нет у unscored и lost. */
             topReason?: string;
-            topAction?: components["schemas"]["Action"];
+            topAction?: components["schemas"]["ActionBrief"];
             /**
              * Format: date-time
-             * @description Срок ближайшей услуги, с него идут 5 дней ожидания (окно спасения). Нет — окна нет.
+             * @description Окно спасения — срок услуги в ожидании оплаты (prolong_wait).
              */
-            rescueExpiresAt?: string;
-            /** @description Решает биллинг, действия маркетолога нет («к биллингу»). */
-            toBilling?: boolean;
+            expiresAt?: string;
+            /**
+             * Format: date-time
+             * @description Когда услугу в ожидании оплаты удалят (expiresAt + 5 дней).
+             */
+            deleteAt?: string;
+            /** @description Тег «к биллингу» — сбой автосписания, а не отток. */
+            billing?: boolean;
+        };
+        ActionBrief: {
+            id: string;
+            title: string;
+            /** Format: int64 */
+            effectCents: number;
         };
         CustomerPage: {
             items: components["schemas"]["CustomerRow"][];
             total: number;
+            /**
+             * Format: int64
+             * @description Версия пересчёта, по которому построена страница.
+             */
+            version: number;
         };
         Feature: {
             id: string;
@@ -636,11 +652,40 @@ export interface components {
             title: string;
             /** Format: int64 */
             effectCents: number;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description Риск после действия, 0..100.
+             */
             newScore: number;
             newLevel: components["schemas"]["RiskLevel"];
         };
+        ServiceRisk: {
+            /** Format: int64 */
+            serviceId: number;
+            /**
+             * Format: double
+             * @description Вероятность непродления услуги 0..1.
+             */
+            probability: number;
+            /**
+             * Format: int64
+             * @description Сумма под угрозой R за горизонт, центы.
+             */
+            rCents: number;
+            /** Format: int64 */
+            lossCents: number;
+            features: components["schemas"]["Feature"][];
+            /** @description Сработавшие проверки качества данных. */
+            quality: string[];
+        };
         CustomerDetail: {
+            /**
+             * Format: int64
+             * @description Версия пересчёта.
+             */
+            version: number;
+            /** @description Оценка каждой живой услуги. */
+            serviceRisks?: components["schemas"]["ServiceRisk"][];
             customer: components["schemas"]["CustomerRow"];
             account?: components["schemas"]["Account"];
             services: components["schemas"]["Service"][];

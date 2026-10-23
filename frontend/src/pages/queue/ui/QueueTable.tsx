@@ -65,7 +65,7 @@ function Score({ row }: { row: CustomerRow }) {
     <span className={classes.score}>
       {row.score != null ? (
         <Text span fw={600}>
-          {Math.round(row.score * 100)}{' '}
+          {Math.round(row.score)}{' '}
         </Text>
       ) : null}
       <LevelBadge level={row.level} />
@@ -74,7 +74,7 @@ function Score({ row }: { row: CustomerRow }) {
 }
 
 function ActionCell({ row }: { row: CustomerRow }) {
-  if (row.toBilling) return <span className={classes.billing}>к биллингу</span>;
+  if (row.billing) return <span className={classes.billing}>к биллингу</span>;
   if (!row.topAction) return <span className={classes.billing}>—</span>;
   return (
     <span className={classes.action}>
@@ -155,10 +155,7 @@ export function QueueTable({
               {cell(4, <Score row={row} />)}
               {cell(5, dim ? '—' : <Money cents={row.expectedLossCents} />)}
               {cell(6, <span className={classes.reason}>{row.topReason ?? '—'}</span>)}
-              {cell(
-                7,
-                asOf ? <RescueWindow expiresAt={row.rescueExpiresAt ?? null} asOf={asOf} /> : '—',
-              )}
+              {cell(7, asOf ? <RescueWindow expiresAt={row.expiresAt ?? null} asOf={asOf} /> : '—')}
               {cell(8, <ActionCell row={row} />)}
             </tr>
           );
