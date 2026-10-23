@@ -67,22 +67,30 @@ services:
       - kcdata:/opt/keycloak/data
     expose:
       - "8080"
+    # Для Traefik из k3s: только на адрес docker0 (COMPANIONS_BIND), снаружи порт закрыт.
+    ports:
+      - "${COMPANIONS_BIND:-127.0.0.1}:18080:8080"
 
-  # Метрики: порты не публикуются, доступен только внутри сети Compose.
+  # Метрики: наружу не публикуются, только на COMPANIONS_BIND (диагностика).
   prometheus:
     image: prom/prometheus:v2.55.1
     restart: unless-stopped
     environment:
       METRICS_TOKEN: ${METRICS_TOKEN:?нет METRICS_TOKEN в .env}
+      # Что опрашивать: в Compose — app:8080 по http; на k3s — https://<домен> через Traefik (.env).
+      METRICS_TARGET: ${METRICS_TARGET:-app:8080}
+      METRICS_SCHEME: ${METRICS_SCHEME:-http}
     # Токен сборщика пишется в файл при старте: в конфиге и в образе его нет.
     entrypoint:
       - /bin/sh
       - -c
-      - umask 077 && printf '%s' "$$METRICS_TOKEN" > /tmp/metrics_token && exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d
+      - umask 077 && printf '%s' "$$METRICS_TOKEN" > /tmp/metrics_token && sed -e "s|__METRICS_TARGET__|$$METRICS_TARGET|" -e "s|__METRICS_SCHEME__|$$METRICS_SCHEME|" /etc/prometheus/prometheus.yml.tpl > /tmp/prometheus.yml && exec /bin/prometheus --config.file=/tmp/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d
     expose:
       - "9090"
+    ports:
+      - "${COMPANIONS_BIND:-127.0.0.1}:19090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml.tpl:ro
       - ./prometheus/rules.yml:/etc/prometheus/rules.yml:ro
       - promdata:/prometheus
     depends_on:
@@ -102,6 +110,8 @@ services:
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     expose:
       - "3000"
+    ports:
+      - "${COMPANIONS_BIND:-127.0.0.1}:13000:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
