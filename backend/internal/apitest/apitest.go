@@ -53,23 +53,26 @@ func Password(role string) string { return "pw-" + role }
 
 // New применяет миграции к чистой базе, запускает сервер и закрывает всё в t.Cleanup.
 // Без TEST_DATABASE_URL тест пропускается.
-func New(t testing.TB) *Stand {
+func New(t testing.TB) *Stand { return NewWithConfig(t, nil) }
+
+// NewWithConfig — как New, но mod может поменять настройки модуля auth до старта.
+func NewWithConfig(t testing.TB, mod func(*auth.Config)) *Stand {
 	t.Helper()
-	return newStand(t, nil)
+	return newStand(t, mod, nil)
 }
 
 // NewBilling поднимает стенд с адаптером REST-биллинга (сам опрос не запущен: тест зовёт Poll).
 func NewBilling(t testing.TB, cfg source.AdapterConfig) (*Stand, *source.Adapter) {
 	t.Helper()
 	var ad *source.Adapter
-	s := newStand(t, func(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) []app.Option {
+	s := newStand(t, nil, func(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) []app.Option {
 		ad = source.NewAdapter(pool, bus, clk, cfg)
 		return []app.Option{app.WithBilling(ad)}
 	})
 	return s, ad
 }
 
-func newStand(t testing.TB, mkOpts func(*pgxpool.Pool, *events.Bus, clock.Clock) []app.Option) *Stand {
+func newStand(t testing.TB, mod func(*auth.Config), mkOpts func(*pgxpool.Pool, *events.Bus, clock.Clock) []app.Option) *Stand {
 	t.Helper()
 	dsn := dbtest.New(t)
 	ctx := context.Background()
@@ -94,6 +97,9 @@ func newStand(t testing.TB, mkOpts func(*pgxpool.Pool, *events.Bus, clock.Clock)
 		},
 		MetricsToken: MetricsToken,
 		SourceToken:  SourceToken,
+	}
+	if mod != nil {
+		mod(&cfg)
 	}
 	authAPI := auth.New(pool, clk, cfg)
 	if err := authAPI.OnStart(ctx); err != nil {

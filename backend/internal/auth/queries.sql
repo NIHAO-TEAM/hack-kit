@@ -6,6 +6,14 @@ ON CONFLICT (login) DO UPDATE
 SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role
 RETURNING id, login, password_hash, role;
 
+-- name: UpsertSSOUser :one
+-- Учётка из внешнего провайдера: пароля нет (хеш не распознаётся), роль обновляется при каждом входе.
+INSERT INTO users (login, password_hash, role)
+VALUES ($1, '!', $2)
+ON CONFLICT (login) DO UPDATE
+SET role = EXCLUDED.role
+RETURNING id, login, role;
+
 -- name: GetUserByLogin :one
 SELECT id, login, password_hash, role FROM users WHERE login = $1;
 
