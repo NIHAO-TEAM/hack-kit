@@ -19,6 +19,7 @@ var implemented = map[string]bool{
 	"docs": true, "openapiYaml": true, "openapiJson": true,
 	"login": true, "getMe": true, "logout": true,
 	"putSnapshot": true, "getSourceStatus": true,
+	"getModelSettings": true, "patchModelSettings": true,
 }
 
 func TestEveryUnimplementedPathAnswers501(t *testing.T) {
