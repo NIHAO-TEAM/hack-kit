@@ -26,6 +26,7 @@ type SourceAPI struct {
 	bus      *events.Bus
 	clk      clock.Clock
 	maxBytes int64
+	adapter  *Adapter
 }
 
 // defaultMaxBytes — лимит тела снимка по умолчанию (SNAPSHOT_MAX_BYTES), 512 МБ.
@@ -38,6 +39,12 @@ func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *SourceAPI {
 		max = v
 	}
 	return &SourceAPI{pool: pool, bus: bus, clk: clk, maxBytes: max}
+}
+
+// WithAdapter подключает опрос REST-биллинга: ручная загрузка ставит его на паузу, статус его показывает.
+func (a *SourceAPI) WithAdapter(ad *Adapter) *SourceAPI {
+	a.adapter = ad
+	return a
 }
 
 // PutSnapshot — PUT /api/v1/source/snapshot. Права проверяет auth.Middleware.
@@ -60,6 +67,12 @@ func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "снимок не прошёл проверку", fe...)
 		return
 	}
+	// Пауза и запись под одним замком с опросом: опрос не затрёт ручной снимок.
+	emulatorMu.Lock()
+	defer emulatorMu.Unlock()
+	if a.adapter != nil {
+		a.adapter.Pause() // ручной снимок главнее опроса, пока его не включат на экране «Источник»
+	}
 	now := a.clk.Now()
 	acc, err := replace(r.Context(), a.pool, s, ModelTime(s, now), now, OriginAPI)
 	if err != nil {
@@ -74,6 +87,35 @@ func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// SetSourcePolling — PUT /api/v1/source/polling. 404, если BILLING_URL не задан.
+func (a *SourceAPI) SetSourcePolling(w http.ResponseWriter, r *http.Request) {
+	if a.adapter == nil {
+		httpx.WriteProblem(w, r, http.StatusNotFound, "опрос биллинга не настроен (BILLING_URL пуст)")
+		return
+	}
+	var req gen.SourcePollingRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if req.Paused {
+		a.adapter.Pause()
+	} else {
+		a.adapter.Resume()
+	}
+	writeJSON(w, pollingBody(a.adapter.Status()))
+}
+
+func pollingBody(st PollStatus) *gen.SourcePolling {
+	out := &gen.SourcePolling{
+		Paused: st.Paused, IntervalSeconds: int(st.Interval.Seconds()),
+		LastOkAt: st.LastOKAt, ErrorsTotal: st.ErrorsTotal,
+	}
+	if st.LastError != "" {
+		out.LastError = &st.LastError
+	}
+	return out
+}
+
 // GetSourceStatus — GET /api/v1/source/status. Без снимков: версия 0.
 func (a *SourceAPI) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
 	st, ok, err := currentStatus(r.Context(), a.pool)
@@ -84,6 +126,9 @@ func (a *SourceAPI) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	now := a.clk.Now()
 	out := gen.SourceStatus{LoadedAt: now, Checks: []gen.QualityCheck{}}
+	if a.adapter != nil {
+		out.Polling = pollingBody(a.adapter.Status())
+	}
 	if ok {
 		src := gen.SourceStatusSource(st.Source)
 		out.Version, out.Source, out.AsOf, out.LoadedAt = st.Version, &src, st.AsOf, st.LoadedAt

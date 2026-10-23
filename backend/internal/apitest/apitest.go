@@ -20,6 +20,7 @@ import (
 	"example.com/app/internal/platform/db"
 	"example.com/app/internal/platform/dbtest"
 	"example.com/app/internal/platform/events"
+	"example.com/app/internal/source"
 )
 
 // Stand — запущенный API.
@@ -54,6 +55,22 @@ func Password(role string) string { return "pw-" + role }
 // Без TEST_DATABASE_URL тест пропускается.
 func New(t testing.TB) *Stand {
 	t.Helper()
+	return newStand(t, nil)
+}
+
+// NewBilling поднимает стенд с адаптером REST-биллинга (сам опрос не запущен: тест зовёт Poll).
+func NewBilling(t testing.TB, cfg source.AdapterConfig) (*Stand, *source.Adapter) {
+	t.Helper()
+	var ad *source.Adapter
+	s := newStand(t, func(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) []app.Option {
+		ad = source.NewAdapter(pool, bus, clk, cfg)
+		return []app.Option{app.WithBilling(ad)}
+	})
+	return s, ad
+}
+
+func newStand(t testing.TB, mkOpts func(*pgxpool.Pool, *events.Bus, clock.Clock) []app.Option) *Stand {
+	t.Helper()
 	dsn := dbtest.New(t)
 	ctx := context.Background()
 	if err := db.Up(ctx, dsn); err != nil {
@@ -83,7 +100,11 @@ func New(t testing.TB) *Stand {
 		t.Fatalf("apitest: учётки: %v", err)
 	}
 	feed := &lazyFeed{}
-	handler := app.New(pool, bus, clk, authAPI, feed)
+	var opts []app.Option
+	if mkOpts != nil {
+		opts = mkOpts(pool, bus, clk)
+	}
+	handler := app.New(pool, bus, clk, authAPI, feed, opts...)
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 

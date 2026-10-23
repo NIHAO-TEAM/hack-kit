@@ -331,6 +331,34 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/QualityCheck"
+        polling:
+          $ref: "#/components/schemas/SourcePolling"
+    SourcePolling:
+      type: object
+      description: Опрос REST-биллинга (BILLING_URL). Нет поля в статусе — опрос не настроен.
+      required: [paused, intervalSeconds, errorsTotal]
+      properties:
+        paused:
+          type: boolean
+          description: Опрос на паузе (после ручной загрузки снимка), пока его не включат.
+        intervalSeconds:
+          type: integer
+        lastOkAt:
+          type: string
+          format: date-time
+          description: Последний удачный опрос.
+        lastError:
+          type: string
+          description: Причина последнего сбоя; пусто, если последний опрос удался.
+        errorsTotal:
+          type: integer
+          format: int64
+    SourcePollingRequest:
+      type: object
+      required: [paused]
+      properties:
+        paused:
+          type: boolean
     ServicePatch:
       type: object
       properties:
@@ -1132,6 +1160,41 @@ paths:
                 $ref: "#/components/schemas/SourceStatus"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/polling:
+    put:
+      operationId: setSourcePolling
+      tags: [source]
+      summary: Включить или поставить на паузу опрос REST-биллинга (аналитик)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourcePollingRequest"
+      responses:
+        "200":
+          description: Состояние опроса
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourcePolling"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Опрос не настроен (BILLING_URL пуст)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/source/services/{id}:
