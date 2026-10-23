@@ -1,0 +1,130 @@
+# .github/workflows/deploy-k8s.yml
+#
+# Прод на k3s по Helm-чарту deploy/helm/churn.
+#  - lint: на PR с правками чарта — helm lint, helm template, kubeconform.
+#  - deploy: после зелёного CI на main, если переменная репозитория PROD_TARGET=k8s; либо вручную.
+#    Ручной запуск с cutover=true разово переключает прод с Compose на k3s (deploy/k3s/cutover.sh).
+#    Не прошла проверка /healthz — helm rollback, job красный.
+#
+# После переключения Compose-деплой (deploy.yml) упрётся в занятые 80/443 и станет красным, ничего не ломая:
+# человеку стоит выключить его в Actions.
+# Нужны (заводят люди): секрет DEPLOY_SSH_KEY, переменные PROD_HOST, PROD_USER, PROD_DOMAIN (+ PROD_TARGET=k8s, ACME_EMAIL по желанию).
+
+name: Deploy k8s
+
+on:
+  pull_request:
+    paths:
+      - deploy/helm/**
+      - deploy/k3s/**
+      - .github/workflows/deploy-k8s.yml
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      cutover:
+        description: "Переключить прод с Compose на k3s (разово)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+      - name: Установить kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin kubeconform
+      - name: helm lint и template
+        run: |
+          helm lint deploy/helm/churn --set domain=ci.example --set postgres.password=ci
+          helm template churn deploy/helm/churn -n churn --set domain=ci.example --set postgres.password=ci \
+            --set serviceMonitor.enabled=true > /tmp/rendered.yaml
+          helm template churn deploy/helm/churn -n churn --set domain=ci.example \
+            --set postgres.enabled=false --set postgres.externalUrl=postgres://x > /dev/null
+      - name: kubeconform
+        run: kubeconform -strict -ignore-missing-schemas -summary /tmp/rendered.yaml
+
+  deploy:
+    # Только push в main этого репозитория: PR из форка с веткой main сюда не попадает.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (vars.PROD_TARGET == 'k8s' &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    env:
+      PROD_HOST: ${{ vars.PROD_HOST }}
+      PROD_USER: ${{ vars.PROD_USER }}
+      PROD_DOMAIN: ${{ vars.PROD_DOMAIN }}
+      ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+      CUTOVER: ${{ inputs.cutover && 'true' || 'false' }}
+    steps:
+      - name: Проверка настроек
+        run: |
+          for v in PROD_HOST PROD_USER PROD_DOMAIN; do
+            if [ -z "${!v}" ]; then echo "::error::не задана переменная репозитория $v"; exit 1; fi
+          done
+          if [ -z "${{ secrets.DEPLOY_SSH_KEY != '' && 'yes' || '' }}" ]; then
+            echo "::error::не задан секрет DEPLOY_SSH_KEY"; exit 1
+          fi
+
+      - name: SSH-ключ
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 15 "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Выкат
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$PROD_USER@$PROD_HOST" \
+            "SHA='$SHA' REPO_URL='$REPO_URL' PROD_DOMAIN='$PROD_DOMAIN' ACME_EMAIL='$ACME_EMAIL' CUTOVER='$CUTOVER' bash -s" <<'REMOTE'
+          set -euo pipefail
+          APP_DIR="$HOME/churn"
+          SRC="$APP_DIR/src"
+          mkdir -p "$APP_DIR"
+          if [ ! -d "$SRC/.git" ]; then git clone --quiet "$REPO_URL" "$SRC"; fi
+          git -C "$SRC" fetch --quiet origin "$SHA" || git -C "$SRC" fetch --quiet origin
+          git -C "$SRC" checkout --quiet --force "$SHA"
+
+          export PROD_DOMAIN APP_DIR ACME_EMAIL SHA
+          # .env с секретами создаёт общий bootstrap (идемпотентно); при занятых 80/443 он остановится,
+          # поэтому на уже работающем k3s его пропускаем.
+          if [ "$CUTOVER" = "true" ] || ! command -v k3s >/dev/null 2>&1; then
+            [ -f "$APP_DIR/.env" ] || bash "$SRC/deploy/bootstrap.sh"
+          fi
+
+          if [ "$CUTOVER" = "true" ]; then
+            bash "$SRC/deploy/k3s/cutover.sh"
+          else
+            bash "$SRC/deploy/k3s/bootstrap.sh"
+            bash "$SRC/deploy/k3s/deploy.sh"
+          fi
+          REMOTE
+
+      - name: Убрать ключ
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

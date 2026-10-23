@@ -40,6 +40,7 @@ type CustomerCtx struct {
 	Account  Account
 	Customer Customer
 	Funds    FundsCtx
+	Services []Service // все услуги аккаунта, в том числе не живые
 }
 
 // Action — действие с ценой (наполняет money-actions). Apply не меняет переданный снимок.
@@ -48,6 +49,12 @@ type Action interface {
 	Applies(ctx CustomerCtx) bool
 	Apply(s Snapshot, accountID int64) Snapshot
 	Title(ctx CustomerCtx) string
+}
+
+// settingsAction — действие, которому для Apply нужны настройки расчёта (например, основа цены).
+type settingsAction interface {
+	Action
+	ApplyWith(s Snapshot, accountID int64, st Settings) Snapshot
 }
 
 type registry[T interface{ ID() string }] struct{ items map[string]T }

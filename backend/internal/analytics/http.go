@@ -3,14 +3,21 @@
 package analytics
 
 import (
+	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/events"
-	"example.com/app/internal/platform/httpx"
+)
+
+// Алиасы типов net/http: правило depguard domain-no-io пускает net/http только в http.go,
+// service.go и projection.go, а обработчики лежат в файлах по возможностям.
+type (
+	responseWriter = http.ResponseWriter
+	request        = http.Request
 )
 
 // AnalyticsAPI обслуживает /customers, /analytics/*, /events, /metrics.
@@ -18,6 +25,7 @@ type AnalyticsAPI struct {
 	pool *pgxpool.Pool
 	bus  *events.Bus
 	clk  clock.Clock
+	feed Feed
 }
 
 // New создаёт обработчик модуля; пул, шину и часы создаёт cmd/api.
@@ -25,31 +33,23 @@ func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *AnalyticsAPI {
 	return &AnalyticsAPI{pool: pool, bus: bus, clk: clk}
 }
 
-// ListCustomers — GET /api/v1/customers.
-func (*AnalyticsAPI) ListCustomers(w http.ResponseWriter, r *http.Request, _ gen.ListCustomersParams) {
-	httpx.NotImplemented(w, r)
+// WithFeed подключает источник портфеля клиентов; без него клиенты отвечают 503.
+func (a *AnalyticsAPI) WithFeed(f Feed) *AnalyticsAPI {
+	a.feed = f
+	return a
 }
 
-// GetCustomer — GET /api/v1/customers/{id}.
-func (*AnalyticsAPI) GetCustomer(w http.ResponseWriter, r *http.Request, _ gen.CustomerId) {
-	httpx.NotImplemented(w, r)
+func (a *AnalyticsAPI) portfolio() *Portfolio {
+	if a.feed == nil {
+		return nil
+	}
+	return a.feed.Portfolio()
 }
 
-// GetSummary — GET /api/v1/analytics/summary.
-func (*AnalyticsAPI) GetSummary(w http.ResponseWriter, r *http.Request) { httpx.NotImplemented(w, r) }
-
-// GetChurnChart — GET /api/v1/analytics/churn-chart (слой 2).
-func (*AnalyticsAPI) GetChurnChart(w http.ResponseWriter, r *http.Request) {
-	httpx.NotImplemented(w, r)
-}
-
-// GetEvents — GET /api/v1/events (SSE).
-func (*AnalyticsAPI) GetEvents(w http.ResponseWriter, r *http.Request) { httpx.NotImplemented(w, r) }
-
-// GetMetrics — GET /metrics.
-func (*AnalyticsAPI) GetMetrics(w http.ResponseWriter, r *http.Request) { httpx.NotImplemented(w, r) }
-
-// GetMetricsAlias — GET /metics, алиас опечатки в кейсе.
-func (*AnalyticsAPI) GetMetricsAlias(w http.ResponseWriter, r *http.Request) {
-	httpx.NotImplemented(w, r)
+func writeJSON(w http.ResponseWriter, _ *http.Request, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("analytics: ответ: %v", err)
+	}
 }

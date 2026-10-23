@@ -1,0 +1,71 @@
+{{- $domain := required "domain обязателен" .Values.domain -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-app
+  labels: {{- include "churn.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {{- include "churn.appSelector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "churn.appSelector" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            - name: PROD_DOMAIN
+              value: {{ $domain | quote }}
+            - name: APP_VERSION
+              value: {{ .Values.image.tag | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ include "churn.secretName" . }}
+          # Миграции применяет само приложение при старте (db.Up), пока не готово — не Ready.
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-app
+  labels: {{- include "churn.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "churn.appSelector" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
