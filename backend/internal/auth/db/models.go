@@ -20,6 +20,15 @@ type Account struct {
 	BonusState       string
 }
 
+type AuditLog struct {
+	ID      int64
+	At      time.Time
+	Actor   string
+	Action  string
+	Summary string
+	Changes []byte
+}
+
 type ModelSetting struct {
 	Version   int64
 	Body      []byte

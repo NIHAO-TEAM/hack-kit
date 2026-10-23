@@ -104,6 +104,7 @@ elif [ "$mem_kb" -ge 3670016 ]; then
 COMPOSE_PROFILES=sso
 KC_ADMIN_PASSWORD=$(gen)
 KC_SECURE_PASSWORD=$(gen)
+KC_SECURE_TOTP_SECRET=$(gen)
 OIDC_CLIENT_ID=panel
 OIDC_CLIENT_SECRET=$(gen)
 OIDC_ISSUER_URL=https://$PROD_DOMAIN/sso/realms/churn

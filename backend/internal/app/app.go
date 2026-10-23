@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"example.com/app/internal/analytics"
+	"example.com/app/internal/audit"
 	"example.com/app/internal/auth"
 	"example.com/app/internal/model"
 	"example.com/app/internal/platform/api/gen"
@@ -57,6 +58,7 @@ type server struct {
 	*analytics.AnalyticsAPI
 	*model.ModelAPI
 	*docs.DocsAPI
+	*audit.AuditAPI
 }
 
 // Healthz, Version, Ping и PingHead — служебные операции платформы без префикса /api/v1.
@@ -93,21 +95,35 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	if pool != nil {
 		settings = model.NewStore(pool, bus, ValidateSettings)
 	}
-	srcAPI := source.New(pool, bus, clk)
+	// Журнал пишут auth, model и source через audit.Recorder; без базы журнала нет.
+	var journal *audit.Service
+	var rec audit.Recorder
+	if pool != nil {
+		journal = audit.New(pool, clk).WithActor(auth.LoginFrom)
+		rec = journal
+		authAPI.WithAudit(rec)
+	}
+	src := source.New(pool, bus, clk)
 	if c, ok := feed.(qualityChecker); ok {
-		srcAPI.WithChecks(c.QualityChecks)
+		src.WithChecks(c.QualityChecks)
+	}
+	mod := model.New(settings, modelPorts(pool), clk)
+	if rec != nil {
+		src.WithAudit(rec)
+		mod.WithAudit(rec)
 	}
 	analyticsAPI := newAnalytics(pool, bus, clk, feed)
 	if o.billing != nil {
-		srcAPI.WithAdapter(o.billing)
+		src.WithAdapter(o.billing)
 		analyticsAPI.WithCollectors(o.billing.Collectors()...)
 	}
 	gen.HandlerWithOptions(server{
 		AuthAPI:      authAPI,
-		SourceAPI:    srcAPI,
+		SourceAPI:    src,
 		AnalyticsAPI: analyticsAPI,
-		ModelAPI:     model.New(settings, modelPorts(pool), clk),
+		ModelAPI:     mod,
 		DocsAPI:      docs.New(),
+		AuditAPI:     audit.NewAPI(journal),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
 	mux.Handle("GET /api/v1/docs/assets/", docs.Assets())
 	mux.Handle("GET /", webui.Handler())
