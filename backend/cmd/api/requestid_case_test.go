@@ -32,7 +32,7 @@ func TestRequestIDHeaderNameCase(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 
 			if got := resp.Header.Get("X-Request-Id"); got != id {
 				t.Errorf("X-Request-Id = %q, ждали %q", got, id)
