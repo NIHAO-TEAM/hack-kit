@@ -1,0 +1,82 @@
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
+import { renderApp } from './render-app';
+import { resetSourceMock } from '../mocks/source';
+import { server } from '../mocks/server';
+
+function signedInAs(role: 'analyst' | 'marketer') {
+  server.use(
+    http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 2, login: role, role })),
+    http.get('/api/v1/analytics/summary', () =>
+      HttpResponse.json({
+        levels: { high: 0, medium: 0, low: 0, unscored: 0, lost: 0 },
+        expectedLossCents: 0,
+        atRiskCents: 0,
+        lostCents: 0,
+        qualityCounts: { prolong_wait_over_5d: 2 },
+        version: 1,
+      }),
+    ),
+  );
+}
+
+beforeEach(resetSourceMock);
+
+describe('экран «Источник»', () => {
+  it('шапка показывает версию и источник, качество — счётчик', async () => {
+    signedInAs('analyst');
+    renderApp('/source');
+    const header = await screen.findByRole('region', { name: 'Текущий снимок' });
+    expect(within(header).getByText('1')).toBeInTheDocument();
+    expect(within(header).getByText('Набор организаторов')).toBeInTheDocument();
+    const quality = await screen.findByRole('region', { name: 'Проверки качества данных' });
+    expect(within(quality).getByText(/в ожидании оплаты дольше 5 дней/)).toBeInTheDocument();
+    expect(within(quality).getByText('2')).toBeInTheDocument();
+  });
+
+  it('эмулятор подписан как имитация, «+24 часа» поднимает версию', async () => {
+    signedInAs('analyst');
+    const user = userEvent.setup();
+    renderApp('/source');
+    const emulator = await screen.findByRole('region', { name: 'Эмулятор биллинга' });
+    expect(within(emulator).getByText(/Имитация биллинга/)).toBeInTheDocument();
+    await user.click(within(emulator).getByRole('button', { name: '+24 часа' }));
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('region', { name: 'Текущий снимок' })).getByText('2'),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it('плохой файл: ошибка по полю человеческим текстом', async () => {
+    signedInAs('analyst');
+    const user = userEvent.setup();
+    renderApp('/source');
+    const panel = await screen.findByRole('region', { name: 'Загрузка снимка' });
+    const file = new File([JSON.stringify({ services: [{ ownerId: 999 }] })], 'bad.json', {
+      type: 'application/json',
+    });
+    await user.upload(panel.querySelector('input[type="file"]')!, file);
+    await user.click(within(panel).getByRole('button', { name: 'Загрузить' }));
+    expect(await within(panel).findByText(/владелец 999 не найден/)).toBeInTheDocument();
+    expect(within(panel).getByText('Снимок не принят, данные прежние')).toBeInTheDocument();
+  });
+
+  it('неизвестный клиент при правке счёта: ошибка у поля', async () => {
+    signedInAs('analyst');
+    const user = userEvent.setup();
+    renderApp('/source');
+    const panel = await screen.findByRole('region', { name: 'Правка данных' });
+    await user.type(within(panel).getByLabelText('Номер клиента'), '99');
+    await user.click(within(panel).getByRole('button', { name: 'Изменить счёт' }));
+    expect(await within(panel).findByText('Такого клиента нет')).toBeInTheDocument();
+  });
+
+  it('маркетолог видит «Недостаточно прав»', async () => {
+    signedInAs('marketer');
+    renderApp('/source');
+    expect(await screen.findByText(/Недостаточно прав/)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Эмулятор биллинга' })).not.toBeInTheDocument();
+  });
+});
