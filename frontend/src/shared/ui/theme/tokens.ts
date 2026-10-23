@@ -4,6 +4,7 @@ export type TokenName =
   | 'surface'
   | 'surface-sunken'
   | 'surface-hover'
+  | 'changed-tint'
   | 'border'
   | 'border-strong'
   | 'field-border'
@@ -41,6 +42,7 @@ export const colorTokens: Record<ColorMode, Record<TokenName, string>> = {
     surface: '#15181d',
     'surface-sunken': '#101317',
     'surface-hover': '#1c2026',
+    'changed-tint': '#2a2350',
     border: '#262a31',
     'border-strong': '#3a404a',
     'field-border': '#6b7380',
@@ -75,6 +77,7 @@ export const colorTokens: Record<ColorMode, Record<TokenName, string>> = {
     surface: '#ffffff',
     'surface-sunken': '#eef0f3',
     'surface-hover': '#f0f2f5',
+    'changed-tint': '#f1edfe',
     border: '#e1e4e9',
     'border-strong': '#c5cad2',
     'field-border': '#737b88',
