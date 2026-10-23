@@ -16,6 +16,8 @@ interface Column {
   label: string;
   sort?: CustomerSort;
   num?: boolean;
+  /** Ячейка не сжимается: плашка уровня показывается целиком. */
+  wide?: boolean;
 }
 
 const columns: Column[] = [
@@ -23,7 +25,7 @@ const columns: Column[] = [
   { label: 'Email', sort: 'email' },
   { label: 'Баланс', sort: 'balance', num: true },
   { label: 'Пополнено', sort: 'totalReplenished', num: true },
-  { label: 'Скор', sort: 'score' },
+  { label: 'Скор', sort: 'score', wide: true },
   { label: 'Потеря', sort: 'expectedLoss', num: true },
   { label: 'Причина' },
   { label: 'Окно спасения' },
@@ -60,7 +62,7 @@ function SortHeader({
 
 function Score({ row }: { row: CustomerRow }) {
   return (
-    <span>
+    <span className={classes.score}>
       {row.score != null ? (
         <Text span fw={600}>
           {Math.round(row.score * 100)}{' '}
@@ -130,7 +132,11 @@ export function QueueTable({
           const cell = (i: number, content: ReactNode) => (
             <td
               data-label={columns[i]!.label}
-              className={columns[i]!.num ? classes.num : undefined}
+              className={
+                [columns[i]!.num && classes.num, columns[i]!.wide && classes.wide]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
             >
               {content}
             </td>

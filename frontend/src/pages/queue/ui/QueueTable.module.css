@@ -60,6 +60,7 @@
 }
 
 .email {
+  white-space: nowrap;
   color: inherit;
   font-weight: 500;
   text-decoration: none;
@@ -130,5 +131,24 @@
   .reason {
     max-width: none;
     text-align: right;
+  }
+}
+
+/* Плашка уровня не обрезается: «Высокий риск» целиком. */
+.score {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.score > * {
+  flex: none;
+  max-width: none;
+}
+
+@media (width > 64em) {
+  .wide {
+    min-width: 12rem;
   }
 }
