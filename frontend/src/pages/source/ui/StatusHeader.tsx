@@ -1,6 +1,6 @@
 import { Badge, Group, Paper, Stack, Text } from '@mantine/core';
 import { type SourceStatus } from '../api/source';
-import { sourceLabel } from '../model/quality';
+import { sourceHint, sourceLabel } from '../model/quality';
 
 const dateTime = new Intl.DateTimeFormat('ru-RU', {
   dateStyle: 'medium',
@@ -40,6 +40,11 @@ export function StatusHeader({ status }: { status: SourceStatus }) {
           <Badge variant="light" size="lg">
             {status.source ? (sourceLabel[status.source] ?? status.source) : '—'}
           </Badge>
+          {status.source && sourceHint[status.source] ? (
+            <Text size="sm" c="dimmed">
+              {sourceHint[status.source]}
+            </Text>
+          ) : null}
         </Stack>
       </Group>
     </Paper>

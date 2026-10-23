@@ -203,7 +203,7 @@ func (a *SourceAPI) EmulatorTick(w http.ResponseWriter, r *http.Request) {
 	}
 	if a.emulate(w, r, func(s *Snapshot) (*Snapshot, string, error) {
 		next := Advance(*s, hours)
-		return &next, OriginAPI, nil
+		return &next, OriginEmulator, nil
 	}) {
 		a.record(r, audit.ActionEmulatorTick, fmt.Sprintf("Эмулятор биллинга: время сдвинуто на %d ч", hours), nil)
 	}
@@ -221,7 +221,7 @@ func (a *SourceAPI) EmulatorActions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.emulate(w, r, func(s *Snapshot) (*Snapshot, string, error) {
-		cur, origin := s, OriginAPI
+		cur, origin := s, OriginEmulator
 		for _, act := range req.Actions {
 			if act.ActionId == ActionReset {
 				fresh, err := resetSnapshot()
@@ -235,6 +235,7 @@ func (a *SourceAPI) EmulatorActions(w http.ResponseWriter, r *http.Request) {
 			if err := applyAction(cur, act); err != nil {
 				return nil, "", badRequest{err}
 			}
+			origin = OriginEmulator
 		}
 		return cur, origin, nil
 	}) {

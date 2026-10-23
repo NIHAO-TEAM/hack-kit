@@ -339,7 +339,7 @@ components:
           format: int64
         source:
           type: string
-          enum: [seed, api]
+          enum: [seed, api, emulator]
           description: Откуда загружен текущий снимок.
         asOf:
           type: string

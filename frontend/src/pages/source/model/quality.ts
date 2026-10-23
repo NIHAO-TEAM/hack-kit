@@ -8,5 +8,10 @@ export function eurosToCents(text: string): number | null {
 export const sourceLabel: Record<string, string> = {
   seed: 'Набор организаторов',
   api: 'Загрузка через API',
-  emulator: 'Эмулятор биллинга',
+  emulator: 'Эмулятор',
+};
+
+/** Пояснение под подписью источника; неизвестное значение — без пояснения. */
+export const sourceHint: Record<string, string> = {
+  emulator: 'Данные ведёт эмулятор, а не REST API биллинга.',
 };
