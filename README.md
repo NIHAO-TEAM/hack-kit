@@ -2,7 +2,56 @@
 
 Внутренний сервис aéza для маркетологов: показывает клиентов под риском оттока, причину простыми словами, ожидаемую потерю в евро и одно действие с ценой. Кейс и критерии: [docs/case.md](docs/case.md), решения: [docs/adr/](docs/adr/).
 
-## Запуск
+## Для жюри
+
+Прод: **https://nihao-churn.duckdns.org** (публичный домен, TLS). Пароли учёток — в материалах сдачи, в репозитории их нет.
+
+| Роль (логин) | Что видит и делает |
+|---|---|
+| `marketer` | очередь клиентов под риском, карточка клиента с причинами и действием, сводка |
+| `analyst` | то же + «Модель» (веса, предпросмотр, применение), «Источник» (снимок, эмулятор биллинга), «О модели» |
+| `jury` | все пути, для проверки |
+| `secure` | вход через Keycloak (кнопка «Войти через SSO»): пароль + TOTP, ключ доступа добавляется в консоли аккаунта |
+
+Права проверяются на сервере для каждой операции: маркетолог не меняет модель и через API.
+
+### Демо за 5 шагов
+
+Полный сценарий с цифрами — [docs/demo-script.md](docs/demo-script.md).
+
+1. [Очередь](https://nihao-churn.duckdns.org/queue) (`marketer`): клиенты по ожидаемой потере, переключатель на скор.
+2. Карточка клиента (клик по строке очереди): причины по вкладу, формула услуги, действие и сколько евро оно снимет.
+3. [Модель](https://nihao-churn.duckdns.org/model) (`analyst`, второе окно): сдвинуть вес, посмотреть предпросмотр, применить — очередь у маркетолога перестроится без перезагрузки.
+4. [Источник](https://nihao-churn.duckdns.org/source) (`analyst`): эмулятор биллинга или правка услуги — потеря в очереди меняется.
+5. Инженерия: [Swagger](https://nihao-churn.duckdns.org/api/v1/docs), [Grafana](https://nihao-churn.duckdns.org/grafana/), [О модели](https://nihao-churn.duckdns.org/about).
+
+### Где смотреть каждый критерий
+
+| Критерий (`docs/scale.md`) | На проде | В репозитории |
+|---|---|---|
+| Бизнес-польза: кому, почему, сколько евро | [/queue](https://nihao-churn.duckdns.org/queue), карточка клиента, [/summary](https://nihao-churn.duckdns.org/summary) | [docs/case.md](docs/case.md), [docs/model.md](docs/model.md), `backend/internal/risk`, `frontend/src` |
+| Обоснованность модели | [/about](https://nihao-churn.duckdns.org/about), [/model](https://nihao-churn.duckdns.org/model) | [docs/model.md](docs/model.md), [docs/model-rules.md](docs/model-rules.md), оракул `tools/oracle`, golden-тесты `testdata/golden` |
+| Архитектура и расширяемость | Helm/k3s: домен с TLS; Swagger [/api/v1/docs](https://nihao-churn.duckdns.org/api/v1/docs) | [docs/architecture.md](docs/architecture.md), чарт [deploy/helm/churn](deploy/helm/churn), [values.yaml](deploy/helm/churn/values.yaml), [api/openapi.yaml](api/openapi.yaml) |
+| Метрики и нагрузка | [Grafana /grafana/](https://nihao-churn.duckdns.org/grafana/) (дашборд `churn`), `/metrics` по токену, Prometheus | [deploy/grafana](deploy/grafana), [deploy/prometheus](deploy/prometheus), замеры [docs/load/](docs/load/README.md) (цели частично не достигнуты, числа честные) |
+| Вход и роли | экран входа, «Войти через SSO» | [deploy/keycloak/churn-realm.json](deploy/keycloak/churn-realm.json), раздел «Вход через SSO» ниже |
+| Как добавить признак | — | раздел «Как добавить признак» ниже |
+
+## Встроить в контур aéza
+
+Настройки чарта [deploy/helm/churn/values.yaml](deploy/helm/churn/values.yaml) (свой файл — `helm upgrade -f свой.yaml`):
+
+| Что подключить | Ключи `values.yaml` |
+|---|---|
+| Домен и TLS | `domain`, `ingress.className`, `ingress.certResolver` или `ingress.tlsSecret` |
+| Источник данных (REST биллинга) | `env.BILLING_URL`, `env.BILLING_POLL_SECONDS`; токен — `secretEnv.BILLING_TOKEN` |
+| OIDC (SSO) | `env.OIDC_ISSUER_URL`, `env.OIDC_DISCOVERY_URL`, `env.OIDC_CLIENT_ID`, `env.OIDC_REDIRECT_URL`; секрет — `secretEnv.OIDC_CLIENT_SECRET` |
+| Prometheus | `serviceMonitor.enabled: true`, `serviceMonitor.interval`, `serviceMonitor.tokenSecret` (Secret с ключом `token` — `METRICS_TOKEN`) |
+| Своя база | `postgres.enabled: false`, `postgres.externalUrl` |
+| Секреты вручную | `existingSecret` вместо `secretEnv` |
+
+Роль в SSO берётся из claim `roles` ID-токена (`marketer`, `analyst`). Развёртывание и откат — [deploy/k3s](deploy/k3s), описание — [docs/architecture.md](docs/architecture.md).
+
+## Запуск локально
 
 Нужен Docker с Compose. Три команды:
 
@@ -33,6 +82,7 @@ docker compose up -d
 | `METRICS_TOKEN`, `SOURCE_TOKEN` | токены `/metrics` и приёма снимка источника |
 | `OIDC_ISSUER_URL`, `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` | вход через SSO; пустой `OIDC_ISSUER_URL` — кнопка выключена |
 | `SEED_ORGANIZERS` | загрузить набор организаторов при старте |
+| `BILLING_URL`, `BILLING_TOKEN`, `BILLING_POLL_SECONDS` | опрос REST-биллинга: снимок той же формы, что `data.json`; пустой `BILLING_URL` — выключен, интервал по умолчанию 60 с |
 
 ## Вход через SSO (Keycloak)
 
@@ -68,16 +118,17 @@ docker compose --profile sso up -d
 
 ## Дополнительно
 
-Функции сверх обязательных:
-
-Уже в `main`:
+Функции сверх обязательных, всё в `main`:
 
 - Эталонный оракул модели и golden-тесты до цента (`tools/oracle`, `testdata/golden`).
-- Действия с ценой: эффект в евро считается пересчётом на копии данных.
-- Прод на Compose с TLS (Caddy) и деплоем из CI.
-
-По плану этапов 4–7 (`docs/plan.md`), в README обновится после слияния: экран «Источник», эмулятор биллинга, SSE-обновления, метрики Prometheus, k3s и Helm, вход через Keycloak, график оттока, «что если», журнал действий.
-- Образец «как добавить признак модели»: PR с `backend/internal/risk/feature_bonus_locked.go` (один файл признака + тест + строка оракула), см. `changes/archive/2026-10-23-feature-bonus-locked/`.
+- Действия с ценой: эффект в евро считается пересчётом на копии данных; «что если» — ползунок на экране очереди.
+- Экран «Источник»: загрузка снимка, эмулятор биллинга, опрос REST-биллинга (`BILLING_URL`).
+- Живые обновления очереди без перезагрузки, график оттока, журнал действий (`GET /api/v1/audit`).
+- Метрики Prometheus (`/metrics`) и дашборд Grafana.
+- Прод на k3s по Helm-чарту, TLS через Traefik, деплой из CI.
+- Вход через Keycloak (ключ доступа, TOTP), пароль остаётся запасным.
+- Замеры нагрузки на 100k клиентов: [docs/load/README.md](docs/load/README.md) (числа честные, часть целей пока не достигнута).
+- Образец «как добавить признак модели»: `backend/internal/risk/feature_bonus_locked.go` (один файл признака + тест + строка оракула), см. `changes/archive/2026-10-23-feature-bonus-locked/`.
 
 ## Разработка
 
