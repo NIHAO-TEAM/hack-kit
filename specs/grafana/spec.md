@@ -1,7 +1,5 @@
 # grafana
 
-## ADDED
-
 ### Requirement: мониторинг по ссылке
 
 #### Scenario: жюри
