@@ -7,7 +7,7 @@ export function useAfterWrite() {
   const queryClient = useQueryClient();
   return {
     done(message: string) {
-      for (const root of ['source', 'summary', 'customers', 'customer']) {
+      for (const root of ['source', 'summary', 'customers', 'customer', 'audit']) {
         void queryClient.invalidateQueries({ queryKey: [root] });
       }
       notifications.show({ message, color: 'teal' });
