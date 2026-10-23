@@ -23,6 +23,7 @@
 - frontend: `pages/queue`, `widgets/queue-table`, `entities/customer`, `entities/summary`
 - контракт `api/openapi.yaml`: нет
 - защищённые пути: нет
+- зависит от: `design-tokens`
 
 ## Связанные решения
 
