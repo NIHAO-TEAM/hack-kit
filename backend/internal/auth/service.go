@@ -206,3 +206,15 @@ func (s *service) logout(ctx context.Context, tokenHash string) error {
 	}
 	return s.q.DeleteSession(ctx, tokenHash)
 }
+
+// ssoLogin находит или заводит SSO-учётку с ролью из провайдера и открывает сессию.
+func (s *service) ssoLogin(ctx context.Context, login, role string) (Session, error) {
+	if s.q == nil {
+		return Session{}, ErrNoSession
+	}
+	u, err := s.q.UpsertSSOUser(ctx, db.UpsertSSOUserParams{Login: login, Role: role})
+	if err != nil {
+		return Session{}, fmt.Errorf("auth: SSO-учётка %s: %w", login, err)
+	}
+	return s.issueSession(ctx, u.ID, u.Login, u.Role)
+}

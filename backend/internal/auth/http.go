@@ -14,7 +14,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/oauth2"
 
 	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/clock"
@@ -206,4 +208,108 @@ func (a *AuthAPI) setSessionCookie(w http.ResponseWriter, sess Session) {
 		Name: sessionCookie, Value: sess.Token, Path: "/", Expires: sess.ExpiresAt,
 		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func (a *AuthAPI) flowCookie(value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name: oidcFlowCookie, Value: value, Path: oidcFlowPath, MaxAge: maxAge,
+		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
+	}
+}
+
+// OidcLogin — GET /api/v1/auth/oidc/login: перенаправляет на провайдера с PKCE, state и nonce.
+func (a *AuthAPI) OidcLogin(w http.ResponseWriter, r *http.Request) {
+	if a.oidc == nil {
+		httpx.NotImplemented(w, r)
+		return
+	}
+	conf, _, err := a.oidc.oauth(r.Context())
+	if err != nil {
+		log.Printf("auth: %v", err)
+		httpx.WriteProblem(w, r, http.StatusBadGateway, "провайдер SSO недоступен")
+		return
+	}
+	state, err1 := randomToken()
+	nonce, err2 := randomToken()
+	if err := errors.Join(err1, err2); err != nil {
+		log.Printf("auth: %v", err)
+		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка входа")
+		return
+	}
+	verifier := oauth2.GenerateVerifier()
+	http.SetCookie(w, a.flowCookie(state+"."+nonce+"."+verifier, 600))
+	url := conf.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier), oidc.Nonce(nonce))
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, url, http.StatusFound)
+}
+
+// OidcCallback — GET /api/v1/auth/oidc/callback: обменивает код, проверяет ID-токен и роль,
+// заводит ту же сессию, что и вход по паролю.
+func (a *AuthAPI) OidcCallback(w http.ResponseWriter, r *http.Request, params gen.OidcCallbackParams) {
+	if a.oidc == nil {
+		httpx.NotImplemented(w, r)
+		return
+	}
+	c, err := r.Cookie(oidcFlowCookie)
+	http.SetCookie(w, a.flowCookie("", -1))
+	if err != nil {
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "вход через SSO не начат")
+		return
+	}
+	parts := strings.SplitN(c.Value, ".", 3)
+	if len(parts) != 3 || params.State == nil || params.Code == nil || *params.Code == "" ||
+		!tokenEquals(*params.State, parts[0]) {
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "неверный state или нет кода")
+		return
+	}
+	nonce, verifier := parts[1], parts[2]
+
+	conf, verifierID, err := a.oidc.oauth(r.Context())
+	if err != nil {
+		log.Printf("auth: %v", err)
+		httpx.WriteProblem(w, r, http.StatusBadGateway, "провайдер SSO недоступен")
+		return
+	}
+	tok, err := conf.Exchange(r.Context(), *params.Code, oauth2.VerifierOption(verifier))
+	if err != nil {
+		log.Printf("auth: обмен кода: %v", err)
+		httpx.WriteProblem(w, r, http.StatusUnauthorized, "вход через SSO не удался")
+		return
+	}
+	raw, _ := tok.Extra("id_token").(string)
+	idToken, err := verifierID.Verify(r.Context(), raw)
+	if err != nil || !tokenEquals(idToken.Nonce, nonce) {
+		log.Printf("auth: ID-токен: %v", err)
+		httpx.WriteProblem(w, r, http.StatusUnauthorized, "вход через SSO не удался")
+		return
+	}
+	var claims struct {
+		Username    string `json:"preferred_username"`
+		RealmAccess struct {
+			Roles []string `json:"roles"`
+		} `json:"realm_access"`
+		Roles []string `json:"roles"`
+	}
+	if err := idToken.Claims(&claims); err != nil {
+		httpx.WriteProblem(w, r, http.StatusUnauthorized, "вход через SSO не удался")
+		return
+	}
+	role, err := roleFromClaims(claims.RealmAccess.Roles, claims.Roles)
+	if err != nil {
+		httpx.WriteProblem(w, r, http.StatusForbidden, "у пользователя нет роли для панели")
+		return
+	}
+	name := claims.Username
+	if name == "" {
+		name = idToken.Subject
+	}
+	sess, err := a.svc.ssoLogin(r.Context(), ssoLoginPrefix+name, role)
+	if err != nil {
+		log.Printf("auth: вход SSO %q: %v", name, err)
+		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка входа")
+		return
+	}
+	a.setSessionCookie(w, sess)
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, "/", http.StatusFound)
 }

@@ -26,8 +26,8 @@ type fakeIdP struct {
 	srv   *httptest.Server
 	key   *rsa.PrivateKey
 	roles []string
-	// nonce и challenge запоминаются при заходе на /authorize.
-	nonce, challenge string
+	// nonce запоминается при заходе на /authorize.
+	nonce string
 }
 
 func newFakeIdP(t *testing.T, roles ...string) *fakeIdP {
@@ -91,7 +91,7 @@ func startSSO(t *testing.T, s *apitest.Stand, idp *fakeIdP) (string, *http.Cooki
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("login: статус %d", resp.StatusCode)
 	}
@@ -145,7 +145,7 @@ func TestSSOLoginCreatesSessionWithRole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer me.Body.Close()
+	defer func() { _ = me.Body.Close() }()
 	var u gen.User
 	if err := json.NewDecoder(me.Body).Decode(&u); err != nil {
 		t.Fatal(err)
@@ -225,7 +225,7 @@ func TestSSODisabledWithoutConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNotImplemented {
 		t.Errorf("статус %d", resp.StatusCode)
 	}
