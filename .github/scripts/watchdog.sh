@@ -113,7 +113,10 @@ for p in "${PRS[@]}"; do
     continue
   fi
   if [ -n "$restart_at" ] && [ "$(age_min "$restart_at")" -ge "$START_MIN" ]; then
-    alive=$(jq --arg t "$restart_at" --arg id "$id" '[.[] | select(.u != "github-actions[bot]" and .t > $t and (.b | test("^\\[[a-z-]+\\] " + $id)))] | length' <<<"$comments")
+    # Ответ — любой комментарий не бота с префиксом или коммит после перезапуска: [fix]/[merge] пишутся без id
+    # (24.10 #66 ушёл от живого exec-2, когда искали только «[…] <id>»).
+    alive=$(jq --arg t "$restart_at" '[.[] | select(.u != "github-actions[bot]" and .t > $t and (.b | startswith("[")) and (.b | test("^\\[(review|lead|guard|ci|assign)\\]") | not))] | length' <<<"$comments")
+    [[ "${commit_at:-0}" > "$restart_at" ]] && alive=1
     if [ "$alive" -eq 0 ] && handover "$pr" "$id" "после перезапуска $(age_min "$restart_at") мин ни одного ответа — routine не стартует (лимиты аккаунта)"; then
       continue
     fi
