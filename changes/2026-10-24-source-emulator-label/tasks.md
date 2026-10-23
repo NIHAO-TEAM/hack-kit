@@ -4,7 +4,7 @@
 
 ## 1. Контракт и данные
 
-- [ ] 1.1 `SourceStatus.source` с `emulator` — проверка: `make generate && git diff --exit-code`
+- [x] 1.1 `SourceStatus.source` с `emulator` — проверка: `make generate && git diff --exit-code`
 
 ## 2. Логика
 
