@@ -212,6 +212,21 @@ func TestGetCustomer9(t *testing.T) {
 	if d.Customer.TopAction == nil || d.Customer.TopAction.EffectCents != -106748 {
 		t.Errorf("topAction %+v", d.Customer.TopAction)
 	}
+	if d.Customer.TopReason == nil || *d.Customer.TopReason != "Автопродление выключено, срок услуги уже вышел" {
+		t.Errorf("главная причина %v", d.Customer.TopReason)
+	}
+	if d.Actions[0].Title != "Пополнить баланс на 529,84 €" {
+		t.Errorf("заголовок действия %q", d.Actions[0].Title)
+	}
+	funds := ""
+	for _, f := range d.Features {
+		if f.Id == "funds" {
+			funds = f.Reason
+		}
+	}
+	if funds != "Нужно 1 444,90 € на 7 дней, на балансе 915,06 €" {
+		t.Errorf("причина funds %q", funds)
+	}
 	if len(d.Services) == 0 || d.ServiceRisks == nil || len(*d.ServiceRisks) == 0 || len(d.Features) == 0 || d.Explanation == nil {
 		t.Errorf("карточка неполная: %d услуг, %d оценок, %d признаков", len(d.Services), len(*d.ServiceRisks), len(d.Features))
 	}
