@@ -1,4 +1,4 @@
-Статус: в работе
+Статус: на ревью
 
 # Приём снимка данных: `PUT /source/snapshot`, сид организаторов, время модели
 
@@ -38,3 +38,5 @@
 
 - Контракт не покрывал ответ `asOf`, `source` статуса и `422` у PUT — расширен в этом PR по решению команды (вариант B).
 
+- Пример для README: `curl -X PUT "$HOST/api/v1/source/snapshot" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data @cases/analizator/data.json`.
+- Переменные для `.env.example`: `SEED_ORGANIZERS` (`true` — загрузить организаторов на пустой базе), `SNAPSHOT_MAX_BYTES` (лимит тела PUT, по умолчанию 536870912). Пахан перенесёт — `compose-stand` ведёт эти файлы.

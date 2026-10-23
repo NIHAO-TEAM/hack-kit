@@ -26,5 +26,5 @@
 ## 4. Готовность
 
 - [x] 4.1 `make check` и `make test-int` зелёные
-- [ ] 4.2 Сценарии из `specs/` проходят на локальном стенде
-- [ ] 4.3 README и `.env.example` не трогать (их ведёт параллельное `compose-stand`); пример `curl -X PUT … --data @cases/analizator/data.json` и переменная `SNAPSHOT_MAX_BYTES` — в «Найдено по ходу», пахан перенесёт
+- [x] 4.2 Сценарии из `specs/` проходят на локальном стенде
+- [x] 4.3 README и `.env.example` не трогать (их ведёт параллельное `compose-stand`); пример `curl -X PUT … --data @cases/analizator/data.json` и переменная `SNAPSHOT_MAX_BYTES` — в «Найдено по ходу», пахан перенесёт
