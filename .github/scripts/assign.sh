@@ -89,11 +89,39 @@ waits_for_stage() {
   return 1
 }
 
+# proposal.md изменения из ветки PR (один запрос на ветку).
+declare -A PROPOSAL
+proposal_of() {
+  local branch=$1
+  if [ -z "${PROPOSAL[$branch]+x}" ]; then
+    PROPOSAL[$branch]=$(gh api "repos/$REPO/contents/changes/${branch#change/}/proposal.md?ref=$branch" \
+      -H "Accept: application/vnd.github.raw" 2>/dev/null || true)
+  fi
+  printf '%s' "${PROPOSAL[$branch]}"
+}
+
+# Свои зависимости изменения: строка «- зависит от: `имя`, `имя`» в proposal.md («Затронутые части»).
+# Есть строка — изменение ждёт только эти изменения: ни предыдущие этапы, ни «!» своего этапа его не держат
+# (нужен «!» — впиши его в список). «- зависит от: нет» — не ждёт ничего.
+# Нет строки — как раньше: этапы из «Зависимостей» плана и «!» своего этапа.
+deps_of() {
+  local line
+  line=$(proposal_of "$1" | grep -iE '^- *зависит от:' | head -n1)
+  [ -n "$line" ] || return 1
+  grep -oE '`!?[0-9a-z-]+`' <<<"$line" | tr -d '`!' || true
+}
+
+# Первая неслитая зависимость из списка.
+waits_for_deps() {
+  local d
+  for d in $1; do archived "$d" || { printf '%s' "$d"; return 0; }; done
+  return 1
+}
+
 # Части, которые задевает изменение (по proposal.md в ветке PR): backend, frontend. Пусто — любая.
 parts_of() {
   local branch=$1 text
-  text=$(gh api "repos/$REPO/contents/changes/${branch#change/}/proposal.md?ref=$branch" \
-    -H "Accept: application/vnd.github.raw" 2>/dev/null || true)
+  text=$(proposal_of "$branch")
   for p in backend frontend; do
     grep -Eiq "^- *${p}: *[^н]" <<<"$text" && printf '%s ' "$p"
   done
@@ -137,11 +165,17 @@ for c in "${CANDS[@]}"; do
   name=${branch#change/}
   short=$(sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}-//' <<<"$name")
   stage=$(stage_of "$name" "$short") || { echo "#$pr $name: нет в утверждённом этапе — жду метку go: от человека"; continue; }
-  if dep=$(waits_for_stage "$stage"); then
-    echo "#$pr $name (этап $stage): ждёт слияния всех изменений этапа $dep — в очереди"; continue
-  fi
-  if blocker=$(blocked_by "$stage" "$name" "$short"); then
-    echo "#$pr $name (этап $stage): ждёт слияния блокирующего $blocker — в очереди"; continue
+  if own=$(deps_of "$branch"); then
+    if dep=$(waits_for_deps "$own"); then
+      echo "#$pr $name (этап $stage): ждёт слияния $dep (зависит от: $(tr '\n' ' ' <<<"$own")) — в очереди"; continue
+    fi
+  else
+    if dep=$(waits_for_stage "$stage"); then
+      echo "#$pr $name (этап $stage): ждёт слияния всех изменений этапа $dep — в очереди"; continue
+    fi
+    if blocker=$(blocked_by "$stage" "$name" "$short"); then
+      echo "#$pr $name (этап $stage): ждёт слияния блокирующего $blocker — в очереди"; continue
+    fi
   fi
 
   need=$(parts_of "$branch")
