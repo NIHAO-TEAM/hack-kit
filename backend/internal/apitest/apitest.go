@@ -141,6 +141,14 @@ func (s *Stand) clientWithToken(t testing.TB, token string) *gen.ClientWithRespo
 // lazyFeed отдаёт портфель воркера, когда тест его запустил; до этого расчёта нет.
 type lazyFeed struct{ recalc atomic.Pointer[app.Recalc] }
 
+// Overview отдаёт сводку воркера, когда тест его запустил.
+func (f *lazyFeed) Overview() *analytics.Overview {
+	if r := f.recalc.Load(); r != nil {
+		return r.Overview()
+	}
+	return nil
+}
+
 func (f *lazyFeed) Portfolio() *analytics.Portfolio {
 	if r := f.recalc.Load(); r != nil {
 		return r.Portfolio()

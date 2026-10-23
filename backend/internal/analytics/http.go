@@ -6,11 +6,14 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/events"
+	"example.com/app/internal/platform/httpx"
 )
 
 // Алиасы типов net/http: правило depguard domain-no-io пускает net/http только в http.go,
@@ -26,6 +29,11 @@ type AnalyticsAPI struct {
 	bus  *events.Bus
 	clk  clock.Clock
 	feed Feed
+	// overview отдаёт последний результат пересчёта; nil, пока сервер не подключил воркер.
+	overview OverviewFunc
+
+	regOnce sync.Once
+	reg     *prometheus.Registry
 }
 
 // New создаёт обработчик модуля; пул, шину и часы создаёт cmd/api.
@@ -44,6 +52,25 @@ func (a *AnalyticsAPI) portfolio() *Portfolio {
 		return nil
 	}
 	return a.feed.Portfolio()
+}
+
+// WithOverview подключает источник последнего результата пересчёта для сводки и метрик.
+func (a *AnalyticsAPI) WithOverview(f OverviewFunc) *AnalyticsAPI {
+	a.overview = f
+	return a
+}
+
+// latest — последний результат пересчёта или nil.
+func (a *AnalyticsAPI) latest() *Overview {
+	if a.overview == nil {
+		return nil
+	}
+	return a.overview()
+}
+
+// notReady отвечает 503, пока первый пересчёт не закончился.
+func notReady(w responseWriter, r *request) {
+	httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "первый пересчёт ещё не закончился")
 }
 
 func writeJSON(w http.ResponseWriter, _ *http.Request, v any) {
