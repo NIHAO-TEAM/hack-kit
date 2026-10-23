@@ -9,7 +9,7 @@
 
 ## 2. Workflow
 
-- [ ] 2.1 `.github/workflows/deploy-smoke.yml` (после выката и вручную) — проверка: `workflow_dispatch` на ветке PR зелёный против прода
+- [x] 2.1 `.github/workflows/deploy-smoke.yml` (после выката и вручную) — проверка: `workflow_dispatch` на ветке PR зелёный против прода (dispatch на ветке PR — после слияния: workflow_dispatch берёт файл только из ветки, где он есть)
 - [ ] 2.2 Issue `prod-down` при падении, без дублей — проверка: ручной запуск с неверным адресом на ветке PR
 
 ## 3. Готовность
