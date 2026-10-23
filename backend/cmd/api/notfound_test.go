@@ -11,7 +11,7 @@ func TestNotFound(t *testing.T) {
 		name string
 		path string
 	}{
-		{"неизвестный путь", "/nope"},
+		{"неизвестный путь API", "/api/v1/nope"},
 		{"подпуть известного маршрута", "/healthz/extra"},
 	}
 	for _, tt := range tests {
