@@ -2,7 +2,7 @@
 
 ## 1. Контракт и данные
 
-- [ ] 1.1 `QualityCheck.items` (необязательный массив `{serviceId, accountId}`) в `api/openapi.yaml` — проверка: `make generate && git diff --exit-code` после генерации, `oasdiff` без поломок
+- [x] 1.1 `QualityCheck.items` (необязательный массив `{serviceId, accountId}`) в `api/openapi.yaml` — проверка: `make generate && git diff --exit-code` после генерации, `oasdiff` без поломок
 
 ## 2. Логика
 
