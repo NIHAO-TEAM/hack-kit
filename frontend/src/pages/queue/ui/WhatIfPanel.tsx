@@ -15,8 +15,10 @@ import {
   type ModelSettings,
   type ModelSettingsPatch,
 } from '@entities/model-config';
+import { customersKey } from '@entities/customer';
 import { can, type Role } from '@entities/session';
 import { ApiError } from '@shared/api';
+import { summaryKey } from '../api/summary';
 
 export const WHATIF_DELAY_MS = 300;
 
@@ -73,7 +75,9 @@ function Body({ settings, role }: { settings: ModelSettings; role: Role }) {
   const apply = useMutation({
     mutationFn: () => saveSettings(patch),
     onSuccess: (saved) => {
-      // Таблица перестроится по живому сигналу; здесь только новая версия настроек.
+      // Очередь и сводка пересчитаны на сервере: сбрасываем их сами, живой сигнал придёт позже.
+      void queryClient.invalidateQueries({ queryKey: customersKey });
+      void queryClient.invalidateQueries({ queryKey: summaryKey });
       queryClient.setQueryData(settingsQuery.queryKey, saved);
       void queryClient.invalidateQueries({ queryKey: [...modelSettingsKey, 'preview'] });
       setPicked(null);

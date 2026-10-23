@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { renderApp } from './render-app';
@@ -9,6 +9,16 @@ function signedIn(role: 'analyst' | 'marketer') {
 }
 
 describe('«что если» в очереди', () => {
+  let listCalls = 0;
+  beforeEach(() => {
+    listCalls = 0;
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (request.method === 'GET' && url.pathname === '/api/v1/customers') listCalls++;
+    });
+  });
+  afterEach(() => server.events.removeAllListeners());
+
   it('аналитик: вес «автопродление выключено» 0,85 → 1 клиент, +200,69 €', async () => {
     signedIn('analyst');
     const user = userEvent.setup();
@@ -25,6 +35,11 @@ describe('«что если» в очереди', () => {
     expect(status).toBeInTheDocument();
     expect(screen.getByText('средний → высокий: 1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Применить' })).toBeEnabled();
+
+    const before = listCalls;
+    await user.click(screen.getByRole('button', { name: 'Применить' }));
+    await screen.findByText(/Применено, версия/);
+    await waitFor(() => expect(listCalls).toBeGreaterThan(before));
   });
 
   it('маркетолог: «Применить» нет, только просмотр', async () => {
