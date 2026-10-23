@@ -139,7 +139,11 @@ func OnStart(ctx context.Context, pool *pgxpool.Pool, bus *events.Bus, clk clock
 	if _, ok, err := currentStatus(ctx, pool); err != nil || ok {
 		return err
 	}
-	s, errs, err := ParseSnapshot(bytes.NewReader(organizers))
+	body, err := seedBody()
+	if err != nil {
+		return err
+	}
+	s, errs, err := ParseSnapshot(bytes.NewReader(body))
 	if err != nil || len(errs) > 0 {
 		return fmt.Errorf("source: вшитый сид не разбирается: %v %v", err, errs)
 	}
