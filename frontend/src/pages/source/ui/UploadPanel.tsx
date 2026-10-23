@@ -32,6 +32,7 @@ export function UploadPanel() {
         <FileInput
           label="Файл снимка"
           placeholder="snapshot.json"
+          styles={{ placeholder: { color: 'var(--text-muted)' } }}
           accept="application/json,.json"
           value={file}
           onChange={setFile}

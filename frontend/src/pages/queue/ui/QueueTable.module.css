@@ -93,6 +93,12 @@
     clip-path: inset(50%);
   }
 
+  .table thead th {
+    display: block;
+    width: 1px;
+    overflow: hidden;
+  }
+
   .table,
   .table tbody,
   .table tr,

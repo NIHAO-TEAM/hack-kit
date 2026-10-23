@@ -32,7 +32,10 @@ describe('экран «Карточка клиента»', () => {
   it('раскрытая услуга не выдаёт признаки клиента за свои', async () => {
     const user = userEvent.setup();
     renderApp('/queue/9');
-    await user.click(await screen.findByRole('button', { name: /Услуга 19/ }));
+    await screen.findByRole('table', { name: /Признаки риска/ });
+    const control = document.querySelector<HTMLElement>('[data-accordion-control]');
+    if (!control) throw new Error('нет раскрывающейся услуги');
+    await user.click(control);
     expect(screen.getAllByRole('table', { name: /Признаки риска/ })).toHaveLength(1);
   });
 
