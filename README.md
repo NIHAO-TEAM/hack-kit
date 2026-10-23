@@ -31,8 +31,23 @@ docker compose up -d
 | `ADMIN_LOGIN`, `ADMIN_PASSWORD` | администратор из окружения (пароль обязателен) |
 | `DEMO_MARKETER_PASSWORD`, `DEMO_ANALYST_PASSWORD`, `DEMO_JURY_PASSWORD` | демо-учётки; пустой пароль — учётка не создаётся |
 | `METRICS_TOKEN`, `SOURCE_TOKEN` | токены `/metrics` и приёма снимка источника |
+| `OIDC_ISSUER_URL`, `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` | вход через SSO; пустой `OIDC_ISSUER_URL` — кнопка выключена |
 | `SEED_ORGANIZERS` | загрузить набор организаторов при старте |
 | `BILLING_URL`, `BILLING_TOKEN`, `BILLING_POLL_SECONDS` | опрос REST-биллинга: снимок той же формы, что `data.json`; пустой `BILLING_URL` — выключен, интервал по умолчанию 60 с |
+
+## Вход через SSO (Keycloak)
+
+Вторая кнопка «Войти через SSO» входит через Keycloak: ключ доступа (WebAuthn) и TOTP. Вход по паролю остаётся.
+
+```bash
+# в .env: KC_ADMIN_PASSWORD, KC_SECURE_PASSWORD, OIDC_CLIENT_SECRET (openssl rand -hex 16) и
+# OIDC_ISSUER_URL=http://localhost:8081/sso/realms/churn
+# OIDC_DISCOVERY_URL=http://keycloak:8080/sso/realms/churn
+# OIDC_REDIRECT_URL=http://localhost:8080/api/v1/auth/oidc/callback
+docker compose --profile sso up -d
+```
+
+Демо-пользователь `secure` (пароль `KC_SECURE_PASSWORD`, роль маркетолог) при первом входе добавляет TOTP и ключ доступа. Роль берётся из claim `roles` ID-токена (`marketer`, `analyst`); без неё вход отклоняется. Realm — `deploy/keycloak/churn-realm.json`. Админка Keycloak наружу не открыта.
 
 ## Модель и архитектура
 

@@ -1,4 +1,5 @@
 # Запуск: cp .env.example .env, задать пароли, docker compose up -d
+# Вход через SSO: docker compose --profile sso up -d (Keycloak на http://localhost:8081/sso, настройки OIDC_* в .env)
 services:
   postgres:
     image: postgres:16-alpine
@@ -48,5 +49,33 @@ services:
     expose:
       - "8081"
 
+  # Профиль sso: Keycloak с ключом доступа (WebAuthn) и TOTP. Realm импортируется при старте.
+  # Пароли берутся из .env (пустые — Keycloak не стартует).
+  # Админка Keycloak наружу не опубликована: порт 8081 отдаёт только вход пользователей.
+  keycloak:
+    profiles: [sso]
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start", "--import-realm"]
+    environment:
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /sso
+      KC_HOSTNAME: http://localhost:8081/sso
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HOSTNAME_ADMIN: http://localhost:8081/sso
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-kcadmin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-}
+      KC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      KC_SECURE_PASSWORD: ${KC_SECURE_PASSWORD:-}
+      PROD_DOMAIN: ${PROD_DOMAIN:-localhost}
+      JAVA_OPTS_KC_HEAP: -Xms256m -Xmx768m
+    volumes:
+      - ./deploy/keycloak/churn-realm.json:/opt/keycloak/data/import/churn-realm.json:ro
+      - kcdata:/opt/keycloak/data
+    ports:
+      - "127.0.0.1:8081:8080"
+
 volumes:
   pgdata:
+  kcdata:

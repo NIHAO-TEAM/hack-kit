@@ -53,7 +53,10 @@ func Password(role string) string { return "pw-" + role }
 
 // New применяет миграции к чистой базе, запускает сервер и закрывает всё в t.Cleanup.
 // Без TEST_DATABASE_URL тест пропускается.
-func New(t testing.TB) *Stand {
+func New(t testing.TB) *Stand { return NewWithConfig(t, nil) }
+
+// NewWithConfig — как New, но mod может поменять настройки модуля auth до старта.
+func NewWithConfig(t testing.TB, mod func(*auth.Config)) *Stand {
 	t.Helper()
 	return newStand(t, nil)
 }
@@ -94,6 +97,9 @@ func newStand(t testing.TB, mkOpts func(*pgxpool.Pool, *events.Bus, clock.Clock)
 		},
 		MetricsToken: MetricsToken,
 		SourceToken:  SourceToken,
+	}
+	if mod != nil {
+		mod(&cfg)
 	}
 	authAPI := auth.New(pool, clk, cfg)
 	if err := authAPI.OnStart(ctx); err != nil {
