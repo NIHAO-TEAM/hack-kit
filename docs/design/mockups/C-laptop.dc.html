@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>C · Окно спасения — очередь удержания</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#111317}a:hover{color:#5A606B}
+</style>
+</helmet>
+<div style="font-family: 'Onest', system-ui, sans-serif; background: #F5F6F8; color: #111317; min-height: 1000px; box-sizing: border-box; font-variant-numeric: tabular-nums">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px; padding: 16px 36px; background: #FFFFFF; border-bottom: 1px solid #E1E4E9">
+    <div style="font-weight: 700; font-size: 17px">Контур удержания</div>
+    <nav style="display: flex; gap: 6px; flex-wrap: wrap">
+      <a href="#" style="padding: 8px 14px; border-radius: 999px; background: #111317; color: #FFFFFF; text-decoration: none; font-size: 14px">Очередь</a>
+      <a href="#" style="padding: 8px 14px; border-radius: 999px; text-decoration: none; font-size: 14px">Сводка</a>
+    </nav>
+    <div style="margin-left: auto; font-size: 13px; color: #5A606B">сейчас: 19.10, 18:00 МСК · маркетолог</div>
+  </header>
+
+  <main style="max-width: 1368px; margin: 0 auto; padding: 24px 36px; display: flex; flex-direction: column; gap: 20px">
+    <section style="display: flex; flex-wrap: wrap; gap: 16px">
+      <div style="flex: 1 1 260px; background: #FFFFFF; border: 1px solid #E1E4E9; border-radius: 12px; padding: 16px 20px">
+        <div style="font-size: 13px; color: #5A606B">Ожидаемая потеря за 30 дней</div>
+        <div style="font-size: 34px; font-weight: 700; margin-top: 2px">3 879,73 €</div>
+      </div>
+      <div style="flex: 1 1 260px; background: #FFFFFF; border: 1px solid #E1E4E9; border-radius: 12px; padding: 16px 20px">
+        <div style="font-size: 13px; color: #5A606B">Окно закрывается за 5 дней</div>
+        <div style="font-size: 34px; font-weight: 700; margin-top: 2px; color: #C2410C">2 клиента</div>
+      </div>
+      <div style="flex: 1 1 260px; background: #FFFFFF; border: 1px solid #E1E4E9; border-radius: 12px; padding: 16px 20px">
+        <div style="font-size: 13px; color: #5A606B">Можно снять действиями</div>
+        <div style="font-size: 34px; font-weight: 700; margin-top: 2px; color: #0F766E">−1 432,77 €</div>
+      </div>
+    </section>
+
+    <section style="background: #FFFFFF; border: 1px solid #E1E4E9; border-radius: 12px; overflow: hidden">
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; padding: 14px 20px; border-bottom: 1px solid #E1E4E9">
+        <h1 style="margin: 0; font-size: 18px; font-weight: 600">Очередь удержания</h1>
+        <span style="font-size: 13px; color: #5A606B">по ожидаемой потере · сортировка по ID, email, балансу, пополнениям, скору — в заголовках</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 56px minmax(0, 1.4fr) 110px 90px minmax(0, 2fr) 120px minmax(0, 1.4fr); gap: 12px; padding: 10px 20px; font-size: 12px; color: #5A606B; border-bottom: 1px solid #EEF0F3">
+        <span>ID ↕</span><span>Email ↕ · баланс · пополнено</span><span>Скор ↕</span><span style="text-align: right">Потеря ↓</span><span>Окно спасения: срок → 5 дней ожидания → удаление</span><span>Осталось</span><span>Действие</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 56px minmax(0, 1.4fr) 110px 90px minmax(0, 2fr) 120px minmax(0, 1.4fr); gap: 12px; padding: 14px 20px; align-items: center; border-bottom: 1px solid #EEF0F3; background: #FFF7F2">
+        <span style="font-weight: 600">1</span>
+        <span style="font-size: 14px">user-0001@example.test<br><span style="color: #5A606B; font-size: 12px">838,10 € · 969,22 €</span></span>
+        <span style="font-size: 14px">56 · средний</span>
+        <span style="text-align: right; font-weight: 700">383,15 €</span>
+        <div role="img" aria-label="Срок истекает через 30 минут, затем 5 дней ожидания" style="position: relative; height: 14px; display: flex; border-radius: 7px; overflow: hidden; background: #EEF0F3">
+          <div style="width: 30%; background: #D6DAE0"></div><div style="width: 70%; background: #FED7AA"></div>
+          <div style="position: absolute; left: 29%; top: -4px; bottom: -4px; width: 2px; background: #111317"></div>
+        </div>
+        <span style="font-weight: 700; color: #C2410C">30 мин до срока</span>
+        <button style="font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 0; background: #0F766E; color: #FFFFFF; justify-self: start">Письмо · −365,29 €</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 56px minmax(0, 1.4fr) 110px 90px minmax(0, 2fr) 120px minmax(0, 1.4fr); gap: 12px; padding: 14px 20px; align-items: center; border-bottom: 1px solid #EEF0F3">
+        <span style="font-weight: 600">1001</span>
+        <span style="font-size: 14px">стенд, почасовой<br><span style="color: #5A606B; font-size: 12px">ждёт оплаты</span></span>
+        <span style="font-size: 14px">высокий</span>
+        <span style="text-align: right; color: #5A606B">—</span>
+        <div role="img" aria-label="Ожидание оплаты, до удаления 2 дня 7 часов" style="position: relative; height: 14px; display: flex; border-radius: 7px; overflow: hidden; background: #EEF0F3">
+          <div style="width: 30%; background: #D6DAE0"></div><div style="width: 70%; background: #FED7AA"></div>
+          <div style="position: absolute; left: 62%; top: -4px; bottom: -4px; width: 2px; background: #111317"></div>
+        </div>
+        <span style="font-weight: 700; color: #C2410C">2 д 07 ч</span>
+        <span style="font-size: 13px; color: #5A606B">данные стенда</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 56px minmax(0, 1.4fr) 110px 90px minmax(0, 2fr) 120px minmax(0, 1.4fr); gap: 12px; padding: 14px 20px; align-items: center; border-bottom: 1px solid #EEF0F3">
+        <span style="font-weight: 600">9</span>
+        <span style="font-size: 14px">user-0009@example.test<br><span style="color: #5A606B; font-size: 12px">915,06 € · 2 698,95 €</span></span>
+        <span style="font-size: 14px">88 · высокий</span>
+        <span style="text-align: right; font-weight: 700">3 459,27 €</span>
+        <div role="img" aria-label="Баланса хватит на 4 дня 11 часов из 7" style="position: relative; height: 14px; display: flex; border-radius: 7px; overflow: hidden; background: #EEF0F3">
+          <div style="width: 64%; background: #99D5CD"></div><div style="width: 36%; background: #FED7AA"></div>
+          <div style="position: absolute; left: 0; top: -4px; bottom: -4px; width: 2px; background: #111317"></div>
+        </div>
+        <span style="font-size: 14px">баланса на 4 д 11 ч</span>
+        <button style="font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 0; background: #0F766E; color: #FFFFFF; justify-self: start">Пополнить · −1 067,48 €</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 56px minmax(0, 1.4fr) 110px 90px minmax(0, 2fr) 120px minmax(0, 1.4fr); gap: 12px; padding: 14px 20px; align-items: center; border-bottom: 1px solid #EEF0F3; color: #5A606B">
+        <span style="font-weight: 600; color: #111317">5</span>
+        <span style="font-size: 14px; color: #111317">user-0005@example.test<br><span style="font-size: 12px">286,57 € · 2 936,08 €</span></span>
+        <span style="font-size: 14px; color: #111317">91 · высокий</span>
+        <span style="text-align: right; color: #111317">14,72 €</span>
+        <div role="img" aria-label="Окно закрыто, статус устарел" style="height: 14px; border-radius: 7px; background: repeating-linear-gradient(135deg, #E1E4E9 0 6px, #F5F6F8 6px 12px)"></div>
+        <span style="font-size: 14px">окно закрыто</span>
+        <span style="font-size: 13px">к биллингу · статус устарел</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 56px minmax(0, 1.4fr) 110px 90px minmax(0, 2fr) 120px minmax(0, 1.4fr); gap: 12px; padding: 14px 20px; align-items: center; border-bottom: 1px solid #EEF0F3; color: #5A606B">
+        <span style="font-weight: 600; color: #111317">10</span>
+        <span style="font-size: 14px; color: #111317">user-0010@example.test<br><span style="font-size: 12px">203,79 € · 4 206,69 €</span></span>
+        <span style="font-size: 14px; color: #111317">95 · высокий</span>
+        <span style="text-align: right; color: #111317">13,33 €</span>
+        <div role="img" aria-label="Окно закрыто, статус устарел" style="height: 14px; border-radius: 7px; background: repeating-linear-gradient(135deg, #E1E4E9 0 6px, #F5F6F8 6px 12px)"></div>
+        <span style="font-size: 14px">окно закрыто</span>
+        <span style="font-size: 13px">к биллингу · статус устарел</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 56px minmax(0, 1.4fr) 110px 90px minmax(0, 2fr) 120px minmax(0, 1.4fr); gap: 12px; padding: 14px 20px; align-items: center">
+        <span style="font-weight: 600">4</span>
+        <span style="font-size: 14px">user-0004@example.test<br><span style="color: #5A606B; font-size: 12px">553,02 € · 709,24 €</span></span>
+        <span style="font-size: 14px">61 · средний</span>
+        <span style="text-align: right">7,06 €</span>
+        <div role="img" aria-label="Окно спасения ещё не началось" style="position: relative; height: 14px; display: flex; border-radius: 7px; overflow: hidden; background: #EEF0F3">
+          <div style="width: 100%; background: #E6E9ED"></div>
+          <div style="position: absolute; left: 0; top: -4px; bottom: -4px; width: 2px; background: #111317"></div>
+        </div>
+        <span style="font-size: 14px; color: #5A606B">сервер выключен</span>
+        <span style="font-size: 13px; color: #5A606B">—</span>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

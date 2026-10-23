@@ -4,9 +4,12 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"example.com/app/internal/app"
@@ -44,10 +47,42 @@ func loadConfig() (config, error) {
 	if c.databaseURL == "" {
 		return config{}, errors.New("DATABASE_URL не задан")
 	}
+	if os.Getenv("ADMIN_PASSWORD") == "" {
+		return config{}, errors.New("ADMIN_PASSWORD не задан: укажите пароль администратора в .env")
+	}
 	return c, nil
 }
 
+// healthcheck опрашивает /healthz своего сервера: в образе distroless нет curl и shell.
+func healthcheck() error {
+	addr := os.Getenv("HTTP_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get("http://" + addr + "/healthz")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthz: статус %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func main() {
+	check := flag.Bool("healthcheck", false, "проверить /healthz запущенного сервера и выйти")
+	flag.Parse()
+	if *check {
+		if err := healthcheck(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
