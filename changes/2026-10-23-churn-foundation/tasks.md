@@ -14,7 +14,7 @@
 - [x] 2.1 `internal/platform/{clock,db,httpx,events}`: часы, пул pgx, `problem+json` с `correlation_id`, шина событий в процессе — проверка: unit-тесты `httpx` (формат ошибки) и `events` (подписчик получает событие)
 - [x] 2.2 Заглушки `internal/{auth,source,risk,analytics,model}/http.go` — все операции отвечают 501 `problem+json` — проверка: тест «каждый путь спеки, кроме открытых, отвечает 501»
 - [x] 2.3 `cmd/api` собирает сервер из сгенерированного интерфейса и модулей; `withRequestID` сохранён; конфиг из окружения (`DATABASE_URL`, `HTTP_ADDR`) — проверка: старые тесты `cmd/api/*_test.go` зелёные
-- [ ] 2.4 `GET /api/v1/openapi.yml`, `/openapi.json`, `/docs` — спека и Swagger UI из `embed` — проверка: тест «`/api/v1/docs` отвечает 200 HTML без входа; `/openapi.yml` = файл контракта»
+- [x] 2.4 `GET /api/v1/openapi.yml`, `/openapi.json`, `/docs` — спека и Swagger UI из `embed` — проверка: тест «`/api/v1/docs` отвечает 200 HTML без входа; `/openapi.yml` = файл контракта»
 - [ ] 2.5 `apitest.New(t)` — API на отдельной базе (testcontainers или `TEST_DATABASE_URL`) + сгенерированный клиент — проверка: тест-пример через клиент
 - [ ] 2.6 depguard: модули не импортируют друг друга, `platform` не импортирует модули — проверка: `make check`
 

@@ -5,6 +5,7 @@ GOLANGCI_VERSION := v2.1.6
 .PHONY: generate check test test-int
 
 generate:
+	cp ../api/openapi.yaml internal/platform/docs/openapi.yaml
 	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen -config oapi-codegen.yaml ../api/openapi.yaml
 
 check:
