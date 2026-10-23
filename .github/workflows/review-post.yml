@@ -4,7 +4,7 @@
 #   [review] round: N verdict: APPROVED|CHANGES_REQUESTED
 #   head: <40-символьный sha>
 # Проверяет формат, автора (ревьюер из team.md) и что head не устарел, затем ставит метки:
-# round-N (или needs-human за замечания после MAX_ROUNDS-го), protected, manual-merge, статус merge-gate на head,
+# round-N (или needs-human за замечания после MAX_ROUNDS-го), protected, статус merge-gate на head,
 # и последним — комментарий бота «[ci] итог ревью принят …»: по нему просыпается подписанная на PR сессия исполнителя.
 # Итог «CI красный» публикует ci.yml сам (от github-actions[bot], сюда не попадает).
 
@@ -43,7 +43,6 @@ jobs:
           sparse-checkout: |
             team.md
             .github/workflows/protected-paths.txt
-            .github/workflows/manual-merge-paths.txt
           sparse-checkout-cone-mode: false
 
       - name: Разобрать итог
@@ -82,7 +81,7 @@ jobs:
           # Лимит раундов тот же, что MAX_ROUNDS в .github/agents/executor.md. Раунды считает ревьюер,
           # красный CI в счёт не идёт. Одобренный PR под лимит не попадает: needs-human только за замечания.
           MAX_ROUNDS=4
-          for l in round-1 round-2 round-3 round-4 needs-human protected manual-merge; do gh label create "$l" >/dev/null 2>&1 || true; done
+          for l in round-1 round-2 round-3 round-4 needs-human protected; do gh label create "$l" >/dev/null 2>&1 || true; done
           for l in round-1 round-2 round-3 round-4; do gh pr edit "$PR" --remove-label "$l" >/dev/null 2>&1 || true; done
           if [ "$N" -le "$MAX_ROUNDS" ]; then
             gh pr edit "$PR" --add-label "round-$N"
@@ -94,28 +93,17 @@ jobs:
           if printf '%s\n' "$files" | grep -qE -f .github/workflows/protected-paths.txt; then
             gh pr edit "$PR" --add-label protected
           fi
-          # Правила самого процесса (workflows, инструкции агентов, скиллы, team.md), сторожа и ломающая
-          # правка контракта (метка contract-breaking от ci.yml) — сливает человек: исполнитель по метке
-          # manual-merge останавливается после APPROVED. Метка пересчитывается на каждом итоге, чтобы она
-          # не висела после того, как такие файлы убрали из PR.
-          labels=$(gh pr view "$PR" --json labels --jq '.labels[].name')
-          manual=false
-          if printf '%s\n' "$files" | grep -qE -f .github/workflows/manual-merge-paths.txt \
-             || printf '%s\n' "$labels" | grep -qx contract-breaking; then
-            manual=true
-            gh pr edit "$PR" --add-label manual-merge
-          else
-            gh pr edit "$PR" --remove-label manual-merge >/dev/null 2>&1 || true
-          fi
+          # Ручного слияния нет (решение владельца 23.10: агенты сливают всё, чтобы ночью работа не вставала).
+          # protected и contract-breaking — сигналы ревьюеру, вердикт за ним. Старую метку manual-merge снимаем.
+          gh pr edit "$PR" --remove-label manual-merge >/dev/null 2>&1 || true
 
-          # Статус merge-gate на head: success только для APPROVED без manual-merge и needs-human. При защите
-          # ветки (обязательная проверка merge-gate) обычный «gh pr merge» на остальных PR не пройдёт;
-          # человек сливает их с обходом защиты. Без защиты статус — видимый сигнал исполнителю и человеку.
+          # Статус merge-gate на head: success для APPROVED без needs-human. Исполнитель сливает только при нём;
+          # при защите ветки (обязательная проверка merge-gate) иначе «gh pr merge» не пройдёт.
+          labels=$(gh pr view "$PR" --json labels --jq '.labels[].name')
           gate=failure; why="ревью: $VERDICT"
           if [ "$VERDICT" = "APPROVED" ]; then
-            if [ "$manual" = true ]; then why="сливает человек (manual-merge)"
-            elif printf '%s\n' "$labels" | grep -qx needs-human; then why="нужен человек (needs-human)"
-            else gate=success; why="APPROVED, сливает исполнитель"; fi
+            if printf '%s\n' "$labels" | grep -qx needs-human; then why="нужен человек (needs-human)"
+            else gate=success; why="APPROVED, сливает агент"; fi
           fi
           gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" -f state="$gate" -f context=merge-gate -f description="$why" >/dev/null
 

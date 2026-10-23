@@ -1,0 +1,48 @@
+# .github/workflows/watchdog.yml
+#
+# Сторож: каждые 15 минут ищет PR, где исполнитель или ревьюер должен был ответить и не ответил (сессия
+# routine умерла), и перезапускает routine. Логика и пороги — .github/scripts/watchdog.sh. Нужен, чтобы
+# ночью работа не вставала до прихода человека.
+
+name: Watchdog
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # Секреты по именам, как в assign.yml (toJSON(secrets) GitHub блокирует в публичном репозитории).
+      FIRE_REVIEWER_URL: ${{ secrets.FIRE_REVIEWER_URL }}
+      FIRE_REVIEWER_TOKEN: ${{ secrets.FIRE_REVIEWER_TOKEN }}
+      FIRE_EXEC_1_URL: ${{ secrets.FIRE_EXEC_1_URL }}
+      FIRE_EXEC_1_TOKEN: ${{ secrets.FIRE_EXEC_1_TOKEN }}
+      FIRE_EXEC_2_URL: ${{ secrets.FIRE_EXEC_2_URL }}
+      FIRE_EXEC_2_TOKEN: ${{ secrets.FIRE_EXEC_2_TOKEN }}
+      FIRE_EXEC_3_URL: ${{ secrets.FIRE_EXEC_3_URL }}
+      FIRE_EXEC_3_TOKEN: ${{ secrets.FIRE_EXEC_3_TOKEN }}
+      FIRE_EXEC_4_URL: ${{ secrets.FIRE_EXEC_4_URL }}
+      FIRE_EXEC_4_TOKEN: ${{ secrets.FIRE_EXEC_4_TOKEN }}
+      FIRE_EXEC_5_URL: ${{ secrets.FIRE_EXEC_5_URL }}
+      FIRE_EXEC_5_TOKEN: ${{ secrets.FIRE_EXEC_5_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Перезапустить молчащие сессии
+        run: bash .github/scripts/watchdog.sh

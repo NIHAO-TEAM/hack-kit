@@ -6,7 +6,7 @@
 #   prep ── checks ──┬─ зелёный → [ci] «ревью запрошено» + API-триггер routine reviewer
 #                    └─ красный → итог «[review] … source: ci» от бота → сессия исполнителя (подписка на PR)
 #
-# Итог ревьюера ([review] …) разбирает review-post.yml: раунд, protected, manual-merge, сигнал исполнителю от бота.
+# Итог ревьюера ([review] …) разбирает review-post.yml: раунд, protected, merge-gate, сигнал исполнителю от бота.
 # Оспаривание исполнителем — ai-review.yml.
 #
 # Исполнитель — одна сессия на PR, подписана на события PR; его будят комментарии бота.
@@ -236,12 +236,12 @@ jobs:
           FIRE_URL: ${{ secrets.FIRE_REVIEWER_URL }}
           FIRE_TOKEN: ${{ secrets.FIRE_REVIEWER_TOKEN }}
         run: |
-          # Правка контракта: список изменений от oasdiff и метка contract-breaking → manual-merge. До запроса ревью,
-          # чтобы ревьюер видел список. Скрипт упал — считаем ломающим: лучше лишний раз позвать человека.
+          # Правка контракта: список изменений от oasdiff и метка contract-breaking (сигнал ревьюеру). До запроса ревью,
+          # чтобы ревьюер видел список. Скрипт упал — ставим contract-breaking: ревьюер проверит контракт вручную.
           if ! bash .github/scripts/contract-diff.sh; then
             gh label create contract-breaking --color B60205 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true
             gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label contract-breaking || true
-            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "[ci] контракт: проверка api/openapi.yaml не выполнена (лог запуска), метка contract-breaking: PR сливает человек." || true
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "[ci] контракт: проверка api/openapi.yaml не выполнена (лог запуска), метка contract-breaking: ревьюер проверяет контракт вручную." || true
           fi
           gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "$(printf '[ci] checks зелёные, ревью запрошено\nround: %s\nhead: %s' "$N" "$HEAD_SHA")"
           if ! bash .github/scripts/fire.sh "PR #$PR в $GITHUB_REPOSITORY: ревью, round $N, head $HEAD_SHA"; then

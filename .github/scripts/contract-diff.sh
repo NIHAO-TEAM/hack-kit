@@ -4,8 +4,8 @@
 #
 #   - контракт не менялся — ничего не делает;
 #   - иначе комментарий «[ci] контракт: …» со списком изменений (ревьюер сверяет каждую строку с proposal.md);
-#   - ломающие изменения (oasdiff breaking, уровень WARN и выше) — метка contract-breaking: review-post.yml
-#     ставит по ней manual-merge, такой PR сливает человек. Добавления полей и путей сливаются как обычно.
+#   - ломающие изменения (oasdiff breaking, уровень WARN и выше) и ослабление проверки запроса — метка
+#     contract-breaking: сигнал ревьюеру, без причины в proposal.md это 🚨. Ручного слияния нет (решение 23.10).
 #
 # Сравнение — с общей базой ветки и main (merge-base), а не с текущим main: иначе чужая правка, влитая
 # в main после ответвления, выглядела бы как удаление в этом PR.
@@ -51,7 +51,7 @@ breaking=0
     echo "Контракт создан этим PR. Ломающих изменений нет."
   elif [ "$has_head" = 0 ]; then
     breaking=1
-    echo "🚨 Контракт удалён этим PR. Метка \`contract-breaking\`: сливает человек."
+    echo "🚨 Контракт удалён этим PR. Метка \`contract-breaking\`: нужна причина в proposal.md."
   else
     bin=""
     for i in 1 2 3; do
@@ -60,9 +60,9 @@ breaking=0
       sleep $((i * 10))
     done
     if [ -z "$bin" ]; then
-      # Не смогли проверить — считаем ломающим: лучше лишний раз позвать человека.
+      # Не смогли проверить — считаем ломающим: ревьюер проверит контракт вручную.
       breaking=1
-      echo "⚠️ oasdiff не скачался за 3 попытки, проверка не выполнена. Метка \`contract-breaking\`: сливает человек."
+      echo "⚠️ oasdiff не скачался за 3 попытки, проверка не выполнена. Метка \`contract-breaking\`: нужна причина в proposal.md."
     else
       { "$bin" changelog "$W/base.yaml" "$W/head.yaml" 2>&1 || true; } > "$W/changelog.txt"
       # Ослабление проверки запроса oasdiff ломающим не считает (клиенту оно совместимо), но для сервера это
@@ -73,7 +73,7 @@ breaking=0
         echo "Ломающих изменений нет (oasdiff breaking, уровень WARN и выше)."
       else
         breaking=1
-        echo "🚨 Ломающие изменения. Метка \`contract-breaking\`: после APPROVED PR сливает человек."
+        echo "🚨 Ломающие изменения. Метка \`contract-breaking\`: нужна причина в proposal.md, иначе 🚨."
         echo
         echo '```'
         head -n 80 "$W/breaking.txt" | sed "s# at $W/head.yaml##"
@@ -82,7 +82,7 @@ breaking=0
       if [ -n "$relaxed" ]; then
         breaking=1
         echo
-        echo "🚨 Ослаблена проверка запроса: $(printf '%s' "$relaxed" | tr '\n' ' '). Метка \`contract-breaking\`: после APPROVED PR сливает человек."
+        echo "🚨 Ослаблена проверка запроса: $(printf '%s' "$relaxed" | tr '\n' ' '). Метка \`contract-breaking\`: нужна причина в proposal.md, иначе 🚨."
       fi
       echo
       echo "Все изменения (ревьюер сверяет каждую строку с \`proposal.md\`):"

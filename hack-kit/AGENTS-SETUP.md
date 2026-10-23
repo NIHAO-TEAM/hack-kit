@@ -35,7 +35,7 @@
 | Планировщик создаёт тикеты и назначает исполнителя, назначение запускает routine | Пахан создаёт черновики. Запускает исполнителя либо **метка `go:<id>` от человека**, либо **утверждённый этап** |
 | Человек видит доску | Доска — `gh pr list --label change`; план этапов — `docs/plan.md` |
 
-**Утверждение по этапу.** Человек сливает PR, где в `docs/plan.md` у этапа статус `утверждён` (файл меняют только люди, он в `manual-merge-paths.txt`). После этого `assign.yml` для каждого черновика `change/<имя>`, имя которого есть в строке такого этапа:
+**Утверждение по этапу.** На запуске хака пахан по «да» человека ставит этапам в `docs/plan.md` статус `утверждён` и пушит план в `main`; этап с `этап N` в «Зависимостях» ждёт, пока слиты все изменения этапа N. Для каждого черновика `change/<имя>`, имя которого есть в строке утверждённого этапа, `assign.yml`:
 1. выбирает исполнителя по `team.md`: подходящая часть (backend/frontend из `proposal.md`), «Доступен: да», меньше лимита «Изменений на руках» (считаются PR с `go:<id>`);
 2. пишет `[assign] <id>: …`, будит routine через `fire.sh` и ставит `go:<id>` (бот; `guard.yml` от бота не срабатывает);
 3. если мест нет, оставляет в очереди; очередь разбирается, когда закрыт любой PR или изменены `docs/plan.md` / `team.md`.
@@ -69,8 +69,9 @@
 | `go:<id>` | **человек** (проверяют `guard.yml` и сам исполнитель) или `assign.yml` для изменений утверждённого этапа | согласовано + назначено, запускает исполнителя |
 | `round-1…4` | CI | номер раунда ревью (красный CI раундом не считается) |
 | `protected` | CI | PR трогает защищённые пути (`tests/invariants/`, `e2e/`, `deploy/`, `api/openapi.yaml` и др.): внимание ревьюеру. Слияние не останавливает |
-| `manual-merge` | CI | PR трогает правила процесса (`.github/`, `.agents/`, `AGENTS.md`, `CLAUDE.md`, `team.md`, `docs/plan.md`), сторожей (`tests/invariants/`, `e2e/`) или стоит `contract-breaking`: после APPROVED исполнитель не сливает, сливает человек |
-| `contract-breaking` | CI (`contract-diff.sh`, oasdiff) | правка `api/openapi.yaml` ломает клиентов или ослабляет проверку запроса; даёт `manual-merge` |
+| `merge-gate` (статус) | `review-post.yml` | success — APPROVED без `needs-human`: исполнитель сливает только при нём |
+| сторож | `watchdog.yml` (каждые 15 мин) | исполнитель задолжал ответ > 40 мин, черновик молчит > 2 ч, метка без `[start]` > 30 мин, ревью не пришло > 40 мин — перезапуск routine `[guard] перезапуск … (сторож)`; после 3 раз — `needs-human` |
+| `contract-breaking` | CI (`contract-diff.sh`, oasdiff) | правка `api/openapi.yaml` ломает клиентов или ослабляет проверку запроса: ревьюер требует причину в `proposal.md`, без неё 🚨 |
 | `needs-human` | агенты, CI | нужен человек (в том числе 5 красных CI подряд без ревью) |
 | `risk:low` | пахан, критик | быстрая полоса ревью |
 | `critic` | критик | отчёт критика |
@@ -97,12 +98,12 @@ ci.yml: checks
       routine reviewer (API-триггер)
          │ ревью, замечания к строкам, итог [review] round 1 … / head: …
          ▼
-      review-post.yml: формат, автор, head → round-N (needs-human только за замечания сверх MAX_ROUNDS), protected, manual-merge, статус merge-gate → [ci] итог ревью принят (бот) ─► в подписку S
+      review-post.yml: формат, автор, head → round-N (needs-human только за замечания сверх MAX_ROUNDS), protected, статус merge-gate → [ci] итог ревью принят (бот) ─► в подписку S
    ▼
 та же сессия S (подписка на PR)
    ├─ CHANGES_REQUESTED → правки → push → [fix] round 1 … → снова ci.yml
    ├─ спор → [fix] … оспорены → ai-review.yml → [ci] оспаривание → /fire routine reviewer
-   └─ APPROVED → manual-merge? → [merge] ждёт человека (сливает человек)
+   └─ APPROVED (merge-gate: success) → squash → [merge] слито → assign.yml (следующее изменение)
                  иначе squash → [merge] слито → deploy.yml
 ```
 
@@ -162,7 +163,7 @@ ci.yml: checks
 2. Settings → Moderation options → **Interaction limits** → «Limit to repository collaborators», срок на весь хак (1 неделя или 1 месяц). Посторонние не смогут комментировать, открывать PR и issues — это главная защита от спама и prompt injection в комментариях.
 3. Settings → Actions → General → Fork pull request workflows from outside collaborators: **Require approval for all outside collaborators**.
 4. Settings → Collaborators: участники команды с ролью **Write** (не Admin и не Maintain). Тогда их агенты не обойдут защиту ветки даже через API.
-5. Settings → Branches → правило для `main`: Require a pull request before merging (одобрений 0), Require status checks: `checks` и `merge-gate`. «Do not allow bypassing» не включать: владелец (Admin) сливает `manual-merge` галкой обхода. Если `manual-merge` должен сливать кто-то ещё, добавьте его в список обхода (Allow specified actors to bypass) — иначе такие PR сливает только владелец.
+5. Settings → Branches → правило для `main`: Require a pull request before merging (одобрений 0), Require status checks: `checks` и `merge-gate`. Ручного слияния нет, поэтому обход никому не нужен; «Do not allow bypassing» можно включить, но тогда и правки процесса пахан пушит через PR, а не прямо в `main`.
 
 **Что держит что:**
 
@@ -172,7 +173,7 @@ ci.yml: checks
 | Prompt injection в комментариях | исполнитель и ревьюер читают только `github-actions[bot]`, людей из `team.md` и ревьюера; плюс interaction limits |
 | Метка `go:*` от постороннего | метки ставят только коллабораторы; `guard.yml` сверяет автора с `team.md` |
 | PR из форка с секретами | `guard.yml`/`assign.yml` (`pull_request_target`) не запускают код из PR; кандидату нужна метка `change`, её посторонний не поставит; `ci.yml` на форке без секретов и ждёт одобрения |
-| Агент сливает мимо `manual-merge` | агенты на аккаунтах с ролью Write — защита ветки (`merge-gate`) не пустит; агенты на аккаунте владельца (Admin) — только инструкция и `merge-gate` как сигнал |
+| Агент сливает без APPROVED | агенты на аккаунтах с ролью Write — защита ветки (`merge-gate`) не пустит; агенты на аккаунте владельца (Admin) — только инструкция и `merge-gate` как сигнал |
 
 После хака: репозиторий снова приватный — interaction limits можно снять, правило ветки на бесплатном тарифе перестанет действовать.
 
