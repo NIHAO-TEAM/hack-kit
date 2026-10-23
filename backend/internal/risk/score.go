@@ -145,7 +145,7 @@ func actionResults(s Snapshot, st Settings, asOf time.Time, a Account, c Custome
 		if !act.Applies(ctx) {
 			continue
 		}
-		applied := s
+		var applied Snapshot
 		if sa, ok := act.(settingsAction); ok {
 			applied = sa.ApplyWith(s, a.ID, st)
 		} else {
