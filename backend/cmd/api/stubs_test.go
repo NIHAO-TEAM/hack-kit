@@ -20,6 +20,7 @@ var implemented = map[string]bool{
 	"login": true, "getMe": true, "logout": true,
 	"putSnapshot": true, "getSourceStatus": true,
 	"listCustomers": true, "getCustomer": true,
+	"getSummary": true, "getMetrics": true, "getMetricsAlias": true,
 }
 
 func TestEveryUnimplementedPathAnswers501(t *testing.T) {
