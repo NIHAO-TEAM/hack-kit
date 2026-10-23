@@ -22,6 +22,7 @@
 - frontend: нет
 - контракт `api/openapi.yaml`: нет
 - защищённые пути: нет
+- зависит от: `analytics-split`, `money-actions`, `risk-features`
 
 ## Связанные решения
 
