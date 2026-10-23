@@ -83,6 +83,14 @@ ENV
   echo ".env создан (права 600)"
 fi
 
+# 4а. Пароли Grafana: дописываются в уже существующий .env, если их там нет.
+for key in GRAFANA_ADMIN_PASSWORD GRAFANA_JURY_PASSWORD; do
+  if ! grep -q "^$key=" "$ENV_FILE"; then
+    printf '%s=%s\n' "$key" "$(openssl rand -hex 16)" >> "$ENV_FILE"
+    echo "$key добавлен в .env"
+  fi
+done
+
 # 5. SSO (Keycloak): только если хватает памяти (>= 3,5 ГБ) и ещё не включён. Значения не печатаются.
 mem_kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
 if grep -q '^COMPOSE_PROFILES=.*sso' "$ENV_FILE"; then
@@ -106,11 +114,3 @@ ENV
 else
   echo "SSO не включён: памяти ${mem_kb} КБ меньше 3,5 ГБ (вход по паролю работает)"
 fi
-
-# 4а. Пароли Grafana: дописываются в уже существующий .env, если их там нет.
-for key in GRAFANA_ADMIN_PASSWORD GRAFANA_JURY_PASSWORD; do
-  if ! grep -q "^$key=" "$ENV_FILE"; then
-    printf '%s=%s\n' "$key" "$(openssl rand -hex 16)" >> "$ENV_FILE"
-    echo "$key добавлен в .env"
-  fi
-done
