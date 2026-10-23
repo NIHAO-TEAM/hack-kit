@@ -39,14 +39,14 @@ docker compose up -d
 Вторая кнопка «Войти через SSO» входит через Keycloak: ключ доступа (WebAuthn) и TOTP. Вход по паролю остаётся.
 
 ```bash
-# в .env: KC_ADMIN_PASSWORD, KC_SECURE_PASSWORD, OIDC_CLIENT_SECRET (openssl rand -hex 16) и
+# в .env: KC_ADMIN_PASSWORD, KC_SECURE_PASSWORD, KC_SECURE_TOTP_SECRET, OIDC_CLIENT_SECRET (openssl rand -hex 16) и
 # OIDC_ISSUER_URL=http://localhost:8081/sso/realms/churn
 # OIDC_DISCOVERY_URL=http://keycloak:8080/sso/realms/churn
 # OIDC_REDIRECT_URL=http://localhost:8080/api/v1/auth/oidc/callback
 docker compose --profile sso up -d
 ```
 
-Демо-пользователь `secure` (пароль `KC_SECURE_PASSWORD`, роль маркетолог) при первом входе добавляет TOTP и ключ доступа. Роль берётся из claim `roles` ID-токена (`marketer`, `analyst`); без неё вход отклоняется. Realm — `deploy/keycloak/churn-realm.json`. Админка Keycloak наружу не открыта.
+Демо-пользователь `secure` (пароль `KC_SECURE_PASSWORD`, роль маркетолог) входит с паролем и кодом TOTP (секрет — `KC_SECURE_TOTP_SECRET`, обязателен, пустым не оставлять; в приложение-аутентификатор вводится как ключ из UTF-8 строки секрета в Base32); ключ доступа добавляется в консоли аккаунта Keycloak, шаги — в [docs/architecture.md](docs/architecture.md#проверка-входа-через-keycloak). Если SSO не настроен, кнопки на экране входа нет. Роль берётся из claim `roles` ID-токена (`marketer`, `analyst`); без неё вход отклоняется. Realm — `deploy/keycloak/churn-realm.json`. Админка Keycloak наружу не открыта.
 
 ## Модель и архитектура
 
