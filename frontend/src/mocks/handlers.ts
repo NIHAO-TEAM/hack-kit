@@ -4,6 +4,7 @@ import data from './data.json';
 import { queueHandlers } from './queue';
 import { customerDetailHandler } from './customer-detail';
 import { modelSettingsHandlers } from './model-settings';
+import { sourceHandlers } from './source';
 
 type User = components['schemas']['User'];
 type CustomerRow = components['schemas']['CustomerRow'];
@@ -109,6 +110,7 @@ export const handlers = [
     });
   }),
   ...modelSettingsHandlers,
+  ...sourceHandlers,
   customerDetailHandler(
     (id) => {
       const customer = rows().find((r) => r.id === id);

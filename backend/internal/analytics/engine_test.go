@@ -94,20 +94,31 @@ func TestBurstOfEventsMakesOneExtraRecalc(t *testing.T) {
 		}
 		return in.compute(ctx)
 	}
-	e, bus, _ := start(t, compute)
+	bus := events.New()
+	e := analytics.NewEngine(compute, bus, clock.NewFake(time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)), topicData, topicSettings)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := e.Start(ctx)
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
 	waitFor(t, "пересчёт при старте", func() bool { return e.Latest() != nil })
 
 	in.data.Store(1)
 	bus.Publish(topicData, int64(1))
 	<-entered
+	// Пачка взводится синхронно: шина доставляет события воркеру асинхронно, и опоздавшее
+	// событие законно запустило бы ещё один пересчёт уже после gate.
 	for i := int64(2); i <= 10; i++ {
 		in.data.Store(i)
-		bus.Publish(topicData, i)
+		e.MarkDirty()
 	}
 	close(gate)
 
-	waitFor(t, "последние данные", func() bool { return e.Latest().DataVersion == 10 })
-	time.Sleep(20 * time.Millisecond)
+	waitFor(t, "пересчёт после пачки", func() bool { return e.Latest().Version == 3 })
+	// Останов движка вместо Sleep: после него новых расчётов быть не может.
+	cancel()
+	<-done
 	if n := calls.Load() - 1; n > 2 { // минус пересчёт при старте
 		t.Errorf("на 10 событий подряд %d пересчётов, ждали не больше 2", n)
 	}
