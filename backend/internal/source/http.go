@@ -105,11 +105,3 @@ func (*SourceAPI) PatchService(w http.ResponseWriter, r *http.Request, _ gen.Ser
 func (*SourceAPI) PatchAccount(w http.ResponseWriter, r *http.Request, _ gen.AccountId) {
 	httpx.NotImplemented(w, r)
 }
-
-// EmulatorTick — POST /api/v1/source/emulator/tick.
-func (*SourceAPI) EmulatorTick(w http.ResponseWriter, r *http.Request) { httpx.NotImplemented(w, r) }
-
-// EmulatorActions — POST /api/v1/source/emulator/actions.
-func (*SourceAPI) EmulatorActions(w http.ResponseWriter, r *http.Request) {
-	httpx.NotImplemented(w, r)
-}
