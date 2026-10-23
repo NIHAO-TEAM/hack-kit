@@ -10,7 +10,7 @@
 
 ## 2. Логика
 
-- [ ] 2.1 `entities/session`: `me`, `login`, `logout`, `can(role, right)`; клиент API с cookie и `X-CSRF-Token` — проверка: unit-тесты `can` по матрице ролей; тест клиента «CSRF-заголовок на PATCH»
+- [x] 2.1 `entities/session`: `me`, `login`, `logout`, `can(role, right)`; клиент API с cookie и `X-CSRF-Token` — проверка: unit-тесты `can` по матрице ролей; тест клиента «CSRF-заголовок на PATCH»
 - [ ] 2.2 Охрана маршрутов: без сессии → `/login`; раздел без права → «Недостаточно прав» — проверка: тесты роутера (Testing Library)
 
 ## 3. Экран

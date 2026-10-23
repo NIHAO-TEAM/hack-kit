@@ -34,6 +34,6 @@
 ## Допущения исполнителя
 
 - [ПРЕДПОЛОЖЕНО] Версии стека — последние стабильные из реестра на 23.10. `typescript` закреплён на 6.0.3: `typescript-eslint` 8.72.0 не поддерживает TS 7.
-- [ПРЕДПОЛОЖЕНО] MSW 3.0.3: в Context7 документация только до 2.15, API (`http`, `HttpResponse`, `setupWorker`, `setupServer`) сверен по типам пакета; опции `onUnhandledRequest` у `worker.start()` нет — используется `quiet`.
+- [ПРЕДПОЛОЖЕНО] MSW 3.0.3: в Context7 документация только до 2.15, API (`http`, `HttpResponse`, `setupWorker`, `setupServer`) сверен по типам пакета; вместо `onUnhandledRequest` в MSW 3 опция `onUnhandledFrame`.
 - [ПРЕДПОЛОЖЕНО] Данные моков — `accounts` и `services` из `cases/analizator/data.json`; оценки риска в моках условные (детерминированы по id), настоящие считает бэкенд.
 - [ПРЕДПОЛОЖЕНО] Вход `toomany` в моках отвечает `429` с `Retry-After: 300` — чтобы проверить текст «слишком много попыток».

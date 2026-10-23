@@ -8,7 +8,7 @@ if (!root) throw new Error('Нет корневого элемента #root');
 async function start() {
   if (import.meta.env.MODE === 'mock') {
     const { worker } = await import('./mocks/browser');
-    await worker.start({ quiet: true });
+    await worker.start({ quiet: true, onUnhandledFrame: 'bypass' });
   }
   createRoot(root!).render(
     <StrictMode>
