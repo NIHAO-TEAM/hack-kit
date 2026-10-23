@@ -16,9 +16,9 @@ import (
 
 // Действия эмулятора (actionId в EmulatorAction).
 const (
-	ActionTopUp           = "top_up"
+	ActionTopUp             = "top_up"
 	ActionEnableAutoprolong = "enable_autoprolong"
-	ActionReset           = "reset"
+	ActionReset             = "reset"
 )
 
 // maxTickHours — предел одного сдвига времени: год.
