@@ -40,6 +40,12 @@ else
   echo "ufw недоступен или нет sudo: firewall не настроен, проверьте порты вручную"
 fi
 
+# 3а. Если вход уже держит k3s (Traefik), Compose на 80/443 не поднимаем: два слушателя дают TLS через раз.
+if [ -z "${ALLOW_WITH_K3S:-}" ] && command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet k3s 2>/dev/null; then
+  echo "прод на k3s: вход один, Traefik. Выкат Compose пропущен (чтобы обойти — ALLOW_WITH_K3S=1)." >&2
+  exit 1
+fi
+
 # 3. 80/443 не должны быть заняты чужим процессом (иначе Caddy не получит сертификат).
 ours="$(docker ps --filter publish=80 --filter publish=443 --format '{{.Names}}' 2>/dev/null || true)"
 if [ -z "$ours" ] && command -v ss >/dev/null 2>&1; then

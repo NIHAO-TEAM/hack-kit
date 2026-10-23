@@ -579,11 +579,19 @@ export interface components {
         EmulatorTickRequest: {
             /** @default 1 */
             days: number;
+            /** @description Сдвиг в часах; если задан, days игнорируется */
+            hours?: number;
         };
         EmulatorAction: {
             /** Format: int64 */
             customerId: number;
+            /** @description top_up (нужен cents), enable_autoprolong, reset (customerId игнорируется) */
             actionId: string;
+            /**
+             * Format: int64
+             * @description Сумма пополнения в евроцентах, только для top_up
+             */
+            cents?: number;
         };
         EmulatorActionsRequest: {
             actions: components["schemas"]["EmulatorAction"][];
@@ -600,16 +608,42 @@ export interface components {
             totalReplenished: number;
             /**
              * Format: double
-             * @description Риск оттока 0..1; null для unscored.
+             * @description Риск оттока в процентах 0..100 (как порог модели); null для unscored и lost.
              */
             score?: number | null;
             level: components["schemas"]["RiskLevel"];
             /** Format: int64 */
             expectedLossCents: number;
+            /** @description Главная причина простыми словами; нет у unscored и lost. */
+            topReason?: string;
+            topAction?: components["schemas"]["ActionBrief"];
+            /**
+             * Format: date-time
+             * @description Окно спасения — срок услуги в ожидании оплаты (prolong_wait).
+             */
+            expiresAt?: string;
+            /**
+             * Format: date-time
+             * @description Когда услугу в ожидании оплаты удалят (expiresAt + 5 дней).
+             */
+            deleteAt?: string;
+            /** @description Тег «к биллингу» — сбой автосписания, а не отток. */
+            billing?: boolean;
+        };
+        ActionBrief: {
+            id: string;
+            title: string;
+            /** Format: int64 */
+            effectCents: number;
         };
         CustomerPage: {
             items: components["schemas"]["CustomerRow"][];
             total: number;
+            /**
+             * Format: int64
+             * @description Версия пересчёта, по которому построена страница.
+             */
+            version: number;
         };
         Feature: {
             id: string;
@@ -626,11 +660,40 @@ export interface components {
             title: string;
             /** Format: int64 */
             effectCents: number;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description Риск после действия, 0..100.
+             */
             newScore: number;
             newLevel: components["schemas"]["RiskLevel"];
         };
+        ServiceRisk: {
+            /** Format: int64 */
+            serviceId: number;
+            /**
+             * Format: double
+             * @description Вероятность непродления услуги 0..1.
+             */
+            probability: number;
+            /**
+             * Format: int64
+             * @description Сумма под угрозой R за горизонт, центы.
+             */
+            rCents: number;
+            /** Format: int64 */
+            lossCents: number;
+            features: components["schemas"]["Feature"][];
+            /** @description Сработавшие проверки качества данных. */
+            quality: string[];
+        };
         CustomerDetail: {
+            /**
+             * Format: int64
+             * @description Версия пересчёта.
+             */
+            version: number;
+            /** @description Оценка каждой живой услуги. */
+            serviceRisks?: components["schemas"]["ServiceRisk"][];
             customer: components["schemas"]["CustomerRow"];
             account?: components["schemas"]["Account"];
             services: components["schemas"]["Service"][];
@@ -683,6 +746,13 @@ export interface components {
             asOfMode: "snapshot" | "server";
             /** Format: int64 */
             version: number;
+            /** @description Кто сохранил эту версию; для версии 0 (умолчания) поля нет. */
+            updatedBy?: string;
+            /**
+             * Format: date-time
+             * @description Когда сохранена версия; для версии 0 (умолчания) поля нет.
+             */
+            updatedAt?: string;
         };
         ModelSettingsPatch: {
             weights?: {
@@ -1204,6 +1274,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["UnprocessableEntity"];
             501: components["responses"]["NotImplemented"];
         };
     };

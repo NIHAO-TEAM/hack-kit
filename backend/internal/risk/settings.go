@@ -3,6 +3,7 @@ package risk
 import (
 	"errors"
 	"fmt"
+	"sort"
 )
 
 // Значения priceBasis.
@@ -38,22 +39,42 @@ func defaultsFrom(r *featureRegistry) Settings {
 	return Settings{Weights: w, High: 70, Medium: 50, HorizonDays: 30, PriceBasis: PricePerPeriod}
 }
 
-// Validate проверяет настройки: веса в [0, 1], High > Medium, горизонт 1..365, известный priceBasis.
-func (s Settings) Validate() error {
-	var errs []error
-	for id, w := range s.Weights {
-		if w < 0 || w > 1 {
-			errs = append(errs, fmt.Errorf("вес %q = %v вне [0, 1]", id, w))
+// FieldProblem — нарушение в одном поле настроек; Field — путь в теле API («weights.noauto»).
+type FieldProblem struct {
+	Field   string
+	Message string
+}
+
+// Problems перечисляет нарушения настроек по полям; пусто — настройки верны.
+func (s Settings) Problems() []FieldProblem {
+	var ps []FieldProblem
+	ids := make([]string, 0, len(s.Weights))
+	for id := range s.Weights {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if w := s.Weights[id]; w < 0 || w > 1 {
+			ps = append(ps, FieldProblem{"weights." + id, fmt.Sprintf("вес %q = %v вне [0, 1]", id, w)})
 		}
 	}
 	if s.High <= s.Medium {
-		errs = append(errs, fmt.Errorf("порог high (%v) должен быть больше medium (%v)", s.High, s.Medium))
+		ps = append(ps, FieldProblem{"thresholds.high", fmt.Sprintf("порог high (%v) должен быть больше medium (%v)", s.High, s.Medium)})
 	}
 	if s.HorizonDays < 1 || s.HorizonDays > 365 {
-		errs = append(errs, fmt.Errorf("горизонт %d дн. вне 1..365", s.HorizonDays))
+		ps = append(ps, FieldProblem{"horizonDays", fmt.Sprintf("горизонт %d дн. вне 1..365", s.HorizonDays)})
 	}
 	if s.PriceBasis != PricePerPeriod && s.PriceBasis != PricePerMonth {
-		errs = append(errs, fmt.Errorf("priceBasis %q: нужно %s или %s", s.PriceBasis, PricePerPeriod, PricePerMonth))
+		ps = append(ps, FieldProblem{"priceBasis", fmt.Sprintf("priceBasis %q: нужно %s или %s", s.PriceBasis, PricePerPeriod, PricePerMonth)})
+	}
+	return ps
+}
+
+// Validate проверяет настройки: веса в [0, 1], High > Medium, горизонт 1..365, известный priceBasis.
+func (s Settings) Validate() error {
+	var errs []error
+	for _, p := range s.Problems() {
+		errs = append(errs, errors.New(p.Message))
 	}
 	return errors.Join(errs...)
 }
