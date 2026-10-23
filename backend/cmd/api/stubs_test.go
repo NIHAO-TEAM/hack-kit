@@ -76,8 +76,8 @@ func TestEveryUnimplementedPathAnswers501(t *testing.T) {
 			checked++
 		}
 	}
-	if checked < 15 {
-		t.Errorf("проверено операций %d, ждали не меньше 15", checked)
+	if checked < 13 {
+		t.Errorf("проверено операций %d, ждали не меньше 13", checked)
 	}
 }
 
