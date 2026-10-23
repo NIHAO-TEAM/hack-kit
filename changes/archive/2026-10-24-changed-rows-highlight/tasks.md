@@ -11,4 +11,5 @@
 ## 2. Готовность
 
 - [x] 2.1 `pnpm check` зелёный, axe без serious/critical в обеих темах
+  - Проверено: `pnpm check` зелёный; axe (serious/critical) — 0 на очереди и карточке в светлой и тёмной темах, 1440 и 390, прогон Chromium вместо Firefox из `pnpm shots` (в среде нет Firefox)
 - [x] 2.2 Сценарий `specs/live` про подсветку изменений

@@ -134,11 +134,7 @@ export function CustomerPage({ id }: { id: number }) {
       <Grid>
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Stack>
-            {lost ? null : (
-              <Changed active={changed.has('action')}>
-                <ActionsCard actions={actions} />
-              </Changed>
-            )}
+            {lost ? null : <ActionsCard actions={actions} changed={changed.has('action')} />}
             <ServiceList services={services} />
             <FeaturesCard features={features} score={customer.score ?? null} />
           </Stack>
