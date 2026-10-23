@@ -29,3 +29,6 @@ type AnalyticsAPI struct {
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *AnalyticsAPI {
 	return &AnalyticsAPI{pool: pool, bus: bus, clk: clk}
 }
+
+// flush сбрасывает буфер ответа клиенту; работает и через обёртки, у которых есть Unwrap.
+func flush(w responseWriter) error { return http.NewResponseController(w).Flush() }
