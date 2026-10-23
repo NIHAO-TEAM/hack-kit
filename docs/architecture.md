@@ -8,7 +8,7 @@
 
 ```
 источник (биллинг / эмулятор)
-      │  снимок: POST /api/v1/source/snapshot, правки услуг и аккаунтов
+      │  снимок: PUT /api/v1/source/snapshot, правки услуг и аккаунтов
       ▼
  source ──────► Postgres (снимок, настройки, пользователи, сессии)
       │ событие «данные изменились»
@@ -65,7 +65,7 @@
 
 ## Как встать в контур aéza
 
-1. Источник данных: направить биллинг на `POST /api/v1/source/snapshot` (формат — `api/openapi.yaml`, схема снимка) с токеном `SOURCE_TOKEN`; либо подключить REST-адаптер биллинга (изменение `billing-rest-adapter`).
+1. Источник данных: направить биллинг на `PUT /api/v1/source/snapshot` (формат — `api/openapi.yaml`, схема снимка) с токеном `SOURCE_TOKEN`; либо подключить REST-адаптер биллинга (изменение `billing-rest-adapter`).
 2. Задать окружение: `POSTGRES_PASSWORD`, `ADMIN_*`, токены — по `.env.example`.
 3. Вход сотрудников: локальные учётки; OIDC через Keycloak — изменение `keycloak-oidc`.
 4. Развёртывание в кластере: Helm-чарт с `values.yaml` (изменение `helm-k3s`): образ, домен, секреты, токен метрик; Prometheus снимает `/metrics`.
