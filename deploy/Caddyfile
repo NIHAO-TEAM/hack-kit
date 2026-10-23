@@ -19,6 +19,11 @@
 		reverse_proxy keycloak:8080
 	}
 
+	# Мониторинг: вход и пароли — в самой Grafana.
+	handle /grafana* {
+		reverse_proxy grafana:3000
+	}
+
 	handle {
 		# Живые обновления (SSE) не буферизуем.
 		@sse path /api/v1/events

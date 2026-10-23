@@ -17,3 +17,37 @@
 Файл на прогон: `YYYY-MM-DD-<сценарий>.md` — железо, команда запуска, таблица, вывод одной фразой.
 
 > Замер на <железо>. Это порядок величин, а не обещание для боевого сервера.
+
+## Нагрузка 100k клиентов (`load-k6`)
+
+Сценарии — в `docs/load/k6/`. Цели из вердикта дебатов: пересчёт после `PATCH /model/settings` на 100k ≤ 1 с, `PUT /source/snapshot` на 100k ≤ 30 с.
+
+### Результаты
+
+**Прогон не выполнен.** Исполнитель работал в облачной среде без запущенного Docker и без `k6`, поэтому ни одного числа здесь нет и выдумывать их нельзя. Таблицу заполняет первый реальный прогон по инструкции ниже (файл `YYYY-MM-DD-load-100k.md` в этой папке).
+
+| Сценарий | Цель | Результат |
+|---|---|---|
+| `PUT /source/snapshot`, 100k | ≤ 30 с | не измерено |
+| `PATCH /model/settings` → пересчёт | ≤ 1 с | не измерено |
+| `GET /customers` с сортировкой, p95 | зафиксировать | не измерено |
+| `GET /analytics/summary`, p95 | зафиксировать | не измерено |
+
+### Как повторить
+
+```sh
+python3 cases/analizator/generate.py --accounts 100000 --services 300000 --transactions 1000000 --out /tmp/load
+cp .env.example .env   # задать POSTGRES_PASSWORD, ADMIN_PASSWORD, SOURCE_TOKEN, METRICS_TOKEN
+docker compose up -d
+k6 run -e SOURCE_TOKEN=… -e SNAPSHOT=/tmp/load/data.json docs/load/k6/snapshot.js
+k6 run -e PASSWORD=$ADMIN_PASSWORD docs/load/k6/read.js
+k6 run -e PASSWORD=$ADMIN_PASSWORD -e METRICS_TOKEN=… docs/load/k6/recalc.js
+```
+
+Повторить второй раз: числа должны совпасть ±20 %. Время пересчёта по версии сервера — метрика `churn_recalc_duration_seconds`.
+
+### Оговорки
+
+- Замер на одной машине: k6, приложение и PostgreSQL делят процессор. Это порядок величин, а не обещание для боевого сервера.
+- Генератор детерминирован (`--seed 42`), данные синтетические.
+- Сценарии написаны по `api/openapi.yaml`, но не запускались: возможны правки при первом прогоне.
