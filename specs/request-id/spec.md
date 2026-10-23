@@ -33,3 +33,9 @@
 - WHEN клиент отправляет `POST /healthz`
 - THEN ответ `405` и в нём есть `X-Request-Id`
 - Тест: `TestRequestID/405_тоже_с_заголовком`
+
+#### Scenario: urn и скобки
+
+- WHEN клиент отправляет `X-Request-Id: urn:uuid:<uuid>` или `{<uuid>}`
+- THEN в ответе `X-Request-Id` равен `<uuid>` в нижнем регистре (36 символов)
+- Тест: `TestRequestIDFormats`

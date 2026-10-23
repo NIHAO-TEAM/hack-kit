@@ -7,4 +7,4 @@
 ## 2. Готовность
 
 - [x] 2.1 `make check` в `backend/` зелёный
-- [ ] 2.2 Архив изменения (`change-archive`): сценарии в `specs/request-id/spec.md`, папка в `changes/archive/`
+- [x] 2.2 Архив изменения (`change-archive`): сценарии в `specs/request-id/spec.md`, папка в `changes/archive/`
