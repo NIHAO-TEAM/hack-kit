@@ -47,8 +47,7 @@ type ServiceResult struct {
 type ServiceQuality struct {
 	ServiceID int64
 	Flags     []string
-	// FlagIDs — идентификаторы сработавших проверок, в порядке Flags.
-	FlagIDs []string
+	IDs       []string // идентификаторы проверок, в порядке Flags
 }
 
 // ActionResult — действие с ценой: эффект = ожидаемая потеря после − до (отрицательный — выгода).
@@ -173,7 +172,7 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 			for _, q := range sq.Flags {
 				res.Summary.QualityCounts[q]++
 			}
-			for _, id := range sq.FlagIDs {
+			for _, id := range sq.IDs {
 				h := hits[id]
 				h.OK = false
 				h.Count++
@@ -267,8 +266,9 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 			continue
 		}
 		// проверки качества идут и по неживым услугам; признаков и скора у них нет
-		if flags, ids := qualityFlags(ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID]}, cs); len(flags) > 0 {
-			c.Quality = append(c.Quality, ServiceQuality{ServiceID: sv.ID, Flags: flags, FlagIDs: ids})
+		h := qualityFlags(ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID]}, cs)
+		if len(h.Messages) > 0 {
+			c.Quality = append(c.Quality, ServiceQuality{ServiceID: sv.ID, Flags: h.Messages, IDs: h.IDs})
 		}
 		asActive := sv
 		asActive.Status = StatusActive
@@ -323,18 +323,26 @@ func scoreService(ctx ServiceCtx, st Settings, fs []Feature, cs []Check) Service
 		}
 		return sr.Features[i].ID < sr.Features[j].ID
 	})
-	sr.Quality, sr.QualityIDs = qualityFlags(ctx, cs)
+	h := qualityFlags(ctx, cs)
+	sr.Quality, sr.QualityIDs = h.Messages, h.IDs
 	return sr
 }
 
-func qualityFlags(ctx ServiceCtx, cs []Check) (flags, ids []string) {
+// qualityHits — сработавшие проверки услуги: тексты и id в одном порядке.
+type qualityHits struct {
+	Messages []string
+	IDs      []string
+}
+
+func qualityFlags(ctx ServiceCtx, cs []Check) qualityHits {
+	var out qualityHits
 	for _, c := range cs {
 		if msg, hit := c.Eval(ctx); hit {
-			flags = append(flags, msg)
-			ids = append(ids, c.ID())
+			out.Messages = append(out.Messages, msg)
+			out.IDs = append(out.IDs, c.ID())
 		}
 	}
-	return flags, ids
+	return out
 }
 
 // accountFunds — «нужно» и «есть» за окно запаса средств (правило 5, funds).

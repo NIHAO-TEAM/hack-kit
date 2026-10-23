@@ -38,6 +38,11 @@ func TestQualityOrganizers(t *testing.T) {
 	if got := res.Summary.QualityCounts["заблокирована, срок в будущем"]; got != 3 {
 		t.Errorf("заблокирована, срок в будущем: %d, ждали 3 (%v)", got, res.Summary.QualityCounts)
 	}
+	for _, c := range res.Checks {
+		if c.ID == "blocked_future" && (c.OK || c.Count != 3) {
+			t.Errorf("проверка blocked_future: %+v", c)
+		}
+	}
 }
 
 // blocked со сроком в будущем не живая услуга, но проверка качества её видит; скор и деньги не меняются.

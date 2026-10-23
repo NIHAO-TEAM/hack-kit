@@ -7,6 +7,7 @@ import { can, logout, sessionKey, type Right } from '@entities/session';
 import { IconLogout } from '@shared/ui';
 import { RealtimeProvider } from '../realtime';
 import { Route } from '../routes/_app';
+import { ThemeSwitch } from './ThemeSwitch';
 
 const sections: {
   to: '/queue' | '/summary' | '/model' | '/source' | '/about';
@@ -60,7 +61,10 @@ export function AppShell() {
             </Text>
           </Group>
           <Group wrap="nowrap">
-            <Text size="sm">{user.login}</Text>
+            <ThemeSwitch />
+            <Text size="sm" visibleFrom="sm">
+              {user.login}
+            </Text>
             <Button
               variant="default"
               size="compact-md"
