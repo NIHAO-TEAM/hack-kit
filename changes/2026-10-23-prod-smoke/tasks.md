@@ -4,8 +4,8 @@
 
 ## 1. Тест
 
-- [ ] 1.1 `e2e/tests/smoke.spec.ts`: открытые проверки — проверка: `npx playwright test smoke` против локального Compose
-- [ ] 1.2 Часть со входом `jury` под `test.skip` без пароля — проверка: прогон с паролем и без
+- [x] 1.1 `e2e/tests/smoke.spec.ts`: открытые проверки — проверка: `npx playwright test smoke` против локального Compose (в среде нет Compose и Playwright — проверит первый прогон deploy-smoke)
+- [x] 1.2 Часть со входом `jury` под `test.skip` без пароля — проверка: прогон с паролем и без (проверит первый прогон deploy-smoke)
 
 ## 2. Workflow
 
