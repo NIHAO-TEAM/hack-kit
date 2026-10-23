@@ -1,0 +1,65 @@
+import { screen } from '@testing-library/react';
+import { HttpResponse, http } from 'msw';
+import { server } from '../mocks/server';
+import { renderApp } from './render-app';
+
+function signedInAs(role: 'marketer' | 'analyst') {
+  server.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 1, login: role, role })));
+}
+
+describe('экран «О модели»', () => {
+  it('показывает признаки с весами, формулу и пример клиента 9', async () => {
+    signedInAs('marketer');
+    server.use(
+      http.get('/api/v1/model/settings', () =>
+        HttpResponse.json({
+          weights: {},
+          thresholds: { high: 70, medium: 50 },
+          horizonDays: 30,
+          priceBasis: 'per_period',
+          asOfMode: 'snapshot',
+          version: 1,
+        }),
+      ),
+    );
+    renderApp('/about');
+    expect(await screen.findByRole('heading', { name: 'О модели' })).toBeInTheDocument();
+    expect(screen.getAllByText('Автопродление выключено').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('0,80').length).toBeGreaterThan(0);
+    expect(screen.getByText(/ожидаемая потеря = Σ round/)).toBeInTheDocument();
+    expect(screen.getByText(/3 459,27 €/)).toBeInTheDocument();
+  });
+
+  it('берёт веса из настроек сервера', async () => {
+    signedInAs('analyst');
+    server.use(
+      http.get('/api/v1/model/settings', () =>
+        HttpResponse.json({
+          weights: { pwait: 0.95 },
+          thresholds: { high: 75, medium: 55 },
+          horizonDays: 30,
+          priceBasis: 'per_period',
+          asOfMode: 'snapshot',
+          version: 2,
+        }),
+      ),
+    );
+    renderApp('/about');
+    expect(await screen.findByText('0,95')).toBeInTheDocument();
+    expect(screen.getByText(/Высокий — скор от 75/)).toBeInTheDocument();
+  });
+
+  it('при ошибке сервера предлагает повторить', async () => {
+    signedInAs('analyst');
+    server.use(
+      http.get('/api/v1/model/settings', () =>
+        HttpResponse.json({ title: 'Сбой' }, { status: 500 }),
+      ),
+    );
+    renderApp('/about');
+    expect(
+      await screen.findByRole('heading', { name: 'Не удалось загрузить настройки модели' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+  });
+});

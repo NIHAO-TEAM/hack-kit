@@ -121,7 +121,7 @@ export const handlers = [
     if (!getCurrent()) return problem(401, 'Нет сессии');
     return HttpResponse.json({
       weights: {},
-      thresholds: { high: 0.7, medium: 0.4 },
+      thresholds: { high: 70, medium: 50 },
       horizonDays: 30,
       priceBasis: 'per_month',
       asOfMode: 'snapshot',
