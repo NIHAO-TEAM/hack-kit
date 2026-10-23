@@ -153,7 +153,19 @@ func (a *ModelAPI) PatchModelSettings(w http.ResponseWriter, r *http.Request, pa
 		if d.LevelChanges == nil {
 			d.LevelChanges = map[string]int{}
 		}
-		writeJSON(w, gen.DryRunResult{LevelChanges: d.LevelChanges, ExpectedLossDeltaCents: d.ExpectedLossDeltaCents})
+		customers := make([]gen.DryRunCustomer, len(d.Customers))
+		for i, c := range d.Customers {
+			customers[i] = gen.DryRunCustomer{
+				Id: c.ID, Name: c.Name, LevelFrom: c.LevelFrom, LevelTo: c.LevelTo,
+				ScoreFrom: c.ScoreFrom, ScoreTo: c.ScoreTo, ExpectedLossDeltaCents: c.ExpectedLossDeltaCents,
+			}
+		}
+		writeJSON(w, gen.DryRunResult{
+			LevelChanges:           d.LevelChanges,
+			ExpectedLossDeltaCents: d.ExpectedLossDeltaCents,
+			Customers:              &customers,
+			CustomersTotal:         &d.CustomersTotal,
+		})
 		return
 	}
 

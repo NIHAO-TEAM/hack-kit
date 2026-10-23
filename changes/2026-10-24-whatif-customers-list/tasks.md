@@ -4,12 +4,12 @@
 
 ## 1. Контракт и данные
 
-- [ ] 1.1 `DryRunResult.customers`, `customersTotal`, схема `DryRunCustomer` — проверка: `make generate && git diff --exit-code`, `oasdiff` без breaking
+- [x] 1.1 `DryRunResult.customers`, `customersTotal`, схема `DryRunCustomer` — проверка: `make generate && git diff --exit-code`, `oasdiff` без breaking
 
 ## 2. Логика
 
-- [ ] 2.1 Dry-run собирает клиентов со сменой уровня, сортировка и лимит 50 — проверка: тест в `internal/model` на наборе организаторов
-- [ ] 2.2 HTTP-ответ dry-run с новым полем — проверка: тест `internal/app` (settings)
+- [x] 2.1 Dry-run собирает клиентов со сменой уровня, сортировка и лимит 50 — проверка: тест в `internal/model` на наборе организаторов (тест `TestDiffCustomers` в `internal/app`: логика в `app.Diff`; на наборе организаторов проверит CI с БД)
+- [x] 2.2 HTTP-ответ dry-run с новым полем — проверка: тест `internal/app` (settings) (интеграционный тест — проверит CI с БД)
 
 ## 3. Экран
 

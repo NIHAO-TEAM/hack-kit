@@ -10,6 +10,21 @@ import (
 type DryRun struct {
 	LevelChanges           map[string]int
 	ExpectedLossDeltaCents int64
+	// Customers — до MaxDryRunCustomers клиентов со сменой уровня, по убыванию |ExpectedLossDeltaCents|.
+	Customers      []DryRunCustomer
+	CustomersTotal int
+}
+
+// MaxDryRunCustomers — сколько клиентов отдаёт предпросмотр; полное число — в CustomersTotal.
+const MaxDryRunCustomers = 50
+
+// DryRunCustomer — клиент, у которого правка меняет уровень.
+type DryRunCustomer struct {
+	ID                     int64
+	Name                   string
+	LevelFrom, LevelTo     string
+	ScoreFrom, ScoreTo     float64
+	ExpectedLossDeltaCents int64
 }
 
 // Ports — то, что знает ядро модели и сборка сервера, а модуль model по границам не видит.

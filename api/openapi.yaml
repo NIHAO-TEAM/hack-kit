@@ -681,6 +681,39 @@ components:
         expectedLossDeltaCents:
           type: integer
           format: int64
+        customers:
+          type: array
+          maxItems: 50
+          description: Клиенты со сменой уровня, по убыванию модуля expectedLossDeltaCents; не больше 50.
+          items:
+            $ref: "#/components/schemas/DryRunCustomer"
+        customersTotal:
+          type: integer
+          minimum: 0
+          description: Сколько всего клиентов меняет уровень (может быть больше длины customers).
+    DryRunCustomer:
+      type: object
+      required: [id, name, levelFrom, levelTo, scoreFrom, scoreTo, expectedLossDeltaCents]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          description: Как клиент называется в очереди (email аккаунта).
+        levelFrom:
+          type: string
+        levelTo:
+          type: string
+        scoreFrom:
+          type: number
+          format: double
+        scoreTo:
+          type: number
+          format: double
+        expectedLossDeltaCents:
+          type: integer
+          format: int64
 paths:
   /healthz:
     get:
