@@ -17,10 +17,10 @@
 
 ## Затронутые части
 
-- backend: `internal/model/http.go`, `internal/model/dryrun.go`
+- backend: `internal/model/{http,dryrun,settings,service}.go`, `internal/app/settings.go`, `internal/risk/settings.go` (`Problems`), `internal/auth/http.go` (`LoginFrom`)
 - frontend: нет
-- контракт `api/openapi.yaml`: нет
-- защищённые пути: нет
+- контракт `api/openapi.yaml`: добавления — ответ `422` у `PATCH /model/settings`, необязательные `updatedBy`, `updatedAt` в `ModelSettings` (сгенерированные `backend/internal/platform/api/gen`, `docs/openapi.yaml`, `frontend/src/shared/api/schema.gen.ts`)
+- защищённые пути: `api/openapi.yaml` — добавление `422` и двух необязательных полей, без которых нельзя выполнить «422 по полям» и «кто и когда менял»
 - зависит от: `recalc-engine`
 
 ## Связанные решения
@@ -29,4 +29,6 @@
 - Макет: не нужен
 
 ## Найдено по ходу
+
+- `TestGolden` в `internal/risk` падает на `main` (`bonus_locked` в эталоне `testdata/golden/stand.json` отсутствует) — не из этого изменения, не трогал.
 

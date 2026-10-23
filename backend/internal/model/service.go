@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -79,4 +80,30 @@ func (s *Store) Save(ctx context.Context, body json.RawMessage, by string) (int6
 	}
 	s.bus.Publish(TopicChanged, version)
 	return version, nil
+}
+
+// Record — сохранённая версия настроек с автором и временем.
+type Record struct {
+	Body      json.RawMessage
+	Version   int64
+	UpdatedBy string
+	UpdatedAt time.Time
+}
+
+// Latest возвращает последнюю версию настроек целиком. Ничего не сохраняли — нулевая запись
+// (Body nil, версия 0).
+func (s *Store) Latest(ctx context.Context) (Record, error) {
+	var rec Record
+	var body []byte
+	err := s.pool.QueryRow(ctx,
+		"SELECT body, version, updated_by, updated_at FROM model_settings ORDER BY version DESC LIMIT 1").
+		Scan(&body, &rec.Version, &rec.UpdatedBy, &rec.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Record{}, nil
+	}
+	if err != nil {
+		return Record{}, fmt.Errorf("model: чтение настроек: %w", err)
+	}
+	rec.Body = body
+	return rec, nil
 }
