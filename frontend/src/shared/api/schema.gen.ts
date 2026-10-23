@@ -597,7 +597,7 @@ export interface components {
              * @description Откуда загружен текущий снимок.
              * @enum {string}
              */
-            source?: "seed" | "api";
+            source?: "seed" | "api" | "emulator";
             /** Format: date-time */
             asOf?: string;
             /** Format: date-time */

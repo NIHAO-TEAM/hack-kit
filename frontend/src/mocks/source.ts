@@ -54,8 +54,8 @@ function problem(status: number, title: string, errors?: { field: string; messag
   );
 }
 
-const bump = () => {
-  state = { ...state, version: state.version + 1 };
+const bump = (source: string) => {
+  state = { ...state, version: state.version + 1, source };
   return HttpResponse.json({
     version: state.version,
     asOf: state.asOf,
@@ -73,7 +73,7 @@ export const sourceHandlers = [
   }),
   http.patch('/api/v1/source/accounts/:id', async ({ params }) => {
     if (Number(params.id) > 10) return problem(404, 'счёт не найден');
-    bump();
+    bump('api');
     return HttpResponse.json({
       id: Number(params.id),
       email: 'user@example.test',
@@ -84,8 +84,8 @@ export const sourceHandlers = [
       bonusState: 'locked',
     });
   }),
-  http.post('/api/v1/source/emulator/tick', () => bump()),
-  http.post('/api/v1/source/emulator/actions', () => bump()),
+  http.post('/api/v1/source/emulator/tick', () => bump('emulator')),
+  http.post('/api/v1/source/emulator/actions', () => bump('emulator')),
   http.put('/api/v1/source/snapshot', async ({ request }) => {
     const body = (await request.json()) as { services?: { ownerId: number }[] };
     if (body.services?.some((s) => s.ownerId === 999)) {
@@ -93,6 +93,6 @@ export const sourceHandlers = [
         { field: 'services[3].ownerId', message: 'владелец 999 не найден среди счетов' },
       ]);
     }
-    return bump();
+    return bump('api');
   }),
 ];

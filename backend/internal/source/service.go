@@ -23,8 +23,9 @@ import (
 
 // Источники снимка в snapshots.source.
 const (
-	OriginSeed = "seed"
-	OriginAPI  = "api"
+	OriginSeed     = "seed"
+	OriginAPI      = "api"
+	OriginEmulator = "emulator"
 )
 
 // TopicChanged — тема шины, в которую после коммита снимка уходит номер версии.
