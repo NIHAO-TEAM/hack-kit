@@ -1,4 +1,4 @@
-Статус: в работе
+Статус: на ревью
 
 # Вход по логину и паролю, сессии и права ролей
 
@@ -35,4 +35,10 @@
 - Макет: не нужен
 
 ## Найдено по ходу
+
+- Контракт: у `GET /auth/me` нет `csrfToken` в ответе, у `POST /auth/login` не описан `429`. Нужны отдельным контрактным изменением; пока `csrfToken` отдаётся заголовком `X-CSRF-Token`.
+- `TestEveryUnimplementedPathAnswers501` (`cmd/api/stubs_test.go`): заглушки теперь закрыты входом, тест ходит под `jury`; порог проверенных операций снижен с 20 до 15, потому что `login`, `getMe`, `logout` реализованы.
+- `app.New` и `app.Routes` принимают `*auth.AuthAPI`; `apitest.Stand` получил `As`, `Anonymous`, `WithBearer`, `Handler` и константы учёток.
+- `make generate` запускает sqlc через `go run …@v1.31.1` (ему нужен Go 1.26, toolchain подтягивается сам); в `go.mod` sqlc не добавлен.
+- Новых переменных окружения нет.
 

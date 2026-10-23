@@ -23,6 +23,6 @@
 
 ## 4. Готовность
 
-- [ ] 4.1 `make check` и `make test-int` зелёные
-- [ ] 4.2 Сценарии из `specs/` проходят на локальном стенде
-- [ ] 4.3 README и `.env.example` не трогать: их ведёт параллельное `compose-stand`, переменные `ADMIN_*`, `DEMO_*_PASSWORD`, `METRICS_TOKEN`, `SOURCE_TOKEN`, `COOKIE_SECURE`, `TRUSTED_PROXY` там уже перечислены. Новая переменная — запись в «Найдено по ходу»
+- [x] 4.1 `make check` и `make test-int` зелёные
+- [x] 4.2 Сценарии из `specs/` проходят на локальном стенде
+- [x] 4.3 README и `.env.example` не трогать: их ведёт параллельное `compose-stand`, переменные `ADMIN_*`, `DEMO_*_PASSWORD`, `METRICS_TOKEN`, `SOURCE_TOKEN`, `COOKIE_SECURE`, `TRUSTED_PROXY` там уже перечислены. Новая переменная — запись в «Найдено по ходу»
