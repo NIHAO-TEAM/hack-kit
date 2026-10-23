@@ -1,0 +1,27 @@
+{
+  "accounts": [
+    {
+      "id": 1,
+      "email": "edge-1@example.test",
+      "balance": 10000,
+      "withdrawBalance": 0,
+      "totalReplenished": 10000,
+      "bonusBalance": 0,
+      "bonusState": "locked"
+    }
+  ],
+  "services": [
+    {
+      "id": 1,
+      "name": "edge-svc-1",
+      "ownerId": 1,
+      "paymentTerm": "month",
+      "autoProlong": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "expiresAt": "2026-10-16T15:00:00.000Z",
+      "status": "prolong_wait",
+      "price": 500
+    }
+  ],
+  "transactions": []
+}
