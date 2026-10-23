@@ -1,4 +1,4 @@
-import { eurosToCents, qualityTitle } from './quality';
+import { eurosToCents } from './quality';
 
 describe('eurosToCents', () => {
   it.each([
@@ -11,8 +11,4 @@ describe('eurosToCents', () => {
   it.each(['', 'abc', '-5', '1,234'])('«%s» не число', (text) =>
     expect(eurosToCents(text)).toBeNull(),
   );
-});
-
-describe('qualityTitle', () => {
-  it('неизвестный код показывается как есть', () => expect(qualityTitle('x_y')).toBe('x_y'));
 });

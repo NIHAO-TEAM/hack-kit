@@ -6,33 +6,76 @@ import { resetSourceMock } from '../mocks/source';
 import { server } from '../mocks/server';
 
 function signedInAs(role: 'analyst' | 'marketer') {
-  server.use(
-    http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 2, login: role, role })),
-    http.get('/api/v1/analytics/summary', () =>
-      HttpResponse.json({
-        levels: { high: 0, medium: 0, low: 0, unscored: 0, lost: 0 },
-        expectedLossCents: 0,
-        atRiskCents: 0,
-        lostCents: 0,
-        qualityCounts: { prolong_wait_over_5d: 2 },
-        version: 1,
-      }),
-    ),
-  );
+  server.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 2, login: role, role })));
 }
 
 beforeEach(resetSourceMock);
 
 describe('экран «Источник»', () => {
-  it('шапка показывает версию и источник, качество — счётчик', async () => {
+  it('шапка показывает версию и источник', async () => {
     signedInAs('analyst');
     renderApp('/source');
     const header = await screen.findByRole('region', { name: 'Текущий снимок' });
     expect(within(header).getByText('1')).toBeInTheDocument();
     expect(within(header).getByText('Набор организаторов')).toBeInTheDocument();
+  });
+
+  it('проверки качества из сервера: текст, услуги и ссылки на клиентов', async () => {
+    signedInAs('analyst');
+    renderApp('/source');
     const quality = await screen.findByRole('region', { name: 'Проверки качества данных' });
-    expect(within(quality).getByText(/в ожидании оплаты дольше 5 дней/)).toBeInTheDocument();
-    expect(within(quality).getByText('2')).toBeInTheDocument();
+    expect(
+      within(quality).getByText('2 услуги в ожидании оплаты дольше 5 дней'),
+    ).toBeInTheDocument();
+    expect(within(quality).getByText(/Нет услуг в статусе «заблокирована»/)).toBeInTheDocument();
+    expect(within(quality).getByText(/Услуга 11/)).toBeInTheDocument();
+    expect(within(quality).getByRole('link', { name: '3' })).toHaveAttribute('href', '/queue/3');
+  });
+
+  it('пока пересчёт не готов — «считаются», после сброса ключа source (его сбрасывает recalculated) проверки появляются', async () => {
+    signedInAs('analyst');
+    let ready = false;
+    server.use(
+      http.get('/api/v1/source/status', () =>
+        HttpResponse.json({
+          version: 2,
+          loadedAt: '2026-10-19T15:00:00Z',
+          ageSeconds: 1,
+          checks: ready
+            ? [
+                {
+                  id: 'stale_status',
+                  ok: true,
+                  message: 'Нет услуг в ожидании оплаты дольше 5 дней',
+                },
+              ]
+            : [],
+        }),
+      ),
+    );
+    const { queryClient } = renderApp('/source');
+    expect(await screen.findByText(/Проверки считаются/)).toBeInTheDocument();
+    ready = true;
+    await queryClient.invalidateQueries({ queryKey: ['source'] });
+    expect(await screen.findByText('Противоречий не найдено.')).toBeInTheDocument();
+  });
+
+  it('все проверки прошли — «Противоречий не найдено»', async () => {
+    signedInAs('analyst');
+    server.use(
+      http.get('/api/v1/source/status', () =>
+        HttpResponse.json({
+          version: 1,
+          loadedAt: '2026-10-19T15:00:00Z',
+          ageSeconds: 1,
+          checks: [
+            { id: 'stale_status', ok: true, message: 'Нет услуг в ожидании оплаты дольше 5 дней' },
+          ],
+        }),
+      ),
+    );
+    renderApp('/source');
+    expect(await screen.findByText('Противоречий не найдено.')).toBeInTheDocument();
   });
 
   it('эмулятор подписан как имитация, «+24 часа» поднимает версию', async () => {

@@ -307,6 +307,21 @@ components:
           type: boolean
         message:
           type: string
+        items:
+          type: array
+          description: Услуги, на которых проверка сработала; не больше 10.
+          items:
+            $ref: "#/components/schemas/QualityCheckItem"
+    QualityCheckItem:
+      type: object
+      required: [serviceId, accountId]
+      properties:
+        serviceId:
+          type: integer
+          format: int64
+        accountId:
+          type: integer
+          format: int64
     SourceStatus:
       type: object
       required: [version, loadedAt, ageSeconds, checks]
