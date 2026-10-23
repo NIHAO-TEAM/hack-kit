@@ -24,11 +24,14 @@ const termLabel: Record<Service['paymentTerm'], string> = {
 /** Услуги клиента: срок, статус, окно спасения; раскрытие — срок и пояснение (признаки по услугам сервер пока не отдаёт). */
 export function ServiceList({
   services,
-  asOf = new Date().toISOString(),
+  asOf,
+  asOfFailed = false,
 }: {
   services: readonly Service[];
-  /** Время стенда; пока нет `/api/clock` — часы браузера [ПРЕДПОЛОЖЕНО]. */
-  asOf?: string;
+  /** Время модели из сводки (`asOf`); пока оно не загружено — `null`. */
+  asOf: string | null;
+  /** Сводка не загрузилась: вместо «загружается» — «недоступно». */
+  asOfFailed?: boolean;
 }) {
   return (
     <Stack gap="xs">
@@ -47,7 +50,16 @@ export function ServiceList({
                     {termLabel[s.paymentTerm]} · {statusLabel[s.status]}
                   </Text>
                 </Stack>
-                <RescueWindow expiresAt={s.status === 'deleted' ? null : s.expiresAt} asOf={asOf} />
+                {asOf ? (
+                  <RescueWindow
+                    expiresAt={s.status === 'deleted' ? null : s.expiresAt}
+                    asOf={asOf}
+                  />
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    {asOfFailed ? 'время модели недоступно' : 'время модели загружается'}
+                  </Text>
+                )}
               </Group>
             </Accordion.Control>
             <Accordion.Panel>
