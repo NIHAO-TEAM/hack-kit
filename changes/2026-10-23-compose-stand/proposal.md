@@ -1,4 +1,4 @@
-Статус: черновик
+Статус: в работе
 
 # Запуск одной командой: Dockerfile, Docker Compose, `.env.example`, README продукта
 
