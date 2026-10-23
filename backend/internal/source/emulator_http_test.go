@@ -112,3 +112,36 @@ func TestEmulatorPermissions(t *testing.T) {
 		t.Errorf("без сессии: %v %v", err, r)
 	}
 }
+
+func TestEmulatorOrigin(t *testing.T) {
+	s := apitest.New(t)
+	c := s.As(t, "analyst")
+	put(t, c, organizers(t))
+	origin := func() gen.SourceStatusSource {
+		t.Helper()
+		st := status(t, c)
+		if st.Source == nil {
+			t.Fatal("источник не отдан")
+		}
+		return *st.Source
+	}
+	if got := origin(); got != gen.Api {
+		t.Errorf("после PUT: %s", got)
+	}
+	if res, err := c.EmulatorTickWithResponse(context.Background(), gen.EmulatorTickRequest{}); err != nil || res.JSON200 == nil {
+		t.Fatalf("tick: %v %v", err, res)
+	}
+	if got := origin(); got != gen.Emulator {
+		t.Errorf("после tick: %s", got)
+	}
+	if res := actions(t, c, gen.EmulatorAction{ActionId: "reset"}); res.JSON200 == nil {
+		t.Fatalf("reset: %d", res.StatusCode())
+	}
+	if got := origin(); got != gen.Seed {
+		t.Errorf("после reset: %s", got)
+	}
+	put(t, c, organizers(t))
+	if got := origin(); got != gen.Api {
+		t.Errorf("после PUT: %s", got)
+	}
+}
