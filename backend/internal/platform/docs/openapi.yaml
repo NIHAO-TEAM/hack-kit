@@ -147,6 +147,13 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/Role"
+    AuthConfig:
+      type: object
+      required: [ssoEnabled]
+      properties:
+        ssoEnabled:
+          type: boolean
+          description: Вход через SSO настроен на сервере. Адрес провайдера и другие настройки не раскрываются.
     LoginRequest:
       type: object
       required: [login, password]
@@ -884,6 +891,19 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "501":
           $ref: "#/components/responses/NotImplemented"
+  /api/v1/auth/config:
+    get:
+      operationId: getAuthConfig
+      tags: [auth]
+      security: []
+      summary: Настройки входа для экрана входа (открыт)
+      responses:
+        "200":
+          description: Что показывать на экране входа
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthConfig"
   /api/v1/auth/oidc/login:
     get:
       operationId: oidcLogin

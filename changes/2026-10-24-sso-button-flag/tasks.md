@@ -4,7 +4,7 @@
 
 ## 1. Контракт
 
-- [ ] 1.1 `GET /api/v1/auth/config` в `api/openapi.yaml` — проверка: `make generate && git diff --exit-code`
+- [x] 1.1 `GET /api/v1/auth/config` в `api/openapi.yaml` — проверка: `make generate && git diff --exit-code`
 
 ## 2. Логика
 
