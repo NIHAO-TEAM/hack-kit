@@ -14,3 +14,10 @@
 
 - Сломать `TestGolden`: прогонять `go test ./internal/risk/...` и `oracle.py --check` после каждого шага.
 - #83 `jury-snapshot-robust` тоже может трогать `internal/risk` — при конфликте влить `main`.
+
+## Решения по ходу
+
+- Флаги неживых услуг лежат в новом поле `Customer.Quality` (`ServiceQuality{ServiceID, Flags}`), а не в `ServiceResult`: так `Services`, `ExpectedLossCents`, `ExposureCents` и выбор главной услуги не затронуты. Сводка `QualityCounts` считает флаги обеих групп.
+- Ключ в `qualityCounts` — текст проверки («заблокирована, срок в будущем»), как у остальных проверок; `blocked_future` — id проверки в реестре. Сценарий в `specs/` записан по фактическому ключу.
+- Карточка: для неживой услуги с флагом добавлен элемент `risks` с `probability`/`rCents`/`lossCents` = 0 и пустыми признаками. Контракт не меняется. [ПРЕДПОЛОЖЕНО] фронт выводит `quality` из `risks` по `serviceId` и нулевые деньги не ломают отображение.
+- Оракул (`tools/oracle/oracle.py`) качество данных не считает, правка и `--regen` не нужны: `--check` — golden: 6, расхождений: 0. На наборе организаторов 3 заблокированные услуги со сроком в будущем (проверено по `cases/analizator/data.json`), тест `TestQualityOrganizers` ждёт 3.
