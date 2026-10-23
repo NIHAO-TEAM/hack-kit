@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"example.com/app/internal/audit"
 	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/httpx"
@@ -16,6 +17,13 @@ type ModelAPI struct {
 	store *Store
 	ports Ports
 	clk   clock.Clock
+	audit audit.Recorder
+}
+
+// WithAudit подключает журнал действий: каждая сохранённая правка настроек пишется с «было → стало».
+func (a *ModelAPI) WithAudit(r audit.Recorder) *ModelAPI {
+	a.audit = r
+	return a
 }
 
 // New создаёт обработчик модуля. store nil (тесты без базы) — операции отвечают 501.
@@ -174,6 +182,13 @@ func (a *ModelAPI) PatchModelSettings(w http.ResponseWriter, r *http.Request, pa
 	if err != nil {
 		fail(w, r, err)
 		return
+	}
+	if a.audit != nil {
+		if changes := Diff(cur, next); len(changes) > 0 {
+			a.audit.Record(r.Context(), audit.Entry{
+				Actor: by, Action: audit.ActionSettingsChange, Summary: "Изменены настройки модели", Changes: changes,
+			})
+		}
 	}
 	saved, err := a.store.Latest(r.Context())
 	if err != nil || saved.Version < version {
