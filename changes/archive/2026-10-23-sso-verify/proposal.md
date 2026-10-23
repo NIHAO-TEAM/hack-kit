@@ -22,7 +22,7 @@
 - backend: нет (если тест найдёт ошибку в `internal/auth/oidc.go` — исправление здесь)
 - frontend: `pages/login` (скрытие кнопки)
 - контракт `api/openapi.yaml`: нет
-- защищённые пути: да — `e2e/` (новый тест), `deploy/keycloak/` (realm)
+- защищённые пути: да — `e2e/` (новый тест), `deploy/keycloak/` (realm), `deploy/bootstrap.sh` и `deploy/docker-compose.prod.yml` (проброс `KC_SECURE_TOTP_SECRET` в Keycloak и его генерация при первом запуске)
 - зависит от: `keycloak-oidc`
 
 ## Связанные решения

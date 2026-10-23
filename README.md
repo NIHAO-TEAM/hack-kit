@@ -46,7 +46,7 @@ docker compose up -d
 docker compose --profile sso up -d
 ```
 
-Демо-пользователь `secure` (пароль `KC_SECURE_PASSWORD`, роль маркетолог) входит с паролем и кодом TOTP (секрет — `KC_SECURE_TOTP_SECRET`, в приложение-аутентификатор вводится как ключ из UTF-8 строки секрета в Base32); ключ доступа добавляется в консоли аккаунта Keycloak, шаги — в [docs/architecture.md](docs/architecture.md#проверка-входа-через-keycloak). Если SSO не настроен, кнопки на экране входа нет. Роль берётся из claim `roles` ID-токена (`marketer`, `analyst`); без неё вход отклоняется. Realm — `deploy/keycloak/churn-realm.json`. Админка Keycloak наружу не открыта.
+Демо-пользователь `secure` (пароль `KC_SECURE_PASSWORD`, роль маркетолог) входит с паролем и кодом TOTP (секрет — `KC_SECURE_TOTP_SECRET`, обязателен, пустым не оставлять; в приложение-аутентификатор вводится как ключ из UTF-8 строки секрета в Base32); ключ доступа добавляется в консоли аккаунта Keycloak, шаги — в [docs/architecture.md](docs/architecture.md#проверка-входа-через-keycloak). Если SSO не настроен, кнопки на экране входа нет. Роль берётся из claim `roles` ID-токена (`marketer`, `analyst`); без неё вход отклоняется. Realm — `deploy/keycloak/churn-realm.json`. Админка Keycloak наружу не открыта.
 
 ## Модель и архитектура
 
