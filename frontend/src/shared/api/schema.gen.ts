@@ -746,6 +746,13 @@ export interface components {
             asOfMode: "snapshot" | "server";
             /** Format: int64 */
             version: number;
+            /** @description Кто сохранил эту версию; для версии 0 (умолчания) поля нет. */
+            updatedBy?: string;
+            /**
+             * Format: date-time
+             * @description Когда сохранена версия; для версии 0 (умолчания) поля нет.
+             */
+            updatedAt?: string;
         };
         ModelSettingsPatch: {
             weights?: {
@@ -1267,6 +1274,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["UnprocessableEntity"];
             501: components["responses"]["NotImplemented"];
         };
     };
