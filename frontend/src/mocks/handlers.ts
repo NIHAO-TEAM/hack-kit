@@ -1,6 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import type { components } from '@shared/api';
 import data from './data.json';
+import { modelSettingsHandlers } from './model-settings';
 
 type User = components['schemas']['User'];
 type CustomerRow = components['schemas']['CustomerRow'];
@@ -117,15 +118,5 @@ export const handlers = [
       version: 1,
     });
   }),
-  http.get(`${API}/model/settings`, () => {
-    if (!getCurrent()) return problem(401, 'Нет сессии');
-    return HttpResponse.json({
-      weights: {},
-      thresholds: { high: 0.7, medium: 0.4 },
-      horizonDays: 30,
-      priceBasis: 'per_month',
-      asOfMode: 'snapshot',
-      version: 1,
-    });
-  }),
+  ...modelSettingsHandlers,
 ];
