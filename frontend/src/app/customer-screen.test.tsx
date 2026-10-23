@@ -1,6 +1,7 @@
-import { screen, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
+import type { CustomerDetail } from '@entities/customer-detail';
 import { renderApp } from './render-app';
 
 beforeEach(() => {
@@ -61,6 +62,32 @@ describe('экран «Карточка клиента»', () => {
     renderApp('/queue/9');
     expect(await screen.findByText(/Нет связи с сервером/)).toBeInTheDocument();
   });
+
+  it('новая версия пересчёта подсвечивает изменившиеся числа, без неё — нет', async () => {
+    const { queryClient } = renderApp('/queue/9');
+    await screen.findByRole('heading', { name: 'Клиент 9' });
+    const key = ['customer', 9];
+    const old = queryClient.getQueryData<CustomerDetail>(key)!;
+    const lit = () => document.querySelectorAll('[data-changed="true"]').length;
+
+    act(() => {
+      queryClient.setQueryData(key, {
+        ...old,
+        customer: { ...old.customer, expectedLossCents: old.customer.expectedLossCents + 100 },
+      });
+    });
+    expect(lit()).toBe(0);
+
+    act(() => {
+      queryClient.setQueryData(key, {
+        ...old,
+        version: old.version + 1,
+        customer: { ...old.customer, expectedLossCents: old.customer.expectedLossCents + 500 },
+      });
+    });
+    await waitFor(() => expect(lit()).toBeGreaterThan(0));
+  });
+
   it('окно спасения считается от asOf сводки, а не от часов браузера', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2030-01-01T00:00:00Z') });
     try {

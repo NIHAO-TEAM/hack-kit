@@ -69,13 +69,14 @@ func (c overviewCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 // newRegistry собирает свой реестр: метрики модели и стандартные метрики процесса.
-func newRegistry(overview OverviewFunc, clk clock.Clock) *prometheus.Registry {
+func newRegistry(overview OverviewFunc, clk clock.Clock, extra ...prometheus.Collector) *prometheus.Registry {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		overviewCollector{overview: overview, clk: clk},
 	)
+	reg.MustRegister(extra...)
 	return reg
 }
 
@@ -88,6 +89,6 @@ func (a *AnalyticsAPI) GetMetrics(w responseWriter, r *request) {
 func (a *AnalyticsAPI) GetMetricsAlias(w responseWriter, r *request) { a.GetMetrics(w, r) }
 
 func (a *AnalyticsAPI) registry() *prometheus.Registry {
-	a.regOnce.Do(func() { a.reg = newRegistry(a.overview, a.clk) })
+	a.regOnce.Do(func() { a.reg = newRegistry(a.overview, a.clk, a.extra...) })
 	return a.reg
 }
