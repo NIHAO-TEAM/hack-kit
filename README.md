@@ -33,6 +33,7 @@ docker compose up -d
 | `METRICS_TOKEN`, `SOURCE_TOKEN` | токены `/metrics` и приёма снимка источника |
 | `OIDC_ISSUER_URL`, `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` | вход через SSO; пустой `OIDC_ISSUER_URL` — кнопка выключена |
 | `SEED_ORGANIZERS` | загрузить набор организаторов при старте |
+| `BILLING_URL`, `BILLING_TOKEN`, `BILLING_POLL_SECONDS` | опрос REST-биллинга: снимок той же формы, что `data.json`; пустой `BILLING_URL` — выключен, интервал по умолчанию 60 с |
 
 ## Вход через SSO (Keycloak)
 
@@ -75,6 +76,7 @@ docker compose --profile sso up -d
 - Эталонный оракул модели и golden-тесты до цента (`tools/oracle`, `testdata/golden`).
 - Действия с ценой: эффект в евро считается пересчётом на копии данных.
 - Прод на Compose с TLS (Caddy) и деплоем из CI.
+- Замеры нагрузки на 100k клиентов: [docs/load/README.md](docs/load/README.md) (числа честные, часть целей пока не достигнута).
 
 По плану этапов 4–7 (`docs/plan.md`), в README обновится после слияния: экран «Источник», эмулятор биллинга, SSE-обновления, метрики Prometheus, k3s и Helm, вход через Keycloak, график оттока, «что если», журнал действий.
 - Образец «как добавить признак модели»: PR с `backend/internal/risk/feature_bonus_locked.go` (один файл признака + тест + строка оракула), см. `changes/archive/2026-10-23-feature-bonus-locked/`.

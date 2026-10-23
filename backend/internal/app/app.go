@@ -75,9 +75,21 @@ func problemOnBadRequest(w http.ResponseWriter, r *http.Request, err error) {
 	httpx.WriteProblem(w, r, http.StatusBadRequest, err.Error())
 }
 
+// Option донастраивает сервер.
+type Option func(*options)
+
+type options struct{ billing *source.Adapter }
+
+// WithBilling подключает опрос REST-биллинга: статус, пауза после ручной загрузки, метрики.
+func WithBilling(a *source.Adapter) Option { return func(o *options) { o.billing = a } }
+
 // Routes собирает маршруты контракта. pool может быть nil (тесты без базы): пока модули —
 // заглушки, они базой не пользуются.
-func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) *http.ServeMux {
+func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed, opts ...Option) *http.ServeMux {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 	mux := http.NewServeMux()
 	var settings *model.Store
 	if pool != nil {
@@ -100,10 +112,15 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 		src.WithAudit(rec)
 		mod.WithAudit(rec)
 	}
+	analyticsAPI := newAnalytics(pool, bus, clk, feed)
+	if o.billing != nil {
+		src.WithAdapter(o.billing)
+		analyticsAPI.WithCollectors(o.billing.Collectors()...)
+	}
 	gen.HandlerWithOptions(server{
 		AuthAPI:      authAPI,
 		SourceAPI:    src,
-		AnalyticsAPI: newAnalytics(pool, bus, clk, feed),
+		AnalyticsAPI: analyticsAPI,
 		ModelAPI:     mod,
 		DocsAPI:      docs.New(),
 		AuditAPI:     audit.NewAPI(journal),
@@ -129,8 +146,8 @@ func WithRequestID(next http.Handler) http.Handler {
 }
 
 // New собирает полный обработчик: защитные заголовки, идентификатор запроса, проверка сессии, маршруты.
-func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) http.Handler {
-	mux := Routes(pool, bus, clk, authAPI, feed)
+func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed, opts ...Option) http.Handler {
+	mux := Routes(pool, bus, clk, authAPI, feed, opts...)
 	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, mux)))
 }
 
