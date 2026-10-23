@@ -31,3 +31,13 @@
 - WHEN запрошен `GET /metics`
 - THEN ответ тот же, что у `/metrics`
 - Тест: `TestMetricsAliasSameAsMetrics`
+
+### Requirement: сбор на проде
+
+Система SHALL собирать метрики Prometheus на проде, не открывая его наружу.
+
+#### Scenario: прод
+
+- WHEN Prometheus на проде опрашивает приложение
+- THEN цель в состоянии UP, порт Prometheus не открыт снаружи
+- Тест: нет автотеста; конфиг — `deploy/prometheus/`, target UP проверяется при выкате
