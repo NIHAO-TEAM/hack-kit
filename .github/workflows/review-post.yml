@@ -137,7 +137,5 @@ jobs:
           # сессия жива и получит итог сама, вторая сессия на том же PR (24.10 #82, exec-4) только мешает.
           last=$(gh pr view "$PR" --json comments --jq '[.comments[] | select(.body | test("^\\[(start|fix|merge|wait|needs-human)\\]"))] | last | .body // ""')
           case "$last" in "[wait]"*"нет подписки"*) ;; *) exit 0 ;; esac
-          sid=$(printf '%s' "$id" | tr 'a-z-' 'A-Z_')
-          url_var="FIRE_${sid}_URL"; token_var="FIRE_${sid}_TOKEN"
-          gh pr comment "$PR" --body "[guard] перезапуск исполнителя $id (итог ревью): пришёл итог, подписки у сессии нет. Прошлая сессия считается завершённой, новая перехватывает PR."
-          FIRE_URL=${!url_var:-} FIRE_TOKEN=${!token_var:-} bash .github/scripts/fire.sh "PR #$PR в $GITHUB_REPOSITORY, исполнитель $id, перезапуск (итог ревью)" || true
+          # Аренда PR и комментарий о перезапуске — в wake-exec.sh.
+          bash .github/scripts/wake-exec.sh "$PR" "$id" перезапуск "итог ревью, у сессии нет подписки" || true

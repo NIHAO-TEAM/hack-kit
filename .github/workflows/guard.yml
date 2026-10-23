@@ -75,7 +75,8 @@ jobs:
           ID: ${{ steps.check.outputs.id }}
           KIND: ${{ steps.check.outputs.kind }}
         run: |
-          if bash .github/scripts/fire.sh "PR #$PR в $GITHUB_REPOSITORY, исполнитель $ID, $KIND (метка go:$ID от $ACTOR)"; then
+          # Метка от человека — осознанный (пере)запуск: аренду PR не смотрим, комментарий уже написан выше.
+          if WAKE_FORCE=1 WAKE_COMMENT=0 bash .github/scripts/wake-exec.sh "$PR" "$ID" "$KIND" "метка go:$ID от $ACTOR"; then
             echo "исполнитель $ID запущен: $KIND"
           else
             gh label create needs-human --color B60205 -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || true

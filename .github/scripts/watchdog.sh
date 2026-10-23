@@ -7,7 +7,8 @@
 #     и старше OWED_MIN минут;
 #   - черновик с [start], а ни коммитов, ни его комментариев дольше DRAFT_MIN минут;
 #   - метка стоит дольше START_MIN минут, а [start] так и не появился (запуск потерялся);
-#   - needs-human сняли после его последнего ответа, а он не вернулся за UNHOLD_MIN минут.
+#   - needs-human сняли после его последнего ответа, а он не вернулся за UNHOLD_MIN минут;
+#   - напоминание conflicts.sh «[guard] <id>: снова конфликт …» без ответа REMIND_MIN минут.
 # Тогда комментарий «[guard] перезапуск исполнителя <id> (сторож) …» и /fire: новая сессия перехватывает PR
 # по шагу 0 executor.md.
 #
@@ -20,6 +21,12 @@
 # Ревьюер перезапускается каждые REVIEW_OWED_MIN минут до REVIEW_MAX_RESTARTS раз: лимиты аккаунта ревьюера
 # обновляются через часы, и needs-human после трёх попыток останавливал бы PR до утра.
 #
+# Будит исполнителя только через wake-exec.sh (WAKE_FORCE=1: сторож сам установил, что сессия умерла).
+#
+# Дубли сессий: каждая сессия подписывает свои комментарии строкой «сессия: #xxxx» (executor.md). Если после
+# последнего [start] исполнителя пишет ещё и сессия с другой подписью, старая не ушла — комментарий
+# «[guard] дубль сессий <id>: …» (один раз на пару подписей), человеку — остановить лишнюю.
+#
 # Окружение: GH_TOKEN, GITHUB_REPOSITORY, RUNNER_TEMP, FIRE_<ID>_URL / FIRE_<ID>_TOKEN (по именам из watchdog.yml).
 set -euo pipefail
 
@@ -29,6 +36,7 @@ VERDICT_MIN=20
 DRAFT_MIN=45
 START_MIN=30
 UNHOLD_MIN=2
+REMIND_MIN=20
 MAX_RESTARTS=3
 REVIEW_OWED_MIN=20
 REVIEW_MAX_RESTARTS=30
@@ -62,11 +70,8 @@ pick() {
   done
   printf '%s' "$best"
 }
-fire_exec() {
-  local sid url_var token_var
-  sid=$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')
-  url_var="FIRE_${sid}_URL"; token_var="FIRE_${sid}_TOKEN"
-  FIRE_URL=${!url_var:-} FIRE_TOKEN=${!token_var:-} bash .github/scripts/fire.sh "$2"
+fire_exec() { # pr id причина; комментарий «[guard] перезапуск …» сторож пишет сам
+  WAKE_FORCE=1 WAKE_COMMENT=0 bash .github/scripts/wake-exec.sh "$1" "$2" перезапуск "$3"
 }
 # Передача PR $1 от $2 другому исполнителю, причина $3. Метку go:* меняет сторож (исключение в AGENTS.md);
 # [assign] нужен для проверки метки от бота в шаге 0 executor.md, [guard] перезапуск — чтобы новая сессия
@@ -79,7 +84,7 @@ handover() {
   gh pr comment "$pr" -R "$REPO" --body "[assign] $to: передача от $from ($why). Изменение входит в утверждённый этап docs/plan.md; исполнитель перепроверит план."
   gh pr comment "$pr" -R "$REPO" --body "[guard] перезапуск исполнителя $to (сторож): передача от $from — $why. Прошлая сессия считается завершённой, новая перехватывает PR."
   load_now
-  if fire_exec "$to" "PR #$pr в $REPO, исполнитель $to, перезапуск (сторож: передача от $from — $why)"; then
+  if fire_exec "$pr" "$to" "сторож: передача от $from — $why"; then
     restarted=$((restarted + 1)); echo "#$pr -> передача $from -> $to: $why"
   else
     gh label create needs-human --color B60205 -R "$REPO" >/dev/null 2>&1 || true
@@ -97,6 +102,24 @@ restarted=0
 for p in "${PRS[@]}"; do
   IFS='|' read -r pr draft id <<<"$p"
   comments=$(gh api "repos/$REPO/issues/$pr/comments" --paginate --jq '.[] | {u: .user.login, t: .created_at, b: .body}' | jq -s .)
+
+  # Дубль: после последнего [start] пишет сессия с другой подписью, чем у этого [start].
+  dup=$(jq -r '
+    def tag: (.b | capture("сессия: #(?<s>[0-9a-f]{4})") | .s) // "";
+    [.[] | select(.u != "github-actions[bot]")] as $ex
+    | ([$ex[] | select(.b | startswith("[start]"))] | last) as $st
+    | if $st == null or ($st | tag) == "" then "" else
+        ($st | tag) as $cur
+        | [$ex[] | select(.t > $st.t) | tag | select(. != "" and . != $cur)] | unique
+        | if length == 0 then "" else "#\($cur) " + (map("#" + .) | join(" ")) end
+      end' <<<"$comments")
+  if [ -n "$dup" ]; then
+    marker="[guard] дубль сессий $id: $dup"
+    if [ "$(jq --arg m "$marker" '[.[] | select(.u == "github-actions[bot]" and (.b | startswith($m)))] | length' <<<"$comments")" -eq 0 ]; then
+      gh pr comment "$pr" -R "$REPO" --body "$marker. PR ведёт сессия из последнего [start] (первая подпись); остальные должны уйти сами (executor.md, «Ожидание»). Не ушли — человеку исполнителя остановить их в claude.ai."
+      echo "#$pr: дубль сессий $id: $dup"
+    fi
+  fi
   last() { jq -r --arg re "$1" --arg bot "$2" '[.[] | select((.b | test($re)) and ((.u == "github-actions[bot]") == ($bot == "1")))] | last | .t // ""' <<<"$comments"; }
 
   label_at=$(gh api "repos/$REPO/issues/$pr/events" --paginate \
@@ -139,6 +162,11 @@ for p in "${PRS[@]}"; do
      && [ "$(age_min "$unhold_at")" -ge "$UNHOLD_MIN" ]; then
     reason="needs-human снят $(age_min "$unhold_at") мин назад, исполнитель не вернулся"
   fi
+  # Напоминание о конфликте (conflicts.sh, сессия казалась живой) осталось без ответа: сессия умерла.
+  remind_at=$(jq -r --arg id "$id" '[.[] | select(.u == "github-actions[bot]" and (.b | startswith("[guard] " + $id + ": ")))] | last | .t // ""' <<<"$comments")
+  if [ -z "$reason" ] && [ -n "$remind_at" ] && [[ "$remind_at" > "${exec_at:-0}" ]] && [[ "$remind_at" > "${commit_at:-0}" ]]      && [[ "$remind_at" > "${restart_at:-0}" ]] && [ "$(age_min "$remind_at")" -ge "$REMIND_MIN" ]; then
+    reason="напоминание о конфликте с main $(age_min "$remind_at") мин без ответа"
+  fi
   [ -n "$reason" ] || continue
   # Перезапуск уже был после последнего события, которого ждём, — новой сессии нужно время.
   if [ -n "$restart_at" ] && [ "$(age_min "$restart_at")" -lt "$OWED_MIN" ]; then continue; fi
@@ -153,12 +181,12 @@ for p in "${PRS[@]}"; do
   fi
 
   gh pr comment "$pr" -R "$REPO" --body "[guard] перезапуск исполнителя $id (сторож): $reason. Прошлая сессия считается завершённой, новая перехватывает PR."
-  if fire_exec "$id" "PR #$pr в $REPO, исполнитель $id, перезапуск (сторож: $reason)"; then
+  if fire_exec "$pr" "$id" "сторож: $reason"; then
     restarted=$((restarted + 1)); echo "#$pr -> перезапуск $id: $reason"
   else
     gh label create needs-human --color B60205 -R "$REPO" >/dev/null 2>&1 || true
     gh pr edit "$pr" -R "$REPO" --add-label needs-human || true
-    gh pr comment "$pr" -R "$REPO" --body "[guard] сторож не смог запустить $id через API-триггер (секреты FIRE_${sid}_*). Нужен человек."
+    gh pr comment "$pr" -R "$REPO" --body "[guard] сторож не смог запустить $id через API-триггер (секреты FIRE_$(printf "%s" "$id" | tr "a-z-" "A-Z_")_*). Нужен человек."
   fi
 done
 
