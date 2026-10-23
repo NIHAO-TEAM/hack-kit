@@ -19,7 +19,7 @@ import {
   StateLoading,
   StateOffline,
 } from '@shared/ui';
-import { summaryOptions } from '../api/summary';
+import { summaryOptions } from '@entities/summary';
 import { DeletionStrip } from './DeletionStrip';
 import { QueueTable } from './QueueTable';
 import { SummaryCards } from './SummaryCards';

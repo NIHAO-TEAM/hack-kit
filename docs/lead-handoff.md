@@ -28,14 +28,11 @@
 
 ## Доска на снимок
 
-- Слито ~38 изменений: этапы 2–5 почти целиком (кроме `source-screen`), из 6–7 — всё, кроме перечисленного ниже. CI на `main` зелёный.
-- В работе: #63 `source-screen` (exec-3), #66 `keycloak-oidc` (exec-2), #80 `k3s-cutover`.
-- 24.10: у аккаунта Onisar кончаются лимиты — exec-1 «Доступен: нет» в `team.md`. #80 и #87 переданы другим исполнителям сменой метки `go:*` (ставит владелец). На том же аккаунте пахан и ночной критик — сессию пахана держать короткой.
-- Ждут `source-screen`: #67 `billing-rest-adapter`, #73 `audit-log`, #76 `ui-polish`, #82 `data-quality-checks`, #83 `jury-snapshot-robust`.
-- #87 `fix-flaky-recalc-test` (этап 8, «зависит от: нет») — у exec-1: чинит нестабильный `TestBurstOfEventsMakesOneExtraRecalc`, из-за которого лишние раунды CI в #69 и #63.
-- Этап 8 (#81–#86): #81 `prod-smoke` — без зависимостей; #84 `sso-verify` ← `keycloak-oidc`; #85 `light-theme` ← `ui-polish`, `churn-chart`; #86 `submission-readme` ← `k3s-cutover`, `keycloak-oidc`, `billing-rest-adapter`, `sso-verify` (последним).
-- После этапа 8 черновиков нет: следующий запас готовить, когда в очереди останется ≤ 3 черновиков. Кандидаты: по находкам `[lead]`/ревью в «Найдено по ходу» и по шкале 9 баллов (`docs/scale.md`).
-- Найдено 23.10: фронт #63 подписывает проверки качества кодами `prolong_wait_over_5d`/`paid_term_mismatch`/`no_transactions`, сервер шлёт `stale_status`/`blocked_future`/`suspended_expired` — чинит #82.
+- 24.10 ~02:45. Слито ~48 изменений; за ночь — #63, #66, #76, #80–#85, #87. exec-1 снова «Доступен: да» (лимит 1, как у exec-3).
+- В работе: #67 `billing-rest-adapter`, #91 `whatif-customers-list` (exec-2); #73 `audit-log` (exec-3); #89 `blocked-future-score`, #92 `source-emulator-label` (exec-4); #90 `load-k6-run`, #94 `changed-rows-highlight` (exec-5); #93 `card-model-time` (exec-1).
+- Ждут места у исполнителя: #95 `sso-button-flag` (зависимость `sso-verify` слита). Последним: #86 `submission-readme` ← `billing-rest-adapter` и др.
+- Запас черновиков снова 0–1: следующую порцию готовить, когда останется ≤ 3 черновиков без исполнителя. Кандидаты: «Найдено по ходу» в `changes/archive/*/proposal.md` и шкала 9 (`docs/scale.md`). Уже взяты: часы браузера в карточке, `useChangedRows`, кнопка SSO при выключенном SSO. Не взяты: `csrfToken`/`429` в контракте auth (`auth-sessions`), CI ловит неотслеживаемые сгенерированные файлы (`git status --porcelain`, защищённый `.github/`, пушит владелец).
+- `review-post.yml` будит исполнителя по итогу ревью только после `[wait] … нет подписки` (cecf75d): иначе у подписанной сессии появлялся дубль (#82, exec-4).
 
 ## Прод
 

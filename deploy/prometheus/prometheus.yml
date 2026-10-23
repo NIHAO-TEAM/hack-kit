@@ -1,4 +1,4 @@
-# Prometheus прода: опрашивает приложение по внутренней сети Compose. Наружу не публикуется.
+# Prometheus прода: опрашивает приложение (цель и схема подставляются при старте из METRICS_TARGET, METRICS_SCHEME).
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -9,9 +9,10 @@ rule_files:
 scrape_configs:
   - job_name: churn
     metrics_path: /metrics
+    scheme: __METRICS_SCHEME__
     # Файл создаёт точка входа сервиса prometheus из METRICS_TOKEN (значение в конфиг не попадает).
     authorization:
       type: Bearer
       credentials_file: /tmp/metrics_token
     static_configs:
-      - targets: ["app:8080"]
+      - targets: ["__METRICS_TARGET__"]

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { customerQuery, type CustomerDetail } from '@entities/customer-detail';
+import { summaryOptions } from '@entities/summary';
 import { ApiError } from '@shared/api';
 import { formatMoney, useChangedRows } from '@shared/lib';
 import {
@@ -45,6 +46,7 @@ function NotFound({ id }: { id: number }) {
 export function CustomerPage({ id }: { id: number }) {
   const valid = Number.isInteger(id);
   const query = useQuery({ ...customerQuery(id), enabled: valid });
+  const summary = useQuery(summaryOptions);
   const error = query.error instanceof ApiError ? query.error : null;
   const detail = query.data;
   const items = useMemo(
@@ -135,7 +137,11 @@ export function CustomerPage({ id }: { id: number }) {
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Stack>
             {lost ? null : <ActionsCard actions={actions} changed={changed.has('action')} />}
-            <ServiceList services={services} />
+            <ServiceList
+              services={services}
+              asOf={summary.data?.asOf ?? null}
+              asOfFailed={summary.isError}
+            />
             <FeaturesCard features={features} score={customer.score ?? null} />
           </Stack>
         </Grid.Col>
