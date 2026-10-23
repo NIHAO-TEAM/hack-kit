@@ -1,8 +1,15 @@
 # .github/workflows/watchdog.yml
 #
-# Сторож: каждые 15 минут ищет PR, где исполнитель или ревьюер должен был ответить и не ответил (сессия
+# Сторож: каждые ~15 минут ищет PR, где исполнитель или ревьюер должен был ответить и не ответил (сессия
 # routine умерла), и перезапускает routine. Логика и пороги — .github/scripts/watchdog.sh. Нужен, чтобы
 # ночью работа не вставала до прихода человека.
+#
+# Цепочка: расписанию GitHub верить нельзя (23.10 за 40 минут ни одного запуска schedule), поэтому каждый
+# запуск после проверки ждёт и сам вызывает следующий через workflow_dispatch — его GITHUB_TOKEN запускать
+# может. schedule остаётся запасным: поднимает цепочку, если она оборвалась. concurrency держит не больше
+# одного запуска в работе и одного в очереди, поэтому лишние запуски цепочку не размножают.
+# Остановить: переменная репозитория WATCHDOG_CHAIN=off (Settings → Secrets and variables → Actions →
+# Variables). В приватном репозитории цепочка съест ~1400 минут Actions в сутки — там её выключать.
 
 name: Watchdog
 
@@ -19,11 +26,12 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
+  actions: write
 
 jobs:
   watchdog:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     env:
       GH_TOKEN: ${{ github.token }}
       # Секреты по именам, как в assign.yml (toJSON(secrets) GitHub блокирует в публичном репозитории).
@@ -45,4 +53,12 @@ jobs:
           sparse-checkout: .github/scripts
 
       - name: Перезапустить молчащие сессии
+        # Сбой проверки не должен рвать цепочку: следующий круг всё равно запускается.
+        continue-on-error: true
         run: bash .github/scripts/watchdog.sh
+
+      - name: Следующий круг через 14 минут
+        if: vars.WATCHDOG_CHAIN != 'off'
+        run: |
+          sleep 840
+          gh workflow run watchdog.yml -R "$GITHUB_REPOSITORY" --ref "${{ github.event.repository.default_branch }}"
