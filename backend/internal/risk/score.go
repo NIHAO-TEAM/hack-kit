@@ -130,7 +130,7 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 	for _, a := range accounts {
 		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs)
 		if c.State == StateScored {
-			c.Actions = actionResults(s, st, asOf, a, c, funds, fs, cs, as)
+			c.Actions = actionResults(s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
 		}
 		res.Customers = append(res.Customers, c)
 
@@ -170,14 +170,17 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 }
 
 // actionResults применяет каждое подходящее действие к копии снимка, где изменён только этот клиент.
-func actionResults(s Snapshot, st Settings, asOf time.Time, a Account, c Customer, funds FundsCtx,
-	fs []Feature, cs []Check, as []Action) []ActionResult {
+// Копия содержит только данные клиента (аккаунт, его услуги и их платежи): действия и пересчёт
+// клиента от остальных не зависят, а копировать весь снимок на каждое действие — квадратичная
+// работа (на 10 000 аккаунтов пересчёт шёл минуту с лишним).
+func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]Transaction, st Settings, asOf time.Time,
+	a Account, c Customer, funds FundsCtx, fs []Feature, cs []Check, as []Action) []ActionResult {
 	out := []ActionResult{}
 	ctx := CustomerCtx{Account: a, Customer: c, Funds: funds}
+	ctx.Services = append(ctx.Services, svcs...)
+	s := Snapshot{AsOf: snapAsOf, Accounts: []Account{a}, Services: ctx.Services}
 	for _, sv := range s.Services {
-		if sv.OwnerID == a.ID {
-			ctx.Services = append(ctx.Services, sv)
-		}
+		s.Transactions = append(s.Transactions, txByService[sv.ID]...)
 	}
 	for _, act := range as {
 		if !act.Applies(ctx) {
