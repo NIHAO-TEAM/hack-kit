@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { can, logout, sessionKey, type Right } from '@entities/session';
 import { IconLogout } from '@shared/ui';
+import { RealtimeProvider } from '../realtime';
 import { Route } from '../routes/_app';
 
 const sections: {
@@ -93,7 +94,9 @@ export function AppShell() {
           ))}
       </MantineShell.Navbar>
       <MantineShell.Main>
-        <Outlet />
+        <RealtimeProvider>
+          <Outlet />
+        </RealtimeProvider>
       </MantineShell.Main>
     </MantineShell>
   );
