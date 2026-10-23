@@ -6,11 +6,13 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"example.com/app/internal/analytics"
 	"example.com/app/internal/app"
 	"example.com/app/internal/auth"
 	"example.com/app/internal/platform/api/gen"
@@ -32,6 +34,7 @@ type Stand struct {
 	Bus *events.Bus
 	// Pool — пул соединений к базе стенда (для проверок состояния в тестах).
 	Pool *pgxpool.Pool
+	feed *lazyFeed
 	// Handler — тот же обработчик без сети, для тестов через httptest.ResponseRecorder.
 	Handler http.Handler
 }
@@ -79,7 +82,8 @@ func New(t testing.TB) *Stand {
 	if err := authAPI.OnStart(ctx); err != nil {
 		t.Fatalf("apitest: учётки: %v", err)
 	}
-	handler := app.New(pool, bus, clk, authAPI)
+	feed := &lazyFeed{}
+	handler := app.New(pool, bus, clk, authAPI, feed)
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
@@ -87,7 +91,7 @@ func New(t testing.TB) *Stand {
 	if err != nil {
 		t.Fatalf("apitest: клиент: %v", err)
 	}
-	return &Stand{Pool: pool, Client: client, URL: srv.URL, Clock: clk, Bus: bus, Handler: handler}
+	return &Stand{Pool: pool, Client: client, URL: srv.URL, Clock: clk, Bus: bus, feed: feed, Handler: handler}
 }
 
 // As входит под ролью (marketer, analyst, jury) или логином admin и возвращает клиента,
@@ -132,4 +136,38 @@ func (s *Stand) clientWithToken(t testing.TB, token string) *gen.ClientWithRespo
 		t.Fatalf("apitest: клиент: %v", err)
 	}
 	return c
+}
+
+// lazyFeed отдаёт портфель воркера, когда тест его запустил; до этого расчёта нет.
+type lazyFeed struct{ recalc atomic.Pointer[app.Recalc] }
+
+// Overview отдаёт сводку воркера, когда тест его запустил.
+func (f *lazyFeed) Overview() *analytics.Overview {
+	if r := f.recalc.Load(); r != nil {
+		return r.Overview()
+	}
+	return nil
+}
+
+func (f *lazyFeed) Portfolio() *analytics.Portfolio {
+	if r := f.recalc.Load(); r != nil {
+		return r.Portfolio()
+	}
+	return nil
+}
+
+// StartRecalc запускает воркер пересчёта и подключает его к API: клиенты отвечают данными
+// последнего расчёта. Воркер не стартует сам, чтобы тесты, чистящие таблицы, не ловили с ним
+// взаимные блокировки. Останавливается в t.Cleanup до закрытия пула.
+func (s *Stand) StartRecalc(t testing.TB) *app.Recalc {
+	t.Helper()
+	r := app.NewRecalc(s.Pool, s.Bus, s.Clock)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := r.Start(ctx)
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	s.feed.recalc.Store(r)
+	return r
 }
