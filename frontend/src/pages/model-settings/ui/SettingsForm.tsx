@@ -21,6 +21,7 @@ import {
   saveSettings,
   settingsQuery,
 } from '@entities/model-config';
+import { auditKey } from '@widgets/audit-log';
 import { ApiError } from '@shared/api';
 import { PreviewPanel } from './PreviewPanel';
 
@@ -66,6 +67,7 @@ export function SettingsForm({ settings }: { settings: ModelSettings }) {
       // Новая версия: форма пересоздаётся по `key` в ModelPage. Очередь обновит живой сигнал.
       queryClient.setQueryData(settingsQuery.queryKey, saved);
       void queryClient.invalidateQueries({ queryKey: [...modelSettingsKey, 'preview'] });
+      void queryClient.invalidateQueries({ queryKey: auditKey });
       notifications.show({ message: `Сохранено, версия ${saved.version}`, color: 'teal' });
     },
     onError: (e) => {

@@ -3,7 +3,7 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import { Trend } from 'k6/metrics';
-import { login, API, BASE } from './common.js';
+import { loginOnce, authHeaders, API, BASE } from './common.js';
 
 const patchSeconds = new Trend('patch_settings_seconds');
 const recalcGauge = new Trend('server_recalc_seconds');
@@ -15,15 +15,14 @@ export const options = {
 };
 
 export function setup() {
-  login();
+  return loginOnce();
 }
 
-export default function () {
-  if (__ITER === 0) login();
+export default function (session) {
   // Горизонт чередуем, чтобы каждый PATCH менял настройки и вызывал пересчёт.
   const horizonDays = __ITER % 2 === 0 ? 30 : 60;
   const res = http.patch(`${API}/model/settings`, JSON.stringify({ horizonDays }), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(session, { 'Content-Type': 'application/json' }),
     timeout: '30s',
   });
   patchSeconds.add(res.timings.duration / 1000);
