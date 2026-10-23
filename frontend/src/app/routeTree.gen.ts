@@ -18,6 +18,7 @@ import { Route as AppQueueRouteImport } from './routes/_app.queue'
 import { Route as AppSourceRouteImport } from './routes/_app.source'
 import { Route as AppSummaryRouteImport } from './routes/_app.summary'
 import { Route as AppDevUiRouteImport } from './routes/_app.dev.ui'
+import { Route as AppQueueIdRouteImport } from './routes/_app.queue_.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -63,6 +64,11 @@ const AppDevUiRoute = AppDevUiRouteImport.update({
   path: '/dev/ui',
   getParentRoute: () => AppRoute,
 } as any)
+const AppQueueIdRoute = AppQueueIdRouteImport.update({
+  id: '/queue_/$id',
+  path: '/queue/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/source': typeof AppSourceRoute
   '/summary': typeof AppSummaryRoute
   '/dev/ui': typeof AppDevUiRoute
+  '/queue/$id': typeof AppQueueIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/source': typeof AppSourceRoute
   '/summary': typeof AppSummaryRoute
   '/dev/ui': typeof AppDevUiRoute
+  '/queue/$id': typeof AppQueueIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/_app/source': typeof AppSourceRoute
   '/_app/summary': typeof AppSummaryRoute
   '/_app/dev/ui': typeof AppDevUiRoute
+  '/_app/queue_/$id': typeof AppQueueIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/source'
     | '/summary'
     | '/dev/ui'
+    | '/queue/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/source'
     | '/summary'
     | '/dev/ui'
+    | '/queue/$id'
   id:
     | '__root__'
     | '/'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/_app/source'
     | '/_app/summary'
     | '/_app/dev/ui'
+    | '/_app/queue_/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -201,6 +213,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDevUiRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/queue_/$id': {
+      id: '/_app/queue_/$id'
+      path: '/queue/$id'
+      fullPath: '/queue/$id'
+      preLoaderRoute: typeof AppQueueIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -211,6 +230,7 @@ interface AppRouteChildren {
   AppSourceRoute: typeof AppSourceRoute
   AppSummaryRoute: typeof AppSummaryRoute
   AppDevUiRoute: typeof AppDevUiRoute
+  AppQueueIdRoute: typeof AppQueueIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -220,6 +240,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSourceRoute: AppSourceRoute,
   AppSummaryRoute: AppSummaryRoute,
   AppDevUiRoute: AppDevUiRoute,
+  AppQueueIdRoute: AppQueueIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

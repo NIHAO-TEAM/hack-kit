@@ -44,6 +44,13 @@ docker compose up -d
 
 Файл `backend/internal/risk/feature_<имя>.go` с реализацией `Feature` и `Register` в `init()`, правило в `docs/model-rules.md` и оракуле. Пошагово — в [docs/model.md](docs/model.md#как-добавить-признак). Пример готового изменения — PR `feature-bonus-locked` (признак с весом 0 по умолчанию).
 
+## Безопасность
+
+- Заголовки в каждом ответе (`httpx.SecurityHeaders`): CSP без `unsafe-inline` для скриптов, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `frame-ancestors 'none'`. Скрипты лежат файлами (`theme-init.js`, `init.js` Swagger UI), встроенных нет.
+- Зависимости: `govulncheck` в `make check`, `pnpm audit --prod` в `pnpm check`.
+- Логи не содержат паролей, токенов, логинов и балансов; образ работает не от root (`distroless:nonroot`).
+- Секреты только из переменных окружения; в репозитории их нет.
+
 ## Дополнительно
 
 Функции сверх обязательных:
@@ -55,6 +62,7 @@ docker compose up -d
 - Прод на Compose с TLS (Caddy) и деплоем из CI.
 
 По плану этапов 4–7 (`docs/plan.md`), в README обновится после слияния: экран «Источник», эмулятор биллинга, SSE-обновления, метрики Prometheus, k3s и Helm, вход через Keycloak, график оттока, «что если», журнал действий.
+- Образец «как добавить признак модели»: PR с `backend/internal/risk/feature_bonus_locked.go` (один файл признака + тест + строка оракула), см. `changes/archive/2026-10-23-feature-bonus-locked/`.
 
 ## Разработка
 

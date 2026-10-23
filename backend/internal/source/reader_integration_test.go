@@ -39,3 +39,19 @@ func TestReaderLoadsSeed(t *testing.T) {
 		t.Errorf("версия снимка = %d, ждали 1", version)
 	}
 }
+
+func TestReaderLoadsStandSeed(t *testing.T) {
+	t.Setenv("SEED_STAND", "true")
+	s := apitest.New(t)
+	ctx := context.Background()
+	if err := source.OnStart(ctx, s.Pool, events.New(), s.Clock, true); err != nil {
+		t.Fatal(err)
+	}
+	snap, _, err := source.NewReader(s.Pool).Load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Accounts) != 16 || len(snap.Services) != 35 || len(snap.Transactions) != 105 {
+		t.Errorf("счётчики %d/%d/%d", len(snap.Accounts), len(snap.Services), len(snap.Transactions))
+	}
+}

@@ -4,21 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Контур удержания</title>
-    <script>
-      // Тема ставится до загрузки приложения, без мигания: сохранённый выбор, иначе тёмная.
-      try {
-        var saved = localStorage.getItem('mantine-color-scheme-value');
-        var mode =
-          saved === 'light' || saved === 'dark'
-            ? saved
-            : saved === 'auto' && matchMedia('(prefers-color-scheme: light)').matches
-              ? 'light'
-              : 'dark';
-        document.documentElement.setAttribute('data-mantine-color-scheme', mode);
-      } catch (e) {
-        document.documentElement.setAttribute('data-mantine-color-scheme', 'dark');
-      }
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
