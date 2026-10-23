@@ -1,0 +1,1200 @@
+openapi: 3.0.3
+info:
+  title: Контур удержания — API
+  version: "0.2.0"
+  description: |
+    Контракт каркаса «Контура удержания»: слои 1 и 2 кейса. Деньги — целые евроценты (int64).
+    Ошибки — application/problem+json (RFC 9457) с correlation_id = X-Request-Id.
+    Пока модуль не реализован, его пути отвечают 501.
+servers:
+  - url: /
+tags:
+  - name: auth
+  - name: customers
+  - name: analytics
+  - name: model
+  - name: source
+  - name: platform
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Сессия, выданная POST /api/v1/auth/login.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Тот же токен сессии в заголовке Authorization.
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: Сервисный токен источника данных (PUT /source/snapshot).
+    metricsToken:
+      type: http
+      scheme: bearer
+      description: Токен сборщика метрик Prometheus.
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: UUID запроса. Корректный возвращается нормализованным, иначе сервер генерирует новый.
+      schema:
+        type: string
+        format: uuid
+    CustomerId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ServiceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    AccountId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+  headers:
+    RequestId:
+      description: UUID запроса (из запроса или новый).
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Unauthorized:
+      description: Нет действующей сессии
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: Роли не хватает для операции
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    BadRequest:
+      description: Запрос не прошёл проверку
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Не найдено
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotImplemented:
+      description: Модуль ещё не реализован
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        correlation_id:
+          type: string
+          description: Равен заголовку X-Request-Id.
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    Role:
+      type: string
+      enum: [marketer, analyst, admin, jury]
+    User:
+      type: object
+      required: [id, login, role]
+      properties:
+        id:
+          type: integer
+          format: int64
+        login:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+        password:
+          type: string
+          format: password
+        totp:
+          type: string
+          description: Одноразовый код, если у пользователя включён TOTP.
+    LoginResult:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+          description: Токен сессии для bearerAuth (дублирует cookie).
+        csrfToken:
+          type: string
+    Account:
+      type: object
+      required: [id, email, balance, withdrawBalance, totalReplenished, bonusBalance, bonusState]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+        balance:
+          type: integer
+          format: int64
+          minimum: 0
+        withdrawBalance:
+          type: integer
+          format: int64
+          minimum: 0
+        totalReplenished:
+          type: integer
+          format: int64
+          minimum: 0
+        bonusBalance:
+          type: integer
+          format: int64
+          minimum: 0
+        bonusState:
+          type: string
+          enum: [locked, unlocked]
+    PaymentTerm:
+      type: string
+      enum: [hour, week, month, quarter_year, half_year, year]
+    ServiceStatus:
+      type: string
+      enum: [active, blocked, deleted, suspended, prolong_wait]
+    Service:
+      type: object
+      required: [id, name, ownerId, paymentTerm, autoProlong, createdAt, expiresAt, status, price]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          pattern: '^[A-Za-z0-9-]+$'
+        ownerId:
+          type: integer
+          format: int64
+        paymentTerm:
+          $ref: "#/components/schemas/PaymentTerm"
+        autoProlong:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/ServiceStatus"
+        price:
+          type: integer
+          format: int64
+          minimum: 0
+    Transaction:
+      type: object
+      required: [id, amount, status, createdAt, type, serviceId]
+      properties:
+        id:
+          type: integer
+          format: int64
+        amount:
+          type: integer
+          minimum: 0
+          maximum: 1000
+        status:
+          type: string
+          enum: [not_performed, performed]
+        performedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum: [prolong, order]
+        serviceId:
+          type: integer
+          format: int64
+    Snapshot:
+      type: object
+      required: [accounts, services, transactions]
+      properties:
+        asOf:
+          type: string
+          format: date-time
+          description: Момент, на который снят снимок. Без него модель берёт время сервера.
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/Service"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+    SnapshotAccepted:
+      type: object
+      required: [version, accounts, services, transactions]
+      properties:
+        version:
+          type: integer
+          format: int64
+        accounts:
+          type: integer
+        services:
+          type: integer
+        transactions:
+          type: integer
+    QualityCheck:
+      type: object
+      required: [id, ok]
+      properties:
+        id:
+          type: string
+        ok:
+          type: boolean
+        message:
+          type: string
+    SourceStatus:
+      type: object
+      required: [version, loadedAt, ageSeconds, checks]
+      properties:
+        version:
+          type: integer
+          format: int64
+        asOf:
+          type: string
+          format: date-time
+        loadedAt:
+          type: string
+          format: date-time
+        ageSeconds:
+          type: integer
+          format: int64
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/QualityCheck"
+    ServicePatch:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/ServiceStatus"
+        autoProlong:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+    AccountPatch:
+      type: object
+      properties:
+        balance:
+          type: integer
+          format: int64
+          minimum: 0
+        bonusBalance:
+          type: integer
+          format: int64
+          minimum: 0
+    EmulatorTickRequest:
+      type: object
+      properties:
+        days:
+          type: integer
+          minimum: 1
+          default: 1
+    EmulatorAction:
+      type: object
+      required: [customerId, actionId]
+      properties:
+        customerId:
+          type: integer
+          format: int64
+        actionId:
+          type: string
+    EmulatorActionsRequest:
+      type: object
+      required: [actions]
+      properties:
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmulatorAction"
+    RiskLevel:
+      type: string
+      enum: [high, medium, low, unscored, lost]
+    CustomerRow:
+      type: object
+      required: [id, email, balance, totalReplenished, level, expectedLossCents]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+        balance:
+          type: integer
+          format: int64
+        totalReplenished:
+          type: integer
+          format: int64
+        score:
+          type: number
+          format: double
+          nullable: true
+          description: Риск оттока 0..1; null для unscored.
+        level:
+          $ref: "#/components/schemas/RiskLevel"
+        expectedLossCents:
+          type: integer
+          format: int64
+    CustomerPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerRow"
+        total:
+          type: integer
+    Feature:
+      type: object
+      required: [id, value, weight, contribution, reason]
+      properties:
+        id:
+          type: string
+        value:
+          type: number
+          format: double
+        weight:
+          type: number
+          format: double
+        contribution:
+          type: number
+          format: double
+        reason:
+          type: string
+    Action:
+      type: object
+      required: [id, title, effectCents, newScore, newLevel]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        effectCents:
+          type: integer
+          format: int64
+        newScore:
+          type: number
+          format: double
+        newLevel:
+          $ref: "#/components/schemas/RiskLevel"
+    CustomerDetail:
+      type: object
+      required: [customer, services, features, actions]
+      properties:
+        customer:
+          $ref: "#/components/schemas/CustomerRow"
+        account:
+          $ref: "#/components/schemas/Account"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/Service"
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/Feature"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Action"
+        explanation:
+          type: string
+    Summary:
+      type: object
+      required: [levels, expectedLossCents, atRiskCents, lostCents, version]
+      properties:
+        levels:
+          type: object
+          required: [high, medium, low, unscored, lost]
+          properties:
+            high:
+              type: integer
+            medium:
+              type: integer
+            low:
+              type: integer
+            unscored:
+              type: integer
+            lost:
+              type: integer
+        expectedLossCents:
+          type: integer
+          format: int64
+        atRiskCents:
+          type: integer
+          format: int64
+        lostCents:
+          type: integer
+          format: int64
+        asOf:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+    ChurnPoint:
+      type: object
+      required: [weekStart, actual, forecast]
+      properties:
+        weekStart:
+          type: string
+          format: date
+        actual:
+          type: integer
+          nullable: true
+        forecast:
+          type: integer
+          nullable: true
+    ChurnChart:
+      type: object
+      required: [points]
+      properties:
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChurnPoint"
+    ModelSettings:
+      type: object
+      required: [weights, thresholds, horizonDays, priceBasis, asOfMode, version]
+      properties:
+        weights:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+        thresholds:
+          type: object
+          required: [high, medium]
+          properties:
+            high:
+              type: number
+              format: double
+            medium:
+              type: number
+              format: double
+        horizonDays:
+          type: integer
+          minimum: 1
+        priceBasis:
+          type: string
+          enum: [per_period, per_month]
+        asOfMode:
+          type: string
+          enum: [snapshot, server]
+        version:
+          type: integer
+          format: int64
+    ModelSettingsPatch:
+      type: object
+      properties:
+        weights:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+        thresholds:
+          type: object
+          properties:
+            high:
+              type: number
+              format: double
+            medium:
+              type: number
+              format: double
+        horizonDays:
+          type: integer
+          minimum: 1
+        priceBasis:
+          type: string
+          enum: [per_period, per_month]
+        asOfMode:
+          type: string
+          enum: [snapshot, server]
+    DryRunResult:
+      type: object
+      required: [levelChanges, expectedLossDeltaCents]
+      properties:
+        levelChanges:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Ключ вида «medium->high», значение — число клиентов.
+        expectedLossDeltaCents:
+          type: integer
+          format: int64
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [platform]
+      security: []
+      summary: Проверка живости
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Сервер работает
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+  /version:
+    get:
+      operationId: version
+      tags: [platform]
+      security: []
+      summary: Версия сборки
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Версия из APP_VERSION, по умолчанию dev
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version]
+                properties:
+                  version:
+                    type: string
+  /ping:
+    get:
+      operationId: ping
+      tags: [platform]
+      security: []
+      summary: Проверка связи без кэша
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Ответ pong, заголовок Cache-Control no-store
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ping]
+                properties:
+                  ping:
+                    type: string
+                    enum: [pong]
+    head:
+      operationId: pingHead
+      tags: [platform]
+      security: []
+      summary: Проверка связи без кэша, без тела ответа
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Заголовки как у GET, тела нет
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+  /api/v1/docs:
+    get:
+      operationId: docs
+      tags: [platform]
+      security: []
+      summary: Swagger UI (открыт, файлы вшиты в бинарь)
+      responses:
+        "200":
+          description: HTML-страница Swagger UI
+          content:
+            text/html:
+              schema:
+                type: string
+  /api/v1/openapi.yml:
+    get:
+      operationId: openapiYaml
+      tags: [platform]
+      security: []
+      summary: Контракт в YAML (открыт)
+      responses:
+        "200":
+          description: Файл api/openapi.yaml
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /api/v1/openapi.json:
+    get:
+      operationId: openapiJson
+      tags: [platform]
+      security: []
+      summary: Контракт в JSON (открыт)
+      responses:
+        "200":
+          description: Тот же контракт в JSON
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      security: []
+      summary: Вход по логину и паролю (открыт)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Сессия создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Текущий пользователь
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Пользователь
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Завершение текущей сессии
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Сессия завершена
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/auth/oidc/login:
+    get:
+      operationId: oidcLogin
+      tags: [auth]
+      security: []
+      summary: Начало входа через OIDC (слой 2, открыт)
+      responses:
+        "302":
+          description: Перенаправление на провайдера
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/auth/oidc/callback:
+    get:
+      operationId: oidcCallback
+      tags: [auth]
+      security: []
+      summary: Возврат с OIDC-провайдера (слой 2, открыт)
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Сессия создана, перенаправление в приложение
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: Клиенты с оценкой риска; фильтр и сортировка рейтинга
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: level
+          in: query
+          schema:
+            $ref: "#/components/schemas/RiskLevel"
+        - name: q
+          in: query
+          description: Подстрока email или id
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [id, email, balance, totalReplenished, score, expectedLoss]
+            default: expectedLoss
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Страница клиентов
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: "Подробная оценка клиента: услуги, признаки с вкладом, деньги, действия с ценой"
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "200":
+          description: Карточка клиента
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/analytics/summary:
+    get:
+      operationId: getSummary
+      tags: [analytics]
+      summary: Сводка риска и ожидаемых потерь
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Сводка
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Summary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/analytics/churn-chart:
+    get:
+      operationId: getChurnChart
+      tags: [analytics]
+      summary: Отток по неделям, факт и прогноз (слой 2)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Ряд по неделям
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChurnChart"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/model/settings:
+    get:
+      operationId: getModelSettings
+      tags: [model]
+      summary: Действующие настройки и коэффициенты модели
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Настройки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    patch:
+      operationId: patchModelSettings
+      tags: [model]
+      summary: Изменение настроек с пересчётом; dryRun=true только считает последствия (аналитик)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: dryRun
+          in: query
+          schema:
+            type: boolean
+            default: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelSettingsPatch"
+      responses:
+        "200":
+          description: Новые настройки (dryRun=false) или последствия (dryRun=true)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ModelSettings"
+                  - $ref: "#/components/schemas/DryRunResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/snapshot:
+    put:
+      operationId: putSnapshot
+      tags: [source]
+      summary: Загрузка или полная замена снимка данных с пересчётом (аналитик или сервисный токен)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Snapshot"
+      responses:
+        "200":
+          description: Снимок принят
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/status:
+    get:
+      operationId: getSourceStatus
+      tags: [source]
+      summary: Версия снимка, возраст, проверки качества
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Состояние источника
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/services/{id}:
+    patch:
+      operationId: patchService
+      tags: [source]
+      summary: Правка одной услуги (аналитик)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ServiceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServicePatch"
+      responses:
+        "200":
+          description: Услуга после правки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/accounts/{id}:
+    patch:
+      operationId: patchAccount
+      tags: [source]
+      summary: Правка баланса и бонуса счёта (аналитик)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AccountId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPatch"
+      responses:
+        "200":
+          description: Счёт после правки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/emulator/tick:
+    post:
+      operationId: emulatorTick
+      tags: [source]
+      summary: Сдвиг времени эмулятора биллинга (аналитик)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmulatorTickRequest"
+      responses:
+        "200":
+          description: Версия снимка после шага
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotAccepted"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/emulator/actions:
+    post:
+      operationId: emulatorActions
+      tags: [source]
+      summary: Применить действия по клиентам в эмуляторе (аналитик)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmulatorActionsRequest"
+      responses:
+        "200":
+          description: Версия снимка после действий
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/events:
+    get:
+      operationId: getEvents
+      tags: [analytics]
+      summary: SSE-поток событий, например {"type":"recalculated","version":N}
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Поток text/event-stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /metrics:
+    get:
+      operationId: getMetrics
+      tags: [analytics]
+      summary: Метрики Prometheus (токен сборщика или сессия)
+      security:
+        - metricsToken: []
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Текстовый формат Prometheus
+          content:
+            "text/plain; version=0.0.4":
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /metics:
+    get:
+      operationId: getMetricsAlias
+      tags: [analytics]
+      summary: Алиас /metrics (опечатка в тексте кейса)
+      security:
+        - metricsToken: []
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Текстовый формат Prometheus
+          content:
+            "text/plain; version=0.0.4":
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"

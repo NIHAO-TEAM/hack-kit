@@ -27,6 +27,9 @@ set -euo pipefail
 REPO=${GITHUB_REPOSITORY:?}
 PLAN=docs/plan.md
 TEAM=team.md
+# Строки этапов ищутся только в разделе «Разбивка на этапы»: в других таблицах плана первый столбец
+# тоже бывает числом (23.10 строка «| 2 |» входных данных совпала с этапом 2, блокировка «!» не сработала).
+STAGES=$(awk '/^## Разбивка на этапы/{f=1; next} /^## /{f=0} f' "$PLAN")
 SHA=$(git rev-parse --short HEAD)
 
 # Исполнители: id|части|доступен|лимит
@@ -46,7 +49,7 @@ stage_of() {
       awk -F'|' '{n=$2; gsub(/ /, "", n); print n}' <<<"$line"
       return 0
     fi
-  done < <(grep '^|' "$PLAN" || true)
+  done < <(grep '^|' <<<"$STAGES" || true)
   return 1
 }
 
@@ -62,7 +65,7 @@ archived() {
 # $3 без даты). Несколько «!» идут по порядку строки: каждое ждёт только предыдущие, взаимной блокировки нет.
 blocked_by() {
   local line b
-  line=$(grep -E "^\| *$1 *\|" "$PLAN" | head -n1)
+  line=$(grep -E "^\| *$1 *\|" <<<"$STAGES" | head -n1)
   for b in $(grep -oE '!`?[0-9a-z-]+' <<<"$line" | tr -d '!`'); do
     if [ "$b" = "$2" ] || [ "$b" = "$3" ]; then return 1; fi
     if archived "$b"; then continue; fi
@@ -76,9 +79,9 @@ blocked_by() {
 # (столбец 6). Пустая строка изменений — этап без кода (документы пахана), считается выполненным.
 waits_for_stage() {
   local deps d line c
-  deps=$(grep -E "^\| *$1 *\|" "$PLAN" | head -n1 | awk -F'|' '{print $8}')
+  deps=$(grep -E "^\| *$1 *\|" <<<"$STAGES" | head -n1 | awk -F'|' '{print $8}')
   for d in $(grep -oE 'этап +[0-9]+' <<<"$deps" | grep -oE '[0-9]+'); do
-    line=$(grep -E "^\| *$d *\|" "$PLAN" | head -n1)
+    line=$(grep -E "^\| *$d *\|" <<<"$STAGES" | head -n1)
     for c in $(awk -F'|' '{print $7}' <<<"$line" | grep -oE '`!?[0-9a-z-]+`' | tr -d '`!'); do
       archived "$c" || { printf '%s' "$d"; return 0; }
     done
