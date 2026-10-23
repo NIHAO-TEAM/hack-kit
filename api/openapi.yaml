@@ -636,6 +636,13 @@ components:
         version:
           type: integer
           format: int64
+        updatedBy:
+          type: string
+          description: Кто сохранил эту версию; для версии 0 (умолчания) поля нет.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Когда сохранена версия; для версии 0 (умолчания) поля нет.
     ModelSettingsPatch:
       type: object
       properties:
@@ -1069,6 +1076,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/source/snapshot:
