@@ -84,3 +84,10 @@
 2. «Вход в аккаунт» → «Беспарольный вход / ключ доступа» → добавить ключ (Touch ID, Windows Hello или ключ безопасности).
 3. Выйти, на экране входа панели нажать «Войти через SSO»; Keycloak предлагает ключ доступа вместо пароля.
 4. Подтвердить ключ — откроется очередь с ролью маркетолога.
+
+## Прод после перехода на k3s
+
+- Приложение и база — в k3s (чарт `deploy/helm/churn`), вход один: Traefik на 80/443.
+- Keycloak (`/sso`), Grafana (`/grafana`) и Prometheus остались в Compose (`deploy/docker-compose.prod.yml`): порты `18080`, `13000`, `19090` слушают только на `COMPANIONS_BIND` (адрес docker0), снаружи закрыты. В Traefik они подключены через Service без селектора и EndpointSlice (`templates/companions.yaml`); админка Keycloak и master-realm закрыты.
+- Prometheus опрашивает `/metrics` через Traefik по `https://<домен>` с bearer-токеном (`METRICS_TARGET`, `METRICS_SCHEME` в `~/churn/.env`).
+- Включает всё это `deploy/k3s/single-ingress.sh`; состояние смотреть через `deploy/k3s/diagnose.sh`.

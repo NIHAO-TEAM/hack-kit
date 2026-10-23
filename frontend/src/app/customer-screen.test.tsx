@@ -61,4 +61,69 @@ describe('экран «Карточка клиента»', () => {
     renderApp('/queue/9');
     expect(await screen.findByText(/Нет связи с сервером/)).toBeInTheDocument();
   });
+  it('окно спасения считается от asOf сводки, а не от часов браузера', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2030-01-01T00:00:00Z') });
+    try {
+      const { server } = await import('../mocks/server');
+      server.use(
+        http.get('/api/v1/analytics/summary', () =>
+          HttpResponse.json({
+            expectedLossCents: 0,
+            atRiskCents: 0,
+            lostCents: 0,
+            asOf: '2026-10-19T15:00:00.000Z',
+          }),
+        ),
+        http.get('/api/v1/customers/9', () =>
+          HttpResponse.json({
+            version: 1,
+            customer: {
+              id: 9,
+              email: 'c9@example.com',
+              balance: 0,
+              totalReplenished: 0,
+              score: 0.88,
+              level: 'high',
+              expectedLossCents: 100,
+            },
+            // срок вышел за 2 д 7 ч до asOf: идут 5 дней ожидания, до удаления 2 д 17 ч
+            services: [
+              {
+                id: 1,
+                ownerId: 9,
+                name: 'VPS',
+                paymentTerm: 'month',
+                status: 'active',
+                expiresAt: '2026-10-17T08:00:00.000Z',
+              },
+            ],
+            features: [],
+            actions: [],
+          }),
+        ),
+      );
+      renderApp('/queue/9');
+      await screen.findByRole('heading', { name: 'Клиент 9' });
+      expect((await screen.findAllByText(/до удаления 2\sд\s17\sч/)).length).toBeGreaterThan(0);
+      expect(screen.queryByText('окно закрыто')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('пока сводка не пришла — «время модели загружается» вместо полосы', async () => {
+    const { server } = await import('../mocks/server');
+    server.use(http.get('/api/v1/analytics/summary', () => new Promise(() => {})));
+    renderApp('/queue/9');
+    await screen.findByRole('heading', { name: 'Клиент 9' });
+    expect(screen.getAllByText('время модели загружается').length).toBeGreaterThan(0);
+  });
+
+  it('сводка недоступна — «время модели недоступно», а не вечная загрузка', async () => {
+    const { server } = await import('../mocks/server');
+    server.use(http.get('/api/v1/analytics/summary', () => HttpResponse.error()));
+    renderApp('/queue/9');
+    await screen.findByRole('heading', { name: 'Клиент 9' });
+    expect((await screen.findAllByText('время модели недоступно')).length).toBeGreaterThan(0);
+  });
 });
