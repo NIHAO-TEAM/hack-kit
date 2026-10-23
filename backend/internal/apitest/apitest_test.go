@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"example.com/app/internal/platform/apitest"
+	"example.com/app/internal/apitest"
 )
 
 // Пример теста эндпоинта через сгенерированный клиент.
