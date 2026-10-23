@@ -15,6 +15,7 @@ import (
 // Клиенты на данных организаторов через настоящий API: сессия, пересчёт, выдача.
 func TestCustomersAPI(t *testing.T) {
 	r := newRig(t, true)
+	r.StartRecalc(t)
 	c := r.As(t, auth.RoleMarketer)
 	ctx := context.Background()
 
