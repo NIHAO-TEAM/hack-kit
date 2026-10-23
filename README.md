@@ -35,7 +35,14 @@ docker compose up -d
 
 ## Модель и архитектура
 
-Описание модели и архитектуры — в `docs/model.md` и `docs/architecture.md` (будут заполнены позже).
+- [docs/model.md](docs/model.md) — признаки и веса, формула, уровни, деньги, допущения, чувствительность «вес ±0,1 → потеря».
+- [docs/architecture.md](docs/architecture.md) — модули и потоки, деплой, безопасность, как встать в контур aéza.
+- Экран «О модели» в приложении (`/about`) — то же с числами из настроек.
+- Эталонный расчёт: `python3 -I tools/oracle/oracle.py --check`.
+
+### Как добавить признак
+
+Файл `backend/internal/risk/feature_<имя>.go` с реализацией `Feature` и `Register` в `init()`, правило в `docs/model-rules.md` и оракуле. Пошагово — в [docs/model.md](docs/model.md#как-добавить-признак). Пример готового изменения — PR `feature-bonus-locked` (признак с весом 0 по умолчанию).
 
 ## Безопасность
 
@@ -48,6 +55,13 @@ docker compose up -d
 
 Функции сверх обязательных:
 
+Уже в `main`:
+
+- Эталонный оракул модели и golden-тесты до цента (`tools/oracle`, `testdata/golden`).
+- Действия с ценой: эффект в евро считается пересчётом на копии данных.
+- Прод на Compose с TLS (Caddy) и деплоем из CI.
+
+По плану этапов 4–7 (`docs/plan.md`), в README обновится после слияния: экран «Источник», эмулятор биллинга, SSE-обновления, метрики Prometheus, k3s и Helm, вход через Keycloak, график оттока, «что если», журнал действий.
 - Образец «как добавить признак модели»: PR с `backend/internal/risk/feature_bonus_locked.go` (один файл признака + тест + строка оракула), см. `changes/archive/2026-10-23-feature-bonus-locked/`.
 
 ## Разработка
