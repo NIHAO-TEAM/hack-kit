@@ -105,7 +105,7 @@ func WithRequestID(next http.Handler) http.Handler {
 }
 
 // New собирает полный обработчик: защитные заголовки, идентификатор запроса, проверка сессии, маршруты.
-func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI) http.Handler {
-	mux := Routes(pool, bus, clk, authAPI)
+func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) http.Handler {
+	mux := Routes(pool, bus, clk, authAPI, feed)
 	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, mux)))
 }
