@@ -24,7 +24,7 @@ func TestStandServesContractThroughClient(t *testing.T) {
 		t.Error("нет X-Request-Id")
 	}
 
-	summary, err := s.Client.GetSummaryWithResponse(ctx)
+	summary, err := s.As(t, "jury").GetSummaryWithResponse(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
