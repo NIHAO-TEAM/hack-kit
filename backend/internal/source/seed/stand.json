@@ -1,0 +1,162 @@
+{
+  "accounts": [
+    {
+      "id": 1001,
+      "email": "stand-1001@example.test",
+      "balance": 2000,
+      "withdrawBalance": 0,
+      "totalReplenished": 30000,
+      "bonusBalance": 0,
+      "bonusState": "locked"
+    },
+    {
+      "id": 1002,
+      "email": "stand-1002@example.test",
+      "balance": 1500,
+      "withdrawBalance": 0,
+      "totalReplenished": 5000,
+      "bonusBalance": 0,
+      "bonusState": "locked"
+    },
+    {
+      "id": 1003,
+      "email": "stand-1003@example.test",
+      "balance": 250000,
+      "withdrawBalance": 0,
+      "totalReplenished": 400000,
+      "bonusBalance": 0,
+      "bonusState": "unlocked"
+    },
+    {
+      "id": 1004,
+      "email": "stand-1004@example.test",
+      "balance": 5000,
+      "withdrawBalance": 0,
+      "totalReplenished": 5000,
+      "bonusBalance": 0,
+      "bonusState": "locked"
+    },
+    {
+      "id": 1005,
+      "email": "stand-1005@example.test",
+      "balance": 300,
+      "withdrawBalance": 0,
+      "totalReplenished": 20000,
+      "bonusBalance": 5000,
+      "bonusState": "locked"
+    },
+    {
+      "id": 1006,
+      "email": "stand-1006@example.test",
+      "balance": 300000,
+      "withdrawBalance": 0,
+      "totalReplenished": 500000,
+      "bonusBalance": 2000,
+      "bonusState": "unlocked"
+    }
+  ],
+  "services": [
+    {
+      "id": 1001,
+      "name": "stand-1001",
+      "ownerId": 1001,
+      "paymentTerm": "month",
+      "autoProlong": true,
+      "createdAt": "2026-09-16T22:00:00.000Z",
+      "expiresAt": "2026-10-16T22:00:00.000Z",
+      "status": "prolong_wait",
+      "price": 900
+    },
+    {
+      "id": 1002,
+      "name": "stand-1002",
+      "ownerId": 1002,
+      "paymentTerm": "hour",
+      "autoProlong": false,
+      "createdAt": "2026-10-19T13:00:00.000Z",
+      "expiresAt": "2026-10-20T11:00:00.000Z",
+      "status": "active",
+      "price": 120
+    },
+    {
+      "id": 1003,
+      "name": "stand-1003",
+      "ownerId": 1003,
+      "paymentTerm": "month",
+      "autoProlong": true,
+      "createdAt": "2026-10-10T15:00:00.000Z",
+      "expiresAt": "2026-11-10T15:00:00.000Z",
+      "status": "active",
+      "price": 700
+    },
+    {
+      "id": 1005,
+      "name": "stand-1005",
+      "ownerId": 1005,
+      "paymentTerm": "week",
+      "autoProlong": true,
+      "createdAt": "2026-10-15T15:00:00.000Z",
+      "expiresAt": "2026-10-22T15:00:00.000Z",
+      "status": "active",
+      "price": 800
+    },
+    {
+      "id": 1006,
+      "name": "stand-1006",
+      "ownerId": 1006,
+      "paymentTerm": "year",
+      "autoProlong": true,
+      "createdAt": "2026-03-01T15:00:00.000Z",
+      "expiresAt": "2027-03-01T15:00:00.000Z",
+      "status": "active",
+      "price": 1200
+    }
+  ],
+  "transactions": [
+    {
+      "id": 1001,
+      "amount": 900,
+      "status": "performed",
+      "performedAt": "2026-09-16T22:00:30.000Z",
+      "createdAt": "2026-09-16T22:00:00.000Z",
+      "type": "order",
+      "serviceId": 1001
+    },
+    {
+      "id": 1002,
+      "amount": 120,
+      "status": "performed",
+      "performedAt": "2026-10-19T13:00:20.000Z",
+      "createdAt": "2026-10-19T13:00:00.000Z",
+      "type": "order",
+      "serviceId": 1002
+    },
+    {
+      "id": 1003,
+      "amount": 700,
+      "status": "performed",
+      "performedAt": "2026-10-10T15:00:20.000Z",
+      "createdAt": "2026-10-10T15:00:00.000Z",
+      "type": "order",
+      "serviceId": 1003
+    },
+    {
+      "id": 1004,
+      "amount": 800,
+      "status": "performed",
+      "performedAt": "2026-10-15T15:00:20.000Z",
+      "createdAt": "2026-10-15T15:00:00.000Z",
+      "type": "order",
+      "serviceId": 1005
+    },
+    {
+      "id": 1005,
+      "amount": 1200,
+      "status": "performed",
+      "performedAt": "2026-03-01T15:00:20.000Z",
+      "createdAt": "2026-03-01T15:00:00.000Z",
+      "type": "order",
+      "serviceId": 1006
+    }
+  ]
+}
