@@ -20,6 +20,30 @@ describe('экран «Источник»', () => {
     expect(within(header).getByText('Набор организаторов')).toBeInTheDocument();
   });
 
+  it.each([
+    ['emulator', 'Эмулятор'],
+    ['future-origin', 'future-origin'],
+  ])('источник «%s»: подпись «%s», неизвестное значение — как есть', async (source, label) => {
+    signedInAs('analyst');
+    server.use(
+      http.get('/api/v1/source/status', () =>
+        HttpResponse.json({
+          version: 3,
+          source,
+          loadedAt: '2026-10-19T15:00:00Z',
+          ageSeconds: 1,
+          checks: [],
+        }),
+      ),
+    );
+    renderApp('/source');
+    const header = await screen.findByRole('region', { name: 'Текущий снимок' });
+    expect(within(header).getByText(label)).toBeInTheDocument();
+    if (source === 'emulator') {
+      expect(within(header).getByText(/а не REST API биллинга/)).toBeInTheDocument();
+    }
+  });
+
   it('проверки качества из сервера: текст, услуги и ссылки на клиентов', async () => {
     signedInAs('analyst');
     renderApp('/source');
