@@ -35,6 +35,12 @@ func TestAuditLog(t *testing.T) {
 		t.Fatalf("неверный пароль: %v %d", err, bad.StatusCode())
 	}
 
+	// Анонимный вход с огромным логином не раздувает запись: автор усекается.
+	long := strings.Repeat("я", 5000)
+	if lg, err := r.Anonymous(t).LoginWithResponse(ctx, gen.LoginRequest{Login: long, Password: "x"}); err != nil || lg.StatusCode() != http.StatusUnauthorized {
+		t.Fatalf("длинный логин: %v %d", err, lg.StatusCode())
+	}
+
 	res, err := analyst.ListAuditWithResponse(ctx, &gen.ListAuditParams{})
 	if err != nil || res.JSON200 == nil {
 		t.Fatalf("GET audit: %v %d %s", err, res.StatusCode(), res.Body)
@@ -67,6 +73,9 @@ func TestAuditLog(t *testing.T) {
 		t.Error("вход analyst не записан")
 	}
 	for _, e := range res.JSON200.Items {
+		if n := len([]rune(e.Actor)); n > 64 {
+			t.Errorf("автор длиной %d рун, ждали не больше 64", n)
+		}
 		for _, s := range append([]string{e.Summary, e.Actor}, changeText(e.Changes)...) {
 			if strings.Contains(s, "wrong") || strings.Contains(s, "@") {
 				t.Errorf("в журнале лишнее: %q", s)

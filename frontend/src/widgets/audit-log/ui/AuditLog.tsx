@@ -47,8 +47,10 @@ export function AuditLog() {
                       </Text>
                     ))}
                   </Stack>
-                  <Stack gap={2} align="flex-end" style={{ flexShrink: 0 }}>
-                    <Text size="sm">{e.actor}</Text>
+                  <Stack gap={2} align="flex-end" style={{ flexShrink: 0, maxWidth: '50%' }}>
+                    <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+                      {e.actor}
+                    </Text>
                     <Text size="xs" c="dimmed">
                       <time dateTime={e.at}>{when.format(new Date(e.at))}</time>
                     </Text>

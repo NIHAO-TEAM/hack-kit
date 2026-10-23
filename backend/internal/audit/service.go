@@ -20,6 +20,17 @@ type Service struct {
 // tokenActor — автор записи, когда действует служебный токен, а не вошедший пользователь.
 const tokenActor = "служебный токен"
 
+// maxActorRunes — предел длины автора: неудачный вход пишет введённый логин, а он приходит от анонима.
+const maxActorRunes = 64
+
+func clipActor(a string) string {
+	r := []rune(a)
+	if len(r) <= maxActorRunes {
+		return a
+	}
+	return string(r[:maxActorRunes-1]) + "…"
+}
+
 // WithActor задаёт, как узнать логин по контексту запроса; Record подставляет его в записи
 // без автора. Так модули не знают друг о друге.
 func (s *Service) WithActor(f func(context.Context) string) *Service {
@@ -43,6 +54,7 @@ func (s *Service) Record(ctx context.Context, e Entry) {
 			e.Actor = tokenActor
 		}
 	}
+	e.Actor = clipActor(e.Actor)
 	if e.Changes == nil {
 		e.Changes = []Change{}
 	}
