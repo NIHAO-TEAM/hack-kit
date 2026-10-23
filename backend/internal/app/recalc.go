@@ -97,3 +97,27 @@ func ToRiskSnapshot(s source.Snapshot) risk.Snapshot {
 	}
 	return out
 }
+
+// Overview переводит последний результат пересчёта в сводку для analytics; nil, пока расчёта нет.
+func (r *Recalc) Overview() *analytics.Overview {
+	if r == nil {
+		return nil
+	}
+	c := r.Engine.Latest()
+	if c == nil {
+		return nil
+	}
+	s := c.Result.Summary
+	return &analytics.Overview{
+		Version:           c.Version,
+		AsOf:              c.Result.AsOf,
+		CalculatedAt:      c.CalculatedAt,
+		Duration:          c.Duration,
+		SettingsVersion:   c.SettingsVersion,
+		Levels:            s.Levels,
+		ExpectedLossCents: s.ExpectedLossCents,
+		AtRiskCents:       s.ExposureCents,
+		LostCents:         s.LostCents,
+		QualityCounts:     s.QualityCounts,
+	}
+}

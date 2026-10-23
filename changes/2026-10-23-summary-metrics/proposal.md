@@ -1,4 +1,4 @@
-Статус: черновик
+Статус: в работе
 
 # `GET /analytics/summary` и `/metrics` для Prometheus
 

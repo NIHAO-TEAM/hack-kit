@@ -22,12 +22,12 @@ import (
 
 // newMux — маршруты без базы (тесты маршрутов).
 func newMux() *http.ServeMux {
-	return app.Routes(nil, events.New(), clock.System{}, auth.New(nil, clock.System{}, auth.Config{}))
+	return app.Routes(nil, events.New(), clock.System{}, auth.New(nil, clock.System{}, auth.Config{}), nil)
 }
 
 // newHandler собирает полный обработчик без базы (тесты маршрутов).
 func newHandler() http.Handler {
-	return app.New(nil, events.New(), clock.System{}, auth.New(nil, clock.System{}, auth.Config{}))
+	return app.New(nil, events.New(), clock.System{}, auth.New(nil, clock.System{}, auth.Config{}), nil)
 }
 
 // config — настройки из окружения.
@@ -113,11 +113,12 @@ func run() error {
 	}
 
 	// Воркер пересчёта: первый расчёт идёт сразу, дальше по source.changed и model.changed.
-	app.NewRecalc(pool, bus, clock.System{}).Start(ctx)
+	rc := app.NewRecalc(pool, bus, clock.System{})
+	rc.Start(ctx)
 
 	srv := &http.Server{
 		Addr:              cfg.addr,
-		Handler:           app.New(pool, bus, clock.System{}, authAPI),
+		Handler:           app.New(pool, bus, clock.System{}, authAPI, rc),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("api: слушаю %s", cfg.addr)

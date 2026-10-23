@@ -499,6 +499,11 @@ components:
         asOf:
           type: string
           format: date-time
+        qualityCounts:
+          type: object
+          description: Сколько услуг и клиентов отмечено каждой проверкой качества данных
+          additionalProperties:
+            type: integer
         version:
           type: integer
           format: int64
@@ -907,6 +912,12 @@ paths:
                 $ref: "#/components/schemas/Summary"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: Первый пересчёт ещё не закончился
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/analytics/churn-chart:

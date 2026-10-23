@@ -34,6 +34,8 @@ type Stand struct {
 	Pool *pgxpool.Pool
 	// Handler — тот же обработчик без сети, для тестов через httptest.ResponseRecorder.
 	Handler http.Handler
+	// Recalc — воркер пересчёта стенда (не запущен: тест, которому нужна сводка, вызывает Start сам).
+	Recalc *app.Recalc
 }
 
 // Учётки и токены, которые стенд создаёт при старте.
@@ -79,7 +81,8 @@ func New(t testing.TB) *Stand {
 	if err := authAPI.OnStart(ctx); err != nil {
 		t.Fatalf("apitest: учётки: %v", err)
 	}
-	handler := app.New(pool, bus, clk, authAPI)
+	rc := app.NewRecalc(pool, bus, clk)
+	handler := app.New(pool, bus, clk, authAPI, rc)
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
@@ -87,7 +90,7 @@ func New(t testing.TB) *Stand {
 	if err != nil {
 		t.Fatalf("apitest: клиент: %v", err)
 	}
-	return &Stand{Pool: pool, Client: client, URL: srv.URL, Clock: clk, Bus: bus, Handler: handler}
+	return &Stand{Pool: pool, Client: client, URL: srv.URL, Clock: clk, Bus: bus, Handler: handler, Recalc: rc}
 }
 
 // As входит под ролью (marketer, analyst, jury) или логином admin и возвращает клиента,
