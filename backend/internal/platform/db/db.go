@@ -51,7 +51,7 @@ func run(dsn string, f func(*goose.Provider) error) error {
 	if err != nil {
 		return fmt.Errorf("db: открытие: %w", err)
 	}
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 	p, err := provider(sqlDB)
 	if err != nil {
 		return fmt.Errorf("db: goose: %w", err)
