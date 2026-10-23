@@ -17,3 +17,6 @@ frontend/shots/
 e2e/test-results/
 e2e/playwright-report/
 *.log
+
+# Python
+__pycache__/

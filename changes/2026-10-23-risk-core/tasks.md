@@ -4,7 +4,7 @@
 
 ## 1. Контракт и данные
 
-- [ ] 1.1 Удалить `tools/oracle/__pycache__/` из git, `__pycache__/` в `.gitignore` — проверка: `git ls-files | grep -c pycache` = 0
+- [x] 1.1 Удалить `tools/oracle/__pycache__/` из git, `__pycache__/` в `.gitignore` — проверка: `git ls-files | grep -c pycache` = 0
 
 ## 2. Логика
 
