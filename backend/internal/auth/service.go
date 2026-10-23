@@ -112,8 +112,10 @@ func (s *service) ensureUsers(ctx context.Context) error {
 	return nil
 }
 
-// retryAfter возвращает, сколько ждать, если для ключа исчерпан лимит неудач.
-func (s *service) retryAfter(key string) (time.Duration, bool) {
+// reserveAttempt атомарно проверяет лимит и занимает попытку: параллельные запросы не могут
+// пройти проверку, пока argon2 считает хеш. Если лимит исчерпан, возвращает время до
+// освобождения окна. Успешный вход снимает занятые попытки через clearFailures.
+func (s *service) reserveAttempt(key string) (time.Duration, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := s.clk.Now()
@@ -123,21 +125,12 @@ func (s *service) retryAfter(key string) (time.Duration, bool) {
 			recent = append(recent, t)
 		}
 	}
-	if len(recent) == 0 {
-		delete(s.failures, key)
-		return 0, false
+	if len(recent) >= maxFailures {
+		s.failures[key] = recent
+		return recent[0].Add(failureWindow).Sub(now), true
 	}
-	s.failures[key] = recent
-	if len(recent) < maxFailures {
-		return 0, false
-	}
-	return recent[0].Add(failureWindow).Sub(now), true
-}
-
-func (s *service) recordFailure(key string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.failures[key] = append(s.failures[key], s.clk.Now())
+	s.failures[key] = append(recent, now)
+	return 0, false
 }
 
 func (s *service) clearFailures(key string) {

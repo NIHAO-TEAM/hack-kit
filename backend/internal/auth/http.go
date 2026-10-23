@@ -144,14 +144,13 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := req.Login + "\x00" + a.clientIP(r)
-	if wait, blocked := a.svc.retryAfter(key); blocked {
+	if wait, blocked := a.svc.reserveAttempt(key); blocked {
 		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
 		httpx.WriteProblem(w, r, http.StatusTooManyRequests, "слишком много попыток входа")
 		return
 	}
 	sess, err := a.svc.login(r.Context(), req.Login, req.Password)
 	if errors.Is(err, ErrBadCredentials) {
-		a.svc.recordFailure(key)
 		httpx.WriteProblem(w, r, http.StatusUnauthorized, "неверный логин или пароль")
 		return
 	}

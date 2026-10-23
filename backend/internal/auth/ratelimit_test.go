@@ -60,3 +60,19 @@ func TestLoginRateLimitKeyedByIPBehindTrustedProxyOnly(t *testing.T) {
 		t.Errorf("подмена X-Forwarded-For обошла лимит: %d", code)
 	}
 }
+
+func TestLoginRateLimitHoldsUnderConcurrency(t *testing.T) {
+	s := apitest.New(t)
+	const n = 30
+	codes := make(chan int, n)
+	for i := 0; i < n; i++ {
+		go func() { codes <- login(t, s, "jury", "wrong").StatusCode }()
+	}
+	got := map[int]int{}
+	for i := 0; i < n; i++ {
+		got[<-codes]++
+	}
+	if got[http.StatusUnauthorized] > 5 || got[http.StatusTooManyRequests] < n-5 {
+		t.Errorf("параллельный перебор обошёл лимит: %v", got)
+	}
+}
