@@ -29,7 +29,8 @@
 ## Доска на снимок
 
 - Слито ~38 изменений: этапы 2–5 почти целиком (кроме `source-screen`), из 6–7 — всё, кроме перечисленного ниже. CI на `main` зелёный.
-- В работе: #63 `source-screen` (exec-3), #66 `keycloak-oidc` (exec-2), #80 `k3s-cutover` (exec-1).
+- В работе: #63 `source-screen` (exec-3), #66 `keycloak-oidc` (exec-2), #80 `k3s-cutover`.
+- 24.10: у аккаунта Onisar кончаются лимиты — exec-1 «Доступен: нет» в `team.md`. #80 и #87 переданы другим исполнителям сменой метки `go:*` (ставит владелец). На том же аккаунте пахан и ночной критик — сессию пахана держать короткой.
 - Ждут `source-screen`: #67 `billing-rest-adapter`, #73 `audit-log`, #76 `ui-polish`, #82 `data-quality-checks`, #83 `jury-snapshot-robust`.
 - #87 `fix-flaky-recalc-test` (этап 8, «зависит от: нет») — у exec-1: чинит нестабильный `TestBurstOfEventsMakesOneExtraRecalc`, из-за которого лишние раунды CI в #69 и #63.
 - Этап 8 (#81–#86): #81 `prod-smoke` — без зависимостей; #84 `sso-verify` ← `keycloak-oidc`; #85 `light-theme` ← `ui-polish`, `churn-chart`; #86 `submission-readme` ← `k3s-cutover`, `keycloak-oidc`, `billing-rest-adapter`, `sso-verify` (последним).
