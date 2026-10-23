@@ -30,4 +30,4 @@
 
 ## Найдено по ходу
 - `TestGolden/stand.json` в `internal/risk` красный на `main` после #71 (`bonus_locked` не в эталоне); не из этого изменения, код `risk` не тронут.
-- `app.New`/`app.Routes` получили аргумент `*Recalc`: `customers-api` и `live-updates` берут движок оттуда же.
+- `Overview` подключается через необязательный интерфейс `overviewer` у источника (`app.newAnalytics`); `Recalc` и `lazyFeed` стенда его реализуют. Сигнатуры `app.New`/`app.Routes` не менялись.
