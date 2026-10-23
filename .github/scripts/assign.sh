@@ -120,15 +120,18 @@ for c in "${CANDS[@]}"; do
   fi
 
   need=$(parts_of "$branch")
-  picked=""
+  # Наименее загруженный подходящий исполнитель, при равной нагрузке — первый по team.md. «Первый со
+  # свободным местом» складывал бы этап на exec-1 и exec-2, пока остальные простаивают.
+  picked=""; best=""
   for e in "${EXECS[@]}"; do
     IFS='|' read -r id parts av lim <<<"$e"
     [ "$av" = "да" ] || continue
     ok=1
     for p in $need; do case "$parts" in *"$p"*) ;; *) ok=0 ;; esac; done
     [ "$ok" = 1 ] || continue
-    [ "$(load_of "$id")" -lt "$lim" ] || continue
-    picked=$id; break
+    load=$(load_of "$id")
+    [ "$load" -lt "$lim" ] || continue
+    if [ -z "$best" ] || [ "$load" -lt "$best" ]; then picked=$id; best=$load; fi
   done
   [ -n "$picked" ] || { echo "#$pr $name (этап $stage): нет свободного исполнителя — в очереди"; continue; }
 
