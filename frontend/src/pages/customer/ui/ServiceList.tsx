@@ -25,10 +25,13 @@ const termLabel: Record<Service['paymentTerm'], string> = {
 export function ServiceList({
   services,
   asOf,
+  asOfFailed = false,
 }: {
   services: readonly Service[];
   /** Время модели из сводки (`asOf`); пока оно не загружено — `null`. */
   asOf: string | null;
+  /** Сводка не загрузилась: вместо «загружается» — «недоступно». */
+  asOfFailed?: boolean;
 }) {
   return (
     <Stack gap="xs">
@@ -54,7 +57,7 @@ export function ServiceList({
                   />
                 ) : (
                   <Text size="sm" c="dimmed">
-                    время модели загружается
+                    {asOfFailed ? 'время модели недоступно' : 'время модели загружается'}
                   </Text>
                 )}
               </Group>

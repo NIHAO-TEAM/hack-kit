@@ -98,7 +98,11 @@ export function CustomerPage({ id }: { id: number }) {
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Stack>
             {lost ? null : <ActionsCard actions={actions} />}
-            <ServiceList services={services} asOf={summary.data?.asOf ?? null} />
+            <ServiceList
+              services={services}
+              asOf={summary.data?.asOf ?? null}
+              asOfFailed={summary.isError}
+            />
             <FeaturesCard features={features} score={customer.score ?? null} />
           </Stack>
         </Grid.Col>
