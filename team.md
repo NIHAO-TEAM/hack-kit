@@ -18,7 +18,7 @@
 
 | id | Человек | Часть | Модель | Изменений на руках, не больше | Доступен |
 |---|---|---|---|---|---|
-| `exec-1` | Onisar | backend, frontend | Sonnet 5.5 (medium) | 1 | нет |
+| `exec-1` | Onisar | backend, frontend | Sonnet 5.5 (medium) | 1 | да |
 | `exec-2` | Gr1nDer05 | backend, frontend | Sonnet 5.5 (medium) | 3 | да |
 | `exec-3` | valotr0n | backend, frontend | Sonnet 5.5 (medium) | 1 | да |
 | `exec-4` | immxrtalbeast | backend, frontend | Sonnet 5.5 (medium) | 3 | да |
