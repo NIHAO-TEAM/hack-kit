@@ -19,6 +19,6 @@
 
 ## 4. Готовность
 
-- [ ] 4.1 `make check` зелёный
-- [ ] 4.2 Сценарии из `specs/` проходят
-- [ ] 4.3 Ни один файл `risk-core` (`score.go`, `registry.go`, `settings.go`, `charges.go`, `snapshot.go`) не изменён; если без этого нельзя — «Найдено по ходу»
+- [x] 4.1 `make check` зелёный
+- [x] 4.2 Сценарии из `specs/` проходят
+- [x] 4.3 Ни один файл `risk-core` (`score.go`, `registry.go`, `settings.go`, `charges.go`, `snapshot.go`) не изменён; если без этого нельзя — «Найдено по ходу»

@@ -84,3 +84,35 @@
 - WHEN вес любого признака увеличен
 - THEN скор ни одного клиента не уменьшился
 - Тест: `TestScoreProperties`
+
+### Requirement: нехватка средств на ближайшие продления
+
+Модель SHALL учитывать, хватает ли на балансе денег на продления в ближайшие 7 дней, считая бонусный баланс только при `bonusState = unlocked`.
+
+#### Scenario: почасовая услуга съест баланс
+
+- WHEN у клиента почасовая услуга, и за 7 дней её списания больше баланса
+- THEN признак «не хватает средств» положительный, причина называет нужную сумму и сумму на балансе
+- Тест: `backend/internal/risk`, `TestFunds`
+
+#### Scenario: бонус заблокирован
+
+- WHEN бонусный баланс покрыл бы продления, но `bonusState = locked`
+- THEN бонус не учитывается
+- Тест: `backend/internal/risk`, `TestFundsBonusLocked`
+
+### Requirement: качество данных видно, но не меняет скор
+
+#### Scenario: устаревший статус
+
+- WHEN услуга в `prolong_wait`, а с `expiresAt` прошло больше 5 дней
+- THEN у услуги отметка «статус устарел», а в сводке счётчик таких услуг
+- Тест: `backend/internal/risk`, `TestQualityChecks, TestQualityOrganizers`
+
+### Requirement: совпадение с эталоном
+
+#### Scenario: набор организаторов
+
+- WHEN модель считает набор организаторов при `asOf = 2026-10-19T15:00:00Z`
+- THEN скор, уровень, признаки и деньги каждого клиента совпадают с `testdata/golden/organizers.json`
+- Тест: `backend/internal/risk`, `TestGolden/organizers.json`
