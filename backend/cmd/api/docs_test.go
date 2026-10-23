@@ -65,11 +65,14 @@ func TestOpenAPIJson(t *testing.T) {
 	}
 }
 
-func TestFrontPlaceholderOnlyAtRoot(t *testing.T) {
+func TestFrontPlaceholderAndSPAFallback(t *testing.T) {
 	if r := get("/"); r.Code != http.StatusOK || !strings.Contains(r.Body.String(), "фронт не собран") {
 		t.Errorf("/: %d %q", r.Code, r.Body.String())
 	}
-	if r := get("/nope"); r.Code != http.StatusNotFound {
-		t.Errorf("/nope: %d", r.Code)
+	if r := get("/queue"); r.Code != http.StatusOK || !strings.Contains(r.Body.String(), "фронт не собран") {
+		t.Errorf("/queue: %d %q", r.Code, r.Body.String())
+	}
+	if r := get("/api/v1/nope"); r.Code != http.StatusNotFound {
+		t.Errorf("/api/v1/nope: %d", r.Code)
 	}
 }

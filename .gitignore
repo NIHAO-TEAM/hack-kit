@@ -17,3 +17,6 @@ frontend/shots/
 e2e/test-results/
 e2e/playwright-report/
 *.log
+
+# Встроенный фронт: в репозитории только заглушка
+!backend/internal/platform/webui/dist/
