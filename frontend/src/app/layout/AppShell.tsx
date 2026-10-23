@@ -8,6 +8,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { can, logout, sessionKey, type Right } from '@entities/session';
@@ -33,7 +34,17 @@ export function AppShell() {
   const [opened, { toggle, close }] = useDisclosure();
 
   async function exit() {
-    await logout();
+    try {
+      await logout();
+    } catch {
+      // Сессия на сервере жива: остаёмся в панели и говорим об этом.
+      notifications.show({
+        color: 'red',
+        title: 'Не удалось выйти',
+        message: 'Сервер не завершил сессию. Попробуйте ещё раз.',
+      });
+      return;
+    }
     // Сессия сброшена в кэше: кнопка «назад» упрётся в охрану и вернёт на вход.
     queryClient.setQueryData(sessionKey, null);
     queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== sessionKey[0] });

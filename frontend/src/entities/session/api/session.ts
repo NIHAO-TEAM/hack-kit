@@ -29,7 +29,11 @@ export async function login(credentials: { login: string; password: string }) {
   return data.user;
 }
 
+/** Завершает сессию на сервере. Не вышло (не 401) — бросает ошибку, локальное состояние не трогает. */
 export async function logout() {
-  await api.POST('/api/v1/auth/logout').catch(() => undefined);
+  const { error, response } = await api.POST('/api/v1/auth/logout').catch(() => {
+    throw toApiError(0, null);
+  });
+  if (error && response.status !== 401) throw toApiError(response.status, error, response);
   setCsrfToken(null);
 }

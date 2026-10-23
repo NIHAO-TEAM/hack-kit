@@ -87,4 +87,48 @@ describe('вход и выход', () => {
     await router.navigate({ to: '/queue' });
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
   });
+
+  it('сервер не завершил сессию (403): остаёмся в панели и видим сообщение', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/v1/auth/logout', () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Запрещено', status: 403 },
+          { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    const { router } = renderApp('/login');
+    await user.type(await screen.findByLabelText('Логин'), 'marketer');
+    await user.type(screen.getByLabelText('Пароль'), 'demo');
+    await user.click(screen.getByRole('button', { name: 'Войти' }));
+    await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+    expect(await screen.findByText('Не удалось выйти')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/queue');
+  });
+});
+
+describe('ошибка загрузки сессии', () => {
+  it('нет связи: плашка и повтор вместо экрана ошибки библиотеки', async () => {
+    server.use(http.get('/api/v1/auth/me', () => HttpResponse.error()));
+    renderApp('/queue');
+    expect(await screen.findByText(/Нет связи с сервером\./)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Повторить сейчас' })).toBeInTheDocument();
+  });
+
+  it('ошибка сервера 500: экран ошибки с кнопкой «Повторить»', async () => {
+    server.use(
+      http.get('/api/v1/auth/me', () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Сбой', status: 500 },
+          { status: 500, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    renderApp('/queue');
+    expect(
+      await screen.findByRole('heading', { name: 'Не удалось загрузить страницу' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+  });
 });
