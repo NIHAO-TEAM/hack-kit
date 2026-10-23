@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>A · Дежурный — очередь удержания</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#15181C}a:hover{color:#5B636B}
+table{border-collapse:collapse}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; background: #F3F4F1; color: #15181C; min-height: 1000px; box-sizing: border-box">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px; padding: 14px 32px; border-bottom: 1px solid #D9DCD6; background: #FFFFFF">
+    <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 15px; letter-spacing: 0.02em">КОНТУР/УДЕРЖАНИЕ</div>
+    <nav style="display: flex; gap: 4px; flex-wrap: wrap">
+      <a href="#" style="padding: 8px 12px; border-radius: 4px; background: #15181C; color: #FFFFFF; text-decoration: none; font-size: 14px; font-weight: 500">Очередь</a>
+      <a href="#" style="padding: 8px 12px; border-radius: 4px; text-decoration: none; font-size: 14px">Сводка</a>
+    </nav>
+    <div style="margin-left: auto; display: flex; gap: 16px; align-items: center; font-size: 13px; color: #5B636B; flex-wrap: wrap">
+      <span style="font-family: 'JetBrains Mono', monospace">данные на 19.10 18:00 МСК · v12</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #0B6B5A"></span>live</span>
+      <span>marketer</span>
+    </div>
+  </header>
+
+  <main style="max-width: 1376px; margin: 0 auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px">
+    <section style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: #D9DCD6; border: 1px solid #D9DCD6">
+      <div style="background: #FFFFFF; padding: 16px 20px">
+        <div style="font-size: 13px; color: #5B636B">Ожидаемая потеря за 30 дней</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 34px; font-weight: 700; margin-top: 4px">3 879,73 €</div>
+        <div style="font-size: 12px; color: #5B636B; margin-top: 4px">платежи 30 дней × вероятность срыва</div>
+      </div>
+      <div style="background: #FFFFFF; padding: 16px 20px">
+        <div style="font-size: 13px; color: #5B636B">Под угрозой</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 34px; font-weight: 500; margin-top: 4px">6 900,46 €</div>
+        <div style="font-size: 12px; color: #5B636B; margin-top: 4px">5 клиентов высокого и среднего риска</div>
+      </div>
+      <div style="background: #FFFFFF; padding: 16px 20px">
+        <div style="font-size: 13px; color: #5B636B">Уже потеряно</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 34px; font-weight: 500; margin-top: 4px; color: #5B636B">7 368,34 €</div>
+        <div style="font-size: 12px; color: #5B636B; margin-top: 4px">4 клиента: все услуги удалены или заблокированы</div>
+      </div>
+    </section>
+
+    <section aria-label="Табло: удалит биллинг" style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; background: #FFF1D6; border: 1px solid #E9C98A; padding: 14px 20px">
+      <div style="display: flex; flex-direction: column; justify-content: center; min-width: 200px">
+        <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: #8A5300">ТАБЛО · ОКНО СПАСЕНИЯ</div>
+        <div style="font-size: 14px; margin-top: 4px">Удалит биллинг в ближайшие 5 дней</div>
+      </div>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; flex: 1">
+        <div style="background: #FFFFFF; border: 1px solid #E9C98A; padding: 10px 14px; display: flex; gap: 14px; align-items: center">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #B42318">00д 00ч 30м</div>
+          <div style="font-size: 13px"><div>№1 · почасовой сервер</div><div style="color: #5B636B">истекает, автопродление выкл.</div></div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #E9C98A; padding: 10px 14px; display: flex; gap: 14px; align-items: center">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #8A5300">02д 07ч 00м</div>
+          <div style="font-size: 13px"><div>№1001 · стенд</div><div style="color: #5B636B">prolong_wait, ждёт оплаты</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section style="background: #FFFFFF; border: 1px solid #D9DCD6">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #D9DCD6">
+        <h1 style="margin: 0; font-size: 18px; font-weight: 600">Очередь удержания</h1>
+        <span style="font-size: 13px; color: #5B636B">сортировка: ожидаемая потеря ↓</span>
+        <div style="margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap">
+          <button style="font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid #D9DCD6; background: #FFFFFF; border-radius: 4px">Все уровни</button>
+          <button style="font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid #D9DCD6; background: #FFFFFF; border-radius: 4px">Поиск по email</button>
+        </div>
+      </div>
+      <div style="overflow-x: auto">
+        <table style="width: 100%; font-size: 14px">
+          <thead>
+            <tr style="text-align: left; color: #5B636B; font-size: 12px; letter-spacing: 0.04em">
+              <th style="padding: 10px 16px; font-weight: 500">ID ↕</th>
+              <th style="padding: 10px 8px; font-weight: 500">EMAIL ↕</th>
+              <th style="padding: 10px 8px; font-weight: 500; text-align: right">БАЛАНС ↕</th>
+              <th style="padding: 10px 8px; font-weight: 500; text-align: right">ПОПОЛНЕНО ↕</th>
+              <th style="padding: 10px 8px; font-weight: 500">СКОР ↕</th>
+              <th style="padding: 10px 8px; font-weight: 500; text-align: right">ПОТЕРЯ ↓</th>
+              <th style="padding: 10px 8px; font-weight: 500">ГЛАВНАЯ ПРИЧИНА</th>
+              <th style="padding: 10px 16px; font-weight: 500">ДЕЙСТВИЕ</th>
+            </tr>
+          </thead>
+          <tbody style="font-family: 'JetBrains Mono', monospace">
+            <tr style="border-top: 1px solid #ECEEEA">
+              <td style="padding: 12px 16px">9</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">user-0009@example.test</td>
+              <td style="padding: 12px 8px; text-align: right">915,06 €</td>
+              <td style="padding: 12px 8px; text-align: right">2 698,95 €</td>
+              <td style="padding: 12px 8px"><span style="font-weight: 700">88</span> <span style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; padding: 2px 6px; border: 1px solid #15181C">ВЫСОКИЙ</span></td>
+              <td style="padding: 12px 8px; text-align: right; font-weight: 700">3 459,27 €</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">Не хватает 529,84 € на 7 дней</td>
+              <td style="padding: 12px 16px"><button style="font: inherit; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; padding: 6px 10px; background: #15181C; color: #FFFFFF; border: 0; border-radius: 4px">Пополнить · <span style="color: #7FE0C8">−1 067,48 €</span></button></td>
+            </tr>
+            <tr style="border-top: 1px solid #ECEEEA; background: #FFF8EA">
+              <td style="padding: 12px 16px">1</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">user-0001@example.test</td>
+              <td style="padding: 12px 8px; text-align: right">838,10 €</td>
+              <td style="padding: 12px 8px; text-align: right">969,22 €</td>
+              <td style="padding: 12px 8px"><span style="font-weight: 700">56</span> <span style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; padding: 2px 6px; border: 1px dashed #15181C">СРЕДНИЙ</span></td>
+              <td style="padding: 12px 8px; text-align: right; font-weight: 700">383,15 €</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">Автопродление выкл., истекает через 30 мин</td>
+              <td style="padding: 12px 16px"><button style="font: inherit; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; padding: 6px 10px; background: #15181C; color: #FFFFFF; border: 0; border-radius: 4px">Письмо · <span style="color: #7FE0C8">−365,29 €</span></button></td>
+            </tr>
+            <tr style="border-top: 1px solid #ECEEEA">
+              <td style="padding: 12px 16px">5</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">user-0005@example.test</td>
+              <td style="padding: 12px 8px; text-align: right">286,57 €</td>
+              <td style="padding: 12px 8px; text-align: right">2 936,08 €</td>
+              <td style="padding: 12px 8px"><span style="font-weight: 700">91</span> <span style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; padding: 2px 6px; border: 1px solid #15181C">ВЫСОКИЙ</span></td>
+              <td style="padding: 12px 8px; text-align: right">14,72 €</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">Ожидает оплаты · статус устарел</td>
+              <td style="padding: 12px 16px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: #5B636B">к биллингу</td>
+            </tr>
+            <tr style="border-top: 1px solid #ECEEEA">
+              <td style="padding: 12px 16px">10</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">user-0010@example.test</td>
+              <td style="padding: 12px 8px; text-align: right">203,79 €</td>
+              <td style="padding: 12px 8px; text-align: right">4 206,69 €</td>
+              <td style="padding: 12px 8px"><span style="font-weight: 700">95</span> <span style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; padding: 2px 6px; border: 1px solid #15181C">ВЫСОКИЙ</span></td>
+              <td style="padding: 12px 8px; text-align: right">13,33 €</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">Ожидает оплаты · статус устарел</td>
+              <td style="padding: 12px 16px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: #5B636B">к биллингу</td>
+            </tr>
+            <tr style="border-top: 1px solid #ECEEEA">
+              <td style="padding: 12px 16px">4</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">user-0004@example.test</td>
+              <td style="padding: 12px 8px; text-align: right">553,02 €</td>
+              <td style="padding: 12px 8px; text-align: right">709,24 €</td>
+              <td style="padding: 12px 8px"><span style="font-weight: 700">61</span> <span style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; padding: 2px 6px; border: 1px dashed #15181C">СРЕДНИЙ</span></td>
+              <td style="padding: 12px 8px; text-align: right">7,06 €</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">Сервер выключен, но оплачивается</td>
+              <td style="padding: 12px 16px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: #5B636B">—</td>
+            </tr>
+            <tr style="border-top: 1px solid #ECEEEA">
+              <td style="padding: 12px 16px">6</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">user-0006@example.test</td>
+              <td style="padding: 12px 8px; text-align: right">34,78 €</td>
+              <td style="padding: 12px 8px; text-align: right">1 077,26 €</td>
+              <td style="padding: 12px 8px"><span style="font-weight: 700">46</span> <span style="font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; padding: 2px 6px; color: #5B636B">НИЗКИЙ</span></td>
+              <td style="padding: 12px 8px; text-align: right">2,20 €</td>
+              <td style="padding: 12px 8px; font-family: 'IBM Plex Sans', sans-serif">Продления не проходят</td>
+              <td style="padding: 12px 16px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: #5B636B">—</td>
+            </tr>
+            <tr style="border-top: 1px solid #D9DCD6; color: #5B636B">
+              <td style="padding: 12px 16px" colspan="5"><span style="font-family: 'IBM Plex Sans', sans-serif">Потеряны: №2, 3, 7, 8 — все услуги удалены или заблокированы</span></td>
+              <td style="padding: 12px 8px; text-align: right">7 368,34 €</td>
+              <td style="padding: 12px 16px" colspan="2"><span style="font-family: 'IBM Plex Sans', sans-serif">в сегмент возврата</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
