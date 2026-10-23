@@ -1,4 +1,4 @@
-Статус: в работе
+Статус: на ревью
 
 # Вход через Keycloak проверен сквозным тестом
 
@@ -32,3 +32,6 @@
 
 ## Найдено по ходу
 
+- В realm у `secure` стояли required actions `CONFIGURE_TOTP` и `webauthn-register-passwordless`: они блокировали бы автотест при первом входе. Убраны, TOTP заведён при импорте; ключ доступа — вручную (см. `design.md`, «Решения по ходу»).
+- Docker в среде исполнителя нет: realm-импорт и `sso.spec.ts` не прогонялись. Формат credential `otp` и селекторы страниц Keycloak (`#username`, `#password`, `#otp`, `#kc-login`) — [ПРЕДПОЛОЖЕНО].
+- Прод уже импортировал realm: чтобы появился TOTP, нужны `KC_SECURE_TOTP_SECRET` в `.env` и пересоздание `kcdata` (шаги — `docs/architecture.md`).
