@@ -104,6 +104,6 @@
 
 #### Scenario: SSO выключен
 
-- WHEN `GET /api/v1/auth/oidc/login` отвечает `501`
+- WHEN `GET /api/v1/auth/config` отвечает `{ssoEnabled: false}`
 - THEN на экране входа нет кнопки «Войти через SSO», вход по паролю работает
 - Тест: `LoginPage.test.tsx`
