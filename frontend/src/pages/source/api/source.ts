@@ -8,7 +8,6 @@ export type EmulatorAction = components['schemas']['EmulatorAction'];
 export type SnapshotAccepted = components['schemas']['SnapshotAccepted'];
 
 export const sourceKey = ['source'] as const;
-export const qualityKey = ['summary', 'quality'] as const;
 
 type Result<T> = { data?: T; error?: unknown; response: Response };
 
@@ -24,16 +23,6 @@ const network = () => {
 export const statusQuery = queryOptions({
   queryKey: [...sourceKey, 'status'],
   queryFn: async () => unwrap(await api.GET('/api/v1/source/status').catch(network)),
-  retry: false,
-});
-
-/** Счётчики проверок качества данных — из сводки. */
-export const qualityQuery = queryOptions({
-  queryKey: qualityKey,
-  queryFn: async () => {
-    const summary = unwrap(await api.GET('/api/v1/analytics/summary').catch(network));
-    return summary.qualityCounts ?? {};
-  },
   retry: false,
 });
 
