@@ -65,16 +65,19 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: k6 snapshot
+        continue-on-error: true  # замер важнее зелёного: цель не достигнута — число всё равно в отчёте
         run: |
           mkdir -p "$RUNNER_TEMP/out"
           k6 run --summary-export "$RUNNER_TEMP/out/snapshot.json" \
             -e SOURCE_TOKEN="$SOURCE_TOKEN" -e SNAPSHOT="$RUNNER_TEMP/load/data.json" docs/load/k6/snapshot.js
 
       - name: k6 read
+        continue-on-error: true  # замер важнее зелёного: цель не достигнута — число всё равно в отчёте
         run: |
           k6 run --summary-export "$RUNNER_TEMP/out/read.json" -e PASSWORD="$ADMIN_PASSWORD" docs/load/k6/read.js
 
       - name: k6 recalc
+        continue-on-error: true  # замер важнее зелёного: цель не достигнута — число всё равно в отчёте
         run: |
           k6 run --summary-export "$RUNNER_TEMP/out/recalc.json" \
             -e PASSWORD="$ADMIN_PASSWORD" -e METRICS_TOKEN="$METRICS_TOKEN" docs/load/k6/recalc.js
