@@ -30,11 +30,12 @@ chmod 600 "$values"
   echo "  password: \"$(grep -E '^POSTGRES_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)\""
   echo "secretEnv:"
   # Всё, кроме POSTGRES_PASSWORD, PROD_DOMAIN и уже заданного в env чарта, идёт в Secret приложения.
-  grep -E '^[A-Z_]+_(PASSWORD|TOKEN)=|^ADMIN_LOGIN=' "$ENV_FILE" | grep -v '^POSTGRES_PASSWORD=' \
+  grep -E '^[A-Z_]+_(PASSWORD|TOKEN)=|^ADMIN_LOGIN=|^OIDC_CLIENT_SECRET=' "$ENV_FILE" | grep -v '^POSTGRES_PASSWORD=' \
     | awk -F= '{ k=$1; sub(/^[^=]*=/, ""); printf "  %s: \"%s\"\n", k, $0 }'
   echo "env:"
-  grep -E '^(SEED_ORGANIZERS|COOKIE_SECURE|TRUSTED_PROXY)=' "$ENV_FILE" \
-    | awk -F= '{ k=$1; sub(/^[^=]*=/, ""); printf "  %s: \"%s\"\n", k, $0 }'
+  # OIDC: discovery читается из Keycloak по Service чарта (спутник за пределами k3s), а не по имени Compose.
+  grep -E '^(SEED_ORGANIZERS|COOKIE_SECURE|TRUSTED_PROXY|OIDC_ISSUER_URL|OIDC_DISCOVERY_URL|OIDC_CLIENT_ID|OIDC_REDIRECT_URL)=' "$ENV_FILE" \
+    | sed "s|http://keycloak:8080|http://$RELEASE-keycloak:8080|" | awk -F= '{ k=$1; sub(/^[^=]*=/, ""); printf "  %s: \"%s\"\n", k, $0 }'
 } > "$values"
 
 prev_rev="$(helm -n "$NS" history "$RELEASE" -o json 2>/dev/null | grep -o '"revision":[0-9]*' | tail -1 | cut -d: -f2 || true)"

@@ -14,4 +14,16 @@ export function login() {
   if (!check(res, { 'вход 200': (r) => r.status === 200 })) {
     fail(`вход не удался: ${res.status}`);
   }
+  return res;
+}
+
+// Вход ограничен по числу попыток (429), поэтому входим один раз в setup(),
+// а виртуальные пользователи ходят с Bearer-токеном сессии (без cookie и CSRF).
+export function loginOnce() {
+  const res = login();
+  return { token: res.json('token') };
+}
+
+export function authHeaders(session, extra) {
+  return Object.assign({ Authorization: `Bearer ${session.token}` }, extra || {});
 }
