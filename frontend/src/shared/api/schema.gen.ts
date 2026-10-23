@@ -547,6 +547,14 @@ export interface components {
             id: string;
             ok: boolean;
             message?: string;
+            /** @description Услуги, на которых проверка сработала; не больше 10. */
+            items?: components["schemas"]["QualityCheckItem"][];
+        };
+        QualityCheckItem: {
+            /** Format: int64 */
+            serviceId: number;
+            /** Format: int64 */
+            accountId: number;
         };
         SourceStatus: {
             /** Format: int64 */

@@ -9,6 +9,7 @@ import (
 
 	"example.com/app/internal/analytics"
 	"example.com/app/internal/model"
+	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/events"
 	"example.com/app/internal/risk"
@@ -125,4 +126,34 @@ func (r *Recalc) Overview() *analytics.Overview {
 		LostCents:         s.LostCents,
 		QualityCounts:     s.QualityCounts,
 	}
+}
+
+// QualityChecks — результаты проверок качества данных последнего пересчёта по снимку этой версии;
+// nil, пока пересчёт по ней не готов (тогда экран показывает «проверки считаются»).
+func (r *Recalc) QualityChecks(version int64) []gen.QualityCheck {
+	if r == nil {
+		return nil
+	}
+	c := r.Engine.Latest()
+	if c == nil || c.DataVersion != version {
+		return nil
+	}
+	return qualityChecks(c.Result.Checks)
+}
+
+func qualityChecks(in []risk.CheckResult) []gen.QualityCheck {
+	out := make([]gen.QualityCheck, 0, len(in))
+	for _, c := range in {
+		msg := c.Message
+		q := gen.QualityCheck{Id: c.ID, Ok: c.OK, Message: &msg}
+		if len(c.Items) > 0 {
+			items := make([]gen.QualityCheckItem, len(c.Items))
+			for i, it := range c.Items {
+				items[i] = gen.QualityCheckItem{ServiceId: it.ServiceID, AccountId: it.AccountID}
+			}
+			q.Items = &items
+		}
+		out = append(out, q)
+	}
+	return out
 }
