@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"example.com/app/internal/audit"
 	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/events"
@@ -26,6 +28,19 @@ type SourceAPI struct {
 	bus      *events.Bus
 	clk      clock.Clock
 	maxBytes int64
+	audit    audit.Recorder
+}
+
+// WithAudit подключает журнал действий: загрузка снимка, правки и шаги эмулятора.
+func (a *SourceAPI) WithAudit(r audit.Recorder) *SourceAPI {
+	a.audit = r
+	return a
+}
+
+func (a *SourceAPI) record(r *http.Request, action, summary string, changes []audit.Change) {
+	if a.audit != nil {
+		a.audit.Record(r.Context(), audit.Entry{Action: action, Summary: summary, Changes: changes})
+	}
 }
 
 // defaultMaxBytes — лимит тела снимка по умолчанию (SNAPSHOT_MAX_BYTES), 512 МБ.
@@ -68,6 +83,8 @@ func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.bus.Publish(TopicChanged, acc.Version)
+	a.record(r, audit.ActionSnapshotLoaded,
+		fmt.Sprintf("Загружен снимок данных, версия %d: счетов %d, услуг %d, операций %d", acc.Version, acc.Accounts, acc.Services, acc.Transactions), nil)
 	writeJSON(w, gen.SnapshotAccepted{
 		Version: acc.Version, AsOf: acc.AsOf,
 		Accounts: acc.Accounts, Services: acc.Services, Transactions: acc.Transactions,
@@ -125,10 +142,12 @@ func (a *SourceAPI) EmulatorTick(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteProblem(w, r, http.StatusBadRequest, fmt.Sprintf("сдвиг должен быть от 1 до %d часов", maxTickHours))
 		return
 	}
-	a.emulate(w, r, func(s *Snapshot) (*Snapshot, string, error) {
+	if a.emulate(w, r, func(s *Snapshot) (*Snapshot, string, error) {
 		next := Advance(*s, hours)
 		return &next, OriginAPI, nil
-	})
+	}) {
+		a.record(r, audit.ActionEmulatorTick, fmt.Sprintf("Эмулятор биллинга: время сдвинуто на %d ч", hours), nil)
+	}
 }
 
 // EmulatorActions — POST /api/v1/source/emulator/actions.
@@ -142,7 +161,7 @@ func (a *SourceAPI) EmulatorActions(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteProblem(w, r, http.StatusBadRequest, "нет действий")
 		return
 	}
-	a.emulate(w, r, func(s *Snapshot) (*Snapshot, string, error) {
+	if a.emulate(w, r, func(s *Snapshot) (*Snapshot, string, error) {
 		cur, origin := s, OriginAPI
 		for _, act := range req.Actions {
 			if act.ActionId == ActionReset {
@@ -159,7 +178,13 @@ func (a *SourceAPI) EmulatorActions(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return cur, origin, nil
-	})
+	}) {
+		ids := make([]string, len(req.Actions))
+		for i, act := range req.Actions {
+			ids[i] = string(act.ActionId)
+		}
+		a.record(r, audit.ActionEmulatorAction, "Эмулятор биллинга: действия "+strings.Join(ids, ", "), nil)
+	}
 }
 
 type badRequest struct{ error }
@@ -168,16 +193,18 @@ type notFound struct{ error }
 
 // emulate читает снимок, применяет шаг и пишет результат тем же путём, что PUT /source/snapshot:
 // событие source.changed запускает пересчёт и обновление экранов.
-func (a *SourceAPI) emulate(w http.ResponseWriter, r *http.Request, step func(*Snapshot) (*Snapshot, string, error)) {
+// Возвращает true, если шаг записан.
+func (a *SourceAPI) emulate(w http.ResponseWriter, r *http.Request, step func(*Snapshot) (*Snapshot, string, error)) bool {
 	acc, _, ok := a.commit(w, r, step)
 	if !ok {
-		return
+		return false
 	}
 	w.Header().Set("X-Billing-Emulator", "simulated") // «имитация биллинга»
 	writeJSON(w, gen.SnapshotAccepted{
 		Version: acc.Version, AsOf: acc.AsOf,
 		Accounts: acc.Accounts, Services: acc.Services, Transactions: acc.Transactions,
 	})
+	return true
 }
 
 // commit выполняет шаг над текущим снимком и записывает результат. При ошибке сам отвечает
@@ -237,8 +264,9 @@ func (a *SourceAPI) PatchService(w http.ResponseWriter, r *http.Request, id gen.
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	var out Service
+	var out, before Service
 	_, _, ok := a.commit(w, r, func(s *Snapshot) (*Snapshot, string, error) {
+		before = findService(s, int64(id))
 		v, err := patchService(s, int64(id), req)
 		out = v
 		return s, OriginAPI, err
@@ -246,6 +274,7 @@ func (a *SourceAPI) PatchService(w http.ResponseWriter, r *http.Request, id gen.
 	if !ok {
 		return
 	}
+	a.record(r, audit.ActionServiceChange, fmt.Sprintf("Правка услуги %d", out.ID), serviceChanges(before, out))
 	writeJSON(w, gen.Service{
 		Id: out.ID, Name: out.Name, OwnerId: out.OwnerID, PaymentTerm: gen.PaymentTerm(out.PaymentTerm),
 		AutoProlong: out.AutoProlong, CreatedAt: out.CreatedAt, ExpiresAt: out.ExpiresAt,
@@ -259,8 +288,9 @@ func (a *SourceAPI) PatchAccount(w http.ResponseWriter, r *http.Request, id gen.
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	var out Account
+	var out, before Account
 	_, _, ok := a.commit(w, r, func(s *Snapshot) (*Snapshot, string, error) {
+		before = findAccount(s, int64(id))
 		v, err := patchAccount(s, int64(id), req)
 		out = v
 		return s, OriginAPI, err
@@ -268,6 +298,7 @@ func (a *SourceAPI) PatchAccount(w http.ResponseWriter, r *http.Request, id gen.
 	if !ok {
 		return
 	}
+	a.record(r, audit.ActionAccountChange, fmt.Sprintf("Правка счёта %d", out.ID), accountChanges(before, out))
 	writeJSON(w, gen.Account{
 		Id: out.ID, Email: out.Email, Balance: out.Balance, WithdrawBalance: out.WithdrawBalance,
 		TotalReplenished: out.TotalReplenished, BonusBalance: out.BonusBalance,

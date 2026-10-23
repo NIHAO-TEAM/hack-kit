@@ -14,6 +14,7 @@ tags:
   - name: analytics
   - name: model
   - name: source
+  - name: audit
   - name: platform
 components:
   securitySchemes:
@@ -454,6 +455,53 @@ components:
           type: integer
           format: int64
           description: Версия пересчёта, по которому построена страница.
+    AuditChange:
+      type: object
+      required: [field, from, to]
+      properties:
+        field:
+          type: string
+          description: Что поменялось (например, weights.noauto)
+        from:
+          type: string
+          description: Значение до правки, текстом
+        to:
+          type: string
+          description: Значение после правки, текстом
+    AuditEntry:
+      type: object
+      required: [id, at, actor, action, summary, changes]
+      properties:
+        id:
+          type: integer
+          format: int64
+        at:
+          type: string
+          format: date-time
+        actor:
+          type: string
+          description: Логин того, кто действовал; при неудачном входе — введённый логин
+        action:
+          type: string
+          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions]
+        summary:
+          type: string
+          description: Запись простыми словами
+        changes:
+          type: array
+          description: Что было и что стало; пусто, если запись без правок значений
+          items:
+            $ref: "#/components/schemas/AuditChange"
+    AuditPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntry"
+        total:
+          type: integer
     Feature:
       type: object
       required: [id, value, weight, contribution, reason]
@@ -1272,6 +1320,43 @@ paths:
                 type: string
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/audit:
+    get:
+      operationId: listAudit
+      tags: [audit]
+      summary: Журнал действий, новые сверху (аналитик, администратор)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Страница журнала
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /metrics:

@@ -16,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"example.com/app/internal/audit"
 	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/httpx"
@@ -23,8 +24,21 @@ import (
 
 // AuthAPI обслуживает пути /auth/* и проверяет доступ ко всем остальным.
 type AuthAPI struct {
-	svc *service
-	cfg Config
+	svc   *service
+	cfg   Config
+	audit audit.Recorder
+}
+
+// WithAudit подключает журнал действий: вход, неудачный вход и выход.
+func (a *AuthAPI) WithAudit(r audit.Recorder) *AuthAPI {
+	a.audit = r
+	return a
+}
+
+func (a *AuthAPI) record(r *http.Request, e audit.Entry) {
+	if a.audit != nil {
+		a.audit.Record(r.Context(), e)
+	}
 }
 
 // New создаёт обработчик модуля. pool может быть nil (тесты без базы): сессий тогда нет.
@@ -157,6 +171,7 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, err := a.svc.login(r.Context(), req.Login, req.Password)
 	if errors.Is(err, ErrBadCredentials) {
+		a.record(r, audit.Entry{Actor: req.Login, Action: audit.ActionLoginFailed, Summary: "Неудачный вход: неверный логин или пароль"})
 		httpx.WriteProblem(w, r, http.StatusUnauthorized, "неверный логин или пароль")
 		return
 	}
@@ -166,6 +181,7 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.svc.clearFailures(key)
+	a.record(r, audit.Entry{Actor: sess.Login, Action: audit.ActionLogin, Summary: "Вход в систему"})
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: sess.Token, Path: "/", Expires: sess.ExpiresAt,
 		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
@@ -185,6 +201,7 @@ func (a *AuthAPI) Logout(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка выхода")
 		return
 	}
+	a.record(r, audit.Entry{Actor: id.Login, Action: audit.ActionLogout, Summary: "Выход из системы"})
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
