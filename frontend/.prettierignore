@@ -1,0 +1,8 @@
+dist
+src/app/routeTree.gen.ts
+src/shared/api/schema.gen.ts
+pnpm-lock.yaml
+.agents
+.claude
+*.md
+public/mockServiceWorker.js

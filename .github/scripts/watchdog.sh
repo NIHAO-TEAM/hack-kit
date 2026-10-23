@@ -16,7 +16,7 @@ set -euo pipefail
 
 REPO=${GITHUB_REPOSITORY:?}
 OWED_MIN=40
-DRAFT_MIN=120
+DRAFT_MIN=45
 START_MIN=30
 MAX_RESTARTS=3
 now=$(date -u +%s)
