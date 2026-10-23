@@ -32,6 +32,34 @@ describe('экран «Источник»', () => {
     expect(within(quality).getByRole('link', { name: '3' })).toHaveAttribute('href', '/queue/3');
   });
 
+  it('пока пересчёт не готов — «считаются», после сброса ключа source (его сбрасывает recalculated) проверки появляются', async () => {
+    signedInAs('analyst');
+    let ready = false;
+    server.use(
+      http.get('/api/v1/source/status', () =>
+        HttpResponse.json({
+          version: 2,
+          loadedAt: '2026-10-19T15:00:00Z',
+          ageSeconds: 1,
+          checks: ready
+            ? [
+                {
+                  id: 'stale_status',
+                  ok: true,
+                  message: 'Нет услуг в ожидании оплаты дольше 5 дней',
+                },
+              ]
+            : [],
+        }),
+      ),
+    );
+    const { queryClient } = renderApp('/source');
+    expect(await screen.findByText(/Проверки считаются/)).toBeInTheDocument();
+    ready = true;
+    await queryClient.invalidateQueries({ queryKey: ['source'] });
+    expect(await screen.findByText('Противоречий не найдено.')).toBeInTheDocument();
+  });
+
   it('все проверки прошли — «Противоречий не найдено»', async () => {
     signedInAs('analyst');
     server.use(

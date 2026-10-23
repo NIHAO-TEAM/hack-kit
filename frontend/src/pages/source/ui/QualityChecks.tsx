@@ -1,10 +1,12 @@
 import { Anchor, Group, List, Paper, Stack, Text, Title } from '@mantine/core';
+import { useRouter } from '@tanstack/react-router';
 import { type SourceStatus } from '../api/source';
 
 type Check = SourceStatus['checks'][number];
 
 /** Проверки качества данных из статуса источника: подписи и услуги приходят с сервера. */
 export function QualityChecks({ checks }: { checks: Check[] }) {
+  const router = useRouter();
   const found = checks.filter((c) => !c.ok);
   return (
     <Paper withBorder p="lg" radius="lg" component="section" aria-label="Проверки качества данных">
@@ -29,7 +31,15 @@ export function QualityChecks({ checks }: { checks: Check[] }) {
                     {c.items.map((it) => (
                       <List.Item key={it.serviceId}>
                         Услуга {it.serviceId}, клиент{' '}
-                        <Anchor href={`/queue/${it.accountId}`}>{it.accountId}</Anchor>
+                        <Anchor
+                          href={`/queue/${it.accountId}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            void router.navigate({ href: `/queue/${it.accountId}` });
+                          }}
+                        >
+                          {it.accountId}
+                        </Anchor>
                       </List.Item>
                     ))}
                   </List>
