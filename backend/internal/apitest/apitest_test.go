@@ -8,7 +8,7 @@ import (
 	"example.com/app/internal/apitest"
 )
 
-// Пример теста эндпоинта через сгенерированный клиент.
+// Пример теста эндпоинта через сгенерированный клиент. Воркер пересчёта не запущен, поэтому сводка отвечает 503.
 func TestStandServesContractThroughClient(t *testing.T) {
 	s := apitest.New(t)
 	ctx := context.Background()
@@ -28,7 +28,7 @@ func TestStandServesContractThroughClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if summary.StatusCode() != http.StatusNotImplemented || summary.ApplicationproblemJSON501 == nil {
+	if summary.StatusCode() != http.StatusServiceUnavailable || summary.ApplicationproblemJSON503 == nil {
 		t.Errorf("summary: %d %s", summary.StatusCode(), summary.Body)
 	}
 }

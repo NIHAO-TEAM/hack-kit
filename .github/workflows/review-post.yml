@@ -43,6 +43,7 @@ jobs:
           sparse-checkout: |
             team.md
             .github/workflows/protected-paths.txt
+            .github/scripts
           sparse-checkout-cone-mode: false
 
       - name: Разобрать итог
@@ -111,3 +112,28 @@ jobs:
           # а события от собственного аккаунта подписка может не присылать — ревьюер пишет
           # от аккаунта человека, поэтому итог дублируется комментарием github-actions[bot].
           gh pr comment "$PR" --body "$(printf '[ci] итог ревью принят: round %s verdict: %s\nhead: %s' "$N" "$VERDICT" "$HEAD_SHA")"
+
+      # 24.10: subscribe_pr_activity не работает ни у одного исполнителя, сессия кончается на [wait], и итог
+      # ждал сторожа 20–35 мин. Будим routine исполнителя сразу; перезапуск по шагу 0 executor.md.
+      - name: Разбудить исполнителя
+        if: steps.parse.outputs.ok == 'true'
+        env:
+          FIRE_EXEC_1_URL: ${{ secrets.FIRE_EXEC_1_URL }}
+          FIRE_EXEC_1_TOKEN: ${{ secrets.FIRE_EXEC_1_TOKEN }}
+          FIRE_EXEC_2_URL: ${{ secrets.FIRE_EXEC_2_URL }}
+          FIRE_EXEC_2_TOKEN: ${{ secrets.FIRE_EXEC_2_TOKEN }}
+          FIRE_EXEC_3_URL: ${{ secrets.FIRE_EXEC_3_URL }}
+          FIRE_EXEC_3_TOKEN: ${{ secrets.FIRE_EXEC_3_TOKEN }}
+          FIRE_EXEC_4_URL: ${{ secrets.FIRE_EXEC_4_URL }}
+          FIRE_EXEC_4_TOKEN: ${{ secrets.FIRE_EXEC_4_TOKEN }}
+          FIRE_EXEC_5_URL: ${{ secrets.FIRE_EXEC_5_URL }}
+          FIRE_EXEC_5_TOKEN: ${{ secrets.FIRE_EXEC_5_TOKEN }}
+        run: |
+          labels=$(gh pr view "$PR" --json labels --jq '.labels[].name')
+          printf '%s\n' "$labels" | grep -qx needs-human && exit 0
+          id=$(printf '%s\n' "$labels" | sed -n 's/^go://p' | head -n1)
+          [ -n "$id" ] || exit 0
+          sid=$(printf '%s' "$id" | tr 'a-z-' 'A-Z_')
+          url_var="FIRE_${sid}_URL"; token_var="FIRE_${sid}_TOKEN"
+          gh pr comment "$PR" --body "[guard] перезапуск исполнителя $id (итог ревью): пришёл итог, подписки у сессии нет. Прошлая сессия считается завершённой, новая перехватывает PR."
+          FIRE_URL=${!url_var:-} FIRE_TOKEN=${!token_var:-} bash .github/scripts/fire.sh "PR #$PR в $GITHUB_REPOSITORY, исполнитель $id, перезапуск (итог ревью)" || true

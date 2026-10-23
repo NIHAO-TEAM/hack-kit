@@ -41,6 +41,60 @@ services:
       timeout: 3s
       retries: 5
 
+  # Метрики: порты не публикуются, доступен только внутри сети Compose.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:?нет METRICS_TOKEN в .env}
+    # Токен сборщика пишется в файл при старте: в конфиге и в образе его нет.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - umask 077 && printf '%s' "$$METRICS_TOKEN" > /tmp/metrics_token && exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d
+    expose:
+      - "9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - promdata:/prometheus
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # Мониторинг: доступен только через Caddy по /grafana, анонимный доступ выключен.
+  grafana:
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?нет GRAFANA_ADMIN_PASSWORD в .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://${PROD_DOMAIN}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    expose:
+      - "3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  # Разовая задача: создаёт учётку жюри (viewer) и завершается.
+  grafana-init:
+    image: curlimages/curl:8.11.0
+    restart: "no"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?нет GRAFANA_ADMIN_PASSWORD в .env}
+      JURY_PASSWORD: ${GRAFANA_JURY_PASSWORD:?нет GRAFANA_JURY_PASSWORD в .env}
+    volumes:
+      - ./grafana/init-viewer.sh:/init-viewer.sh:ro
+    entrypoint: ["/bin/sh", "/init-viewer.sh"]
+    depends_on:
+      - grafana
+
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -64,6 +118,8 @@ services:
 
 volumes:
   pgdata:
+  promdata:
+  grafanadata:
   # Не пересоздавать caddy_data: там сертификат (лимит Let's Encrypt — 5 в неделю на домен).
   caddy_data:
   caddy_config:

@@ -6,22 +6,87 @@
 #   - итог (бот: «[ci] итог ревью принят …» или «[review] … source: ci») новее его последнего [fix]/[merge]
 #     и старше OWED_MIN минут;
 #   - черновик с [start], а ни коммитов, ни его комментариев дольше DRAFT_MIN минут;
-#   - метка стоит дольше START_MIN минут, а [start] так и не появился (запуск потерялся).
+#   - метка стоит дольше START_MIN минут, а [start] так и не появился (запуск потерялся);
+#   - needs-human сняли после его последнего ответа, а он не вернулся за UNHOLD_MIN минут.
 # Тогда комментарий «[guard] перезапуск исполнителя <id> (сторож) …» и /fire: новая сессия перехватывает PR
-# по шагу 0 executor.md. После MAX_RESTARTS перезапусков сторожа на PR — needs-human: значит, дело не
-# в обрыве сессии.
+# по шагу 0 executor.md.
+#
+# Передача (решение владельца 24.10: ночью работа не встаёт из-за лимитов одного аккаунта): если исполнитель
+# в team.md «Доступен: нет», или после перезапуска за START_MIN минут от него ни одного комментария (routine
+# не стартует — кончились лимиты), или перезапусков уже MAX_RESTARTS, — сторож меняет go:<id> на go:<другой>
+# (самый свободный доступный с местом по team.md), пишет [assign] и [guard] перезапуск и запускает routine
+# нового. Некому передать — needs-human, как раньше.
+#
+# Ревьюер перезапускается каждые REVIEW_OWED_MIN минут до REVIEW_MAX_RESTARTS раз: лимиты аккаунта ревьюера
+# обновляются через часы, и needs-human после трёх попыток останавливал бы PR до утра.
 #
 # Окружение: GH_TOKEN, GITHUB_REPOSITORY, RUNNER_TEMP, FIRE_<ID>_URL / FIRE_<ID>_TOKEN (по именам из watchdog.yml).
 set -euo pipefail
 
 REPO=${GITHUB_REPOSITORY:?}
 OWED_MIN=40
+VERDICT_MIN=20
 DRAFT_MIN=45
 START_MIN=30
+UNHOLD_MIN=2
 MAX_RESTARTS=3
+REVIEW_OWED_MIN=20
+REVIEW_MAX_RESTARTS=30
 now=$(date -u +%s)
 
 age_min() { echo $(( (now - $(date -u -d "$1" +%s)) / 60 )); }
+
+# Исполнители из team.md на main: id|доступен|лимит (разбор как в assign.sh). Checkout у сторожа частичный,
+# поэтому файл — через API.
+mapfile -t EXECS < <(gh api "repos/$REPO/contents/team.md" --jq .content | base64 -d | awk -F'|' '/^\| `exec-/ {
+  id=$2; lim=$6; av=tolower($7); gsub(/[` ]/, "", id); gsub(/ /, "", lim); gsub(/ /, "", av)
+  print id "|" av "|" lim }')
+load_now() {
+  LOAD=$(gh pr list -R "$REPO" --state open --limit 300 --json labels \
+    --jq '[.[] | select([.labels[].name] | index("needs-human") | not) | .labels[].name | select(startswith("go:")) | ltrimstr("go:")]')
+}
+load_now
+available() {
+  local e i av lim
+  for e in "${EXECS[@]}"; do IFS='|' read -r i av lim <<<"$e"; [ "$i" = "$1" ] && [ "$av" = "да" ] && return 0; done
+  return 1
+}
+# Самый свободный доступный исполнитель с местом, кроме $1.
+pick() {
+  local best="" bestn=999 e i av lim n
+  for e in "${EXECS[@]}"; do
+    IFS='|' read -r i av lim <<<"$e"
+    if [ "$i" = "$1" ] || [ "$av" != "да" ]; then continue; fi
+    n=$(jq --arg i "$i" '[.[] | select(. == $i)] | length' <<<"$LOAD")
+    if [ "$n" -lt "${lim:-1}" ] && [ "$n" -lt "$bestn" ]; then best=$i; bestn=$n; fi
+  done
+  printf '%s' "$best"
+}
+fire_exec() {
+  local sid url_var token_var
+  sid=$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')
+  url_var="FIRE_${sid}_URL"; token_var="FIRE_${sid}_TOKEN"
+  FIRE_URL=${!url_var:-} FIRE_TOKEN=${!token_var:-} bash .github/scripts/fire.sh "$2"
+}
+# Передача PR $1 от $2 другому исполнителю, причина $3. Метку go:* меняет сторож (исключение в AGENTS.md);
+# [assign] нужен для проверки метки от бота в шаге 0 executor.md, [guard] перезапуск — чтобы новая сессия
+# перехватила PR с первой неотмеченной задачи, а не начинала заново.
+handover() {
+  local pr=$1 from=$2 why=$3 to
+  to=$(pick "$from")
+  [ -n "$to" ] || return 1
+  gh pr edit "$pr" -R "$REPO" --remove-label "go:$from" --add-label "go:$to"
+  gh pr comment "$pr" -R "$REPO" --body "[assign] $to: передача от $from ($why). Изменение входит в утверждённый этап docs/plan.md; исполнитель перепроверит план."
+  gh pr comment "$pr" -R "$REPO" --body "[guard] перезапуск исполнителя $to (сторож): передача от $from — $why. Прошлая сессия считается завершённой, новая перехватывает PR."
+  load_now
+  if fire_exec "$to" "PR #$pr в $REPO, исполнитель $to, перезапуск (сторож: передача от $from — $why)"; then
+    restarted=$((restarted + 1)); echo "#$pr -> передача $from -> $to: $why"
+  else
+    gh label create needs-human --color B60205 -R "$REPO" >/dev/null 2>&1 || true
+    gh pr edit "$pr" -R "$REPO" --add-label needs-human || true
+    gh pr comment "$pr" -R "$REPO" --body "[guard] сторож не смог запустить $to через API-триггер. Нужен человек."
+  fi
+}
 
 mapfile -t PRS < <(gh pr list -R "$REPO" --state open --limit 300 --json number,isDraft,labels \
   --jq '.[] | select([.labels[].name] | index("needs-human") | not)
@@ -43,6 +108,20 @@ for p in "${PRS[@]}"; do
   exec_at=$(last '^\[(start|fix|merge)\]' 0)
   commit_at=$(gh pr view "$pr" -R "$REPO" --json commits --jq '.commits | last | .committedDate // ""')
 
+  if ! available "$id"; then
+    handover "$pr" "$id" "в team.md исполнитель недоступен" || echo "#$pr: $id недоступен, передать некому"
+    continue
+  fi
+  if [ -n "$restart_at" ] && [ "$(age_min "$restart_at")" -ge "$START_MIN" ]; then
+    # Ответ — любой комментарий не бота с префиксом или коммит после перезапуска: [fix]/[merge] пишутся без id
+    # (24.10 #66 ушёл от живого exec-2, когда искали только «[…] <id>»).
+    alive=$(jq --arg t "$restart_at" '[.[] | select(.u != "github-actions[bot]" and .t > $t and (.b | startswith("[")) and (.b | test("^\\[(review|lead|guard|ci|assign)\\]") | not))] | length' <<<"$comments")
+    [[ "${commit_at:-0}" > "$restart_at" ]] && alive=1
+    if [ "$alive" -eq 0 ] && handover "$pr" "$id" "после перезапуска $(age_min "$restart_at") мин ни одного ответа — routine не стартует (лимиты аккаунта)"; then
+      continue
+    fi
+  fi
+
   reason=""
   if [ -z "$start_at" ]; then
     [ -n "$label_at" ] && [ "$(age_min "$label_at")" -ge "$START_MIN" ] && reason="метка go:$id стоит $(age_min "$label_at") мин, а [start] нет"
@@ -50,7 +129,15 @@ for p in "${PRS[@]}"; do
     latest=$(printf '%s\n%s\n%s\n' "$exec_at" "$commit_at" "$restart_at" | sort | tail -n1)
     [ "$(age_min "$latest")" -ge "$DRAFT_MIN" ] && reason="черновик без коммитов и комментариев исполнителя $(age_min "$latest") мин"
   elif [ -n "$verdict_at" ] && [[ "$verdict_at" > "${answer_at:-0}" ]]; then
-    [ "$(age_min "$verdict_at")" -ge "$OWED_MIN" ] && reason="итог $(age_min "$verdict_at") мин без ответа исполнителя"
+    [ "$(age_min "$verdict_at")" -ge "$VERDICT_MIN" ] && reason="итог $(age_min "$verdict_at") мин без ответа исполнителя"
+  fi
+  # needs-human сняли после последнего ответа исполнителя: его сессия кончилась на [needs-human], комментарий
+  # человека или пахана её не будит (23.10: #66 стоял больше часа после снятия метки).
+  unhold_at=$(gh api "repos/$REPO/issues/$pr/events" --paginate \
+    --jq '[.[] | select(.event == "unlabeled" and .label.name == "needs-human")] | last | .created_at // ""' | tail -n1)
+  if [ -z "$reason" ] && [ -n "$unhold_at" ] && [[ "$unhold_at" > "${exec_at:-0}" ]] && [[ "$unhold_at" > "${restart_at:-0}" ]] \
+     && [ "$(age_min "$unhold_at")" -ge "$UNHOLD_MIN" ]; then
+    reason="needs-human снят $(age_min "$unhold_at") мин назад, исполнитель не вернулся"
   fi
   [ -n "$reason" ] || continue
   # Перезапуск уже был после последнего события, которого ждём, — новой сессии нужно время.
@@ -58,17 +145,15 @@ for p in "${PRS[@]}"; do
 
   n=$(jq --arg id "$id" '[.[] | select(.u == "github-actions[bot]" and (.b | startswith("[guard] перезапуск исполнителя " + $id + " (сторож)")))] | length' <<<"$comments")
   if [ "$n" -ge "$MAX_RESTARTS" ]; then
+    handover "$pr" "$id" "сторож перезапускал $id $n раз, а PR стоит ($reason)" && continue
     gh label create needs-human --color B60205 -R "$REPO" >/dev/null 2>&1 || true
     gh pr edit "$pr" -R "$REPO" --add-label needs-human
-    gh pr comment "$pr" -R "$REPO" --body "[guard] сторож перезапускал $id уже $n раз, а PR стоит ($reason). Дело не в обрыве сессии — нужен человек."
+    gh pr comment "$pr" -R "$REPO" --body "[guard] сторож перезапускал $id уже $n раз, а PR стоит ($reason), передать некому. Нужен человек."
     continue
   fi
 
-  sid=$(printf '%s' "$id" | tr 'a-z-' 'A-Z_')
-  url_var="FIRE_${sid}_URL"; token_var="FIRE_${sid}_TOKEN"
-  export FIRE_URL=${!url_var:-} FIRE_TOKEN=${!token_var:-}
   gh pr comment "$pr" -R "$REPO" --body "[guard] перезапуск исполнителя $id (сторож): $reason. Прошлая сессия считается завершённой, новая перехватывает PR."
-  if bash .github/scripts/fire.sh "PR #$pr в $REPO, исполнитель $id, перезапуск (сторож: $reason)"; then
+  if fire_exec "$id" "PR #$pr в $REPO, исполнитель $id, перезапуск (сторож: $reason)"; then
     restarted=$((restarted + 1)); echo "#$pr -> перезапуск $id: $reason"
   else
     gh label create needs-human --color B60205 -R "$REPO" >/dev/null 2>&1 || true
@@ -94,9 +179,9 @@ for pr in "${OPEN[@]}"; do
   [ "$answered" -eq 0 ] || continue
   last_kick=$(jq -r --arg h "$head" '[.[] | select(.u == "github-actions[bot]" and (.b | startswith("[guard] перезапуск ревьюера")) and (.b | contains($h)))] | last | .t // ""' <<<"$comments")
   since=${last_kick:-$req_at}
-  [ "$(age_min "$since")" -ge "$OWED_MIN" ] || continue
+  [ "$(age_min "$since")" -ge "$REVIEW_OWED_MIN" ] || continue
   n=$(jq --arg h "$head" '[.[] | select(.u == "github-actions[bot]" and (.b | startswith("[guard] перезапуск ревьюера")) and (.b | contains($h)))] | length' <<<"$comments")
-  if [ "$n" -ge "$MAX_RESTARTS" ]; then
+  if [ "$n" -ge "$REVIEW_MAX_RESTARTS" ]; then
     gh label create needs-human --color B60205 -R "$REPO" >/dev/null 2>&1 || true
     gh pr edit "$pr" -R "$REPO" --add-label needs-human
     gh pr comment "$pr" -R "$REPO" --body "[guard] ревьюер не ответил на head $head после $n перезапусков. Нужен человек (лимиты или routine ревьюера)."
