@@ -21,6 +21,7 @@
 - frontend: `app/realtime` (новое), одна строка подключения в `app/routes/_app.tsx`
 - контракт `api/openapi.yaml`: нет
 - защищённые пути: нет
+- зависит от: `analytics-split`
 
 ## Связанные решения
 
