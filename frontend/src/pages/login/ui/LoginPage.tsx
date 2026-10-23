@@ -67,6 +67,9 @@ export function LoginPage({
             <Button type="submit" loading={pending}>
               Войти
             </Button>
+            <Button component="a" href="/api/v1/auth/oidc/login" variant="default">
+              Войти через SSO
+            </Button>
           </Stack>
         </form>
       </Paper>

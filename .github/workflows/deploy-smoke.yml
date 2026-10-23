@@ -1,0 +1,99 @@
+# .github/workflows/deploy-smoke.yml
+#
+# Дымовая проверка прода в Firefox после успешного выката (deploy.yml, deploy-k8s.yml) и вручную.
+# Тест — e2e/tests/smoke.spec.ts: главная, Swagger, 401 без входа, закрытые /metrics и Grafana;
+# с секретом E2E_JURY_PASSWORD ещё и вход jury, очередь, карточка, сводка = сумме очереди.
+# Падение: красный запуск и одна открытая issue с меткой prod-down.
+#
+# Нужна переменная репозитория PROD_DOMAIN (та же, что у deploy.yml).
+# Секрет E2E_JURY_PASSWORD заводит человек; без него идёт только открытая часть.
+
+name: Deploy smoke
+
+on:
+  workflow_run:
+    workflows: [Deploy, Deploy k8s]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: deploy-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.name != 'Deploy k8s' || vars.PROD_TARGET == 'k8s'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROD_DOMAIN: ${{ vars.PROD_DOMAIN }}
+      E2E_JURY_PASSWORD: ${{ secrets.E2E_JURY_PASSWORD }}
+    steps:
+      - name: Проверка настроек
+        run: |
+          if [ -z "$PROD_DOMAIN" ]; then echo "::error::не задана переменная репозитория PROD_DOMAIN"; exit 1; fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Playwright и Firefox
+        working-directory: e2e
+        run: |
+          npm install --no-save --no-package-lock @playwright/test@1.49.1
+          npx playwright install --with-deps firefox
+
+      - name: Дымовая проверка
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: https://${{ vars.PROD_DOMAIN }}
+          CI: "true"
+        run: npx playwright test smoke --retries=2 --reporter=list
+
+      - name: Сводка
+        if: always()
+        run: |
+          {
+            echo "### Дымовая проверка прода"
+            echo "- домен: \`$PROD_DOMAIN\`"
+            echo "- запуск: ${{ job.status }}"
+            if [ -n "$E2E_JURY_PASSWORD" ]; then echo "- вход jury: проверялся"; else echo "- вход jury: пропущен (нет секрета E2E_JURY_PASSWORD)"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  report:
+    needs: smoke
+    if: always() && needs.smoke.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Issue prod-down
+        run: |
+          gh label create prod-down --repo "$GITHUB_REPOSITORY" --color B60205 \
+            --description "Дымовая проверка прода упала" 2>/dev/null || true
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label prod-down --state open --json number --jq 'length')
+          if [ "$open" -gt 0 ]; then
+            echo "prod-down уже открыта, дубль не создаю"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --label prod-down \
+              --title "Прод не прошёл дымовую проверку" \
+              --body "Запуск: $RUN_URL"
+          fi
