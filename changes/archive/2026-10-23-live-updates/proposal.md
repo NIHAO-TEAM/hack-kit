@@ -18,7 +18,7 @@
 ## Затронутые части
 
 - backend: `internal/analytics/events.go`
-- frontend: `app/realtime` (новое), одна строка подключения в `app/routes/_app.tsx`
+- frontend: `app/realtime` (новое), подключение провайдера в `app/layout/AppShell.tsx`
 - контракт `api/openapi.yaml`: нет
 - защищённые пути: нет
 - зависит от: `analytics-split`
