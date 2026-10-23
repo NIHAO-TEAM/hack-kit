@@ -16,30 +16,38 @@ describe('LoginPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('рядом с входом по паролю есть кнопка SSO', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 0, type: 'opaqueredirect' }));
+  const config = (ssoEnabled: boolean) =>
+    vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ssoEnabled }) });
+
+  it('SSO включён — рядом с входом по паролю есть кнопка SSO', async () => {
+    const fetchMock = config(true);
+    vi.stubGlobal('fetch', fetchMock);
     renderPage();
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Войти через SSO' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Войти через SSO' })).toHaveAttribute(
       'href',
       '/api/v1/auth/oidc/login',
     );
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/auth/config');
   });
 
   it('SSO выключен — кнопки нет, вход по паролю остаётся', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 501 }));
+    const fetchMock = config(false);
+    vi.stubGlobal('fetch', fetchMock);
     renderPage();
-    await waitFor(() =>
-      expect(screen.queryByRole('link', { name: 'Войти через SSO' })).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByRole('link', { name: 'Войти через SSO' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
   });
 
-  it('сбой проверки SSO кнопку не прячет', async () => {
+  it('сбой запроса настроек — кнопки нет, вход по паролю остаётся', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError('network'));
     vi.stubGlobal('fetch', fetchMock);
     renderPage();
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(screen.getByRole('link', { name: 'Войти через SSO' })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByRole('link', { name: 'Войти через SSO' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
   });
 });
