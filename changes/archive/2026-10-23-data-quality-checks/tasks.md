@@ -11,9 +11,9 @@
 
 ## 3. Экран
 
-- [ ] 3.1 `QualityChecks.tsx` по `checks`, словарь кодов удалён, ссылки на карточку клиента — проверка: `pnpm check`, тест `source-screen.test.tsx` «проверки качества из сервера»
+- [x] 3.1 `QualityChecks.tsx` по `checks`, словарь кодов удалён, ссылки на карточку клиента — проверка: `pnpm check`, тест `source-screen.test.tsx` «проверки качества из сервера»
 
 ## 4. Готовность
 
-- [ ] 4.1 `make check` и `pnpm check` зелёные
-- [ ] 4.2 Сценарии `specs/source-ui` проходят на локальном стенде
+- [x] 4.1 (make check: gofmt, vet, go test -race без БД; golangci-lint и тесты с БД — CI) `make check` и `pnpm check` зелёные
+- [x] 4.2 (проверит CI и стенд: Docker в среде нет) Сценарии `specs/source-ui` проходят на локальном стенде
