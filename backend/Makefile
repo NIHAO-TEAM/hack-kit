@@ -1,11 +1,11 @@
-# Заглушка проекта для проверки процесса. В настоящем проекте generate вызывает
-# генератор сервера по ../api/openapi.yaml и sqlc (см. backend/AGENTS.md).
+# generate пишет код сервера и клиента из ../api/openapi.yaml (oapi-codegen, версия в go.mod).
+# sqlc подключат модули, у которых появятся queries.sql.
 GOLANGCI_VERSION := v2.1.6
 
-.PHONY: generate check test
+.PHONY: generate check test test-int
 
 generate:
-	@echo "generate: генераторов в заглушке нет"
+	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen -config oapi-codegen.yaml ../api/openapi.yaml
 
 check:
 	test -z "$$(gofmt -l .)"
@@ -15,3 +15,6 @@ check:
 
 test:
 	go test -race -p 1 ./...
+
+test-int:
+	go test -race -p 1 -tags integration ./...

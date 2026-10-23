@@ -153,7 +153,7 @@ components:
         totp:
           type: string
           description: Одноразовый код, если у пользователя включён TOTP.
-    LoginResponse:
+    LoginResult:
       type: object
       required: [user]
       properties:
@@ -725,7 +725,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LoginResponse"
+                $ref: "#/components/schemas/LoginResult"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
