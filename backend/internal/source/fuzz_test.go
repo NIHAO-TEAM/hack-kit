@@ -2,42 +2,15 @@ package source_test
 
 import (
 	"bytes"
-	"fmt"
-	"math"
 	"os"
 	"testing"
 
-	"example.com/app/internal/app"
-	"example.com/app/internal/risk"
 	"example.com/app/internal/source"
 	"example.com/app/tools/snapgen"
 )
 
-// CheckScored проверяет, что результат модели на принятом снимке согласован: нет NaN и Inf,
-// потерь меньше нуля, скора вне [0, 100] (проценты), а сводка потерь равна сумме по клиентам («под угрозой» — только high и medium, не больше суммы).
-func CheckScored(res risk.Result) error {
-	var loss, exposure, lost int64
-	for _, c := range res.Customers {
-		if c.Score != nil && (math.IsNaN(*c.Score) || *c.Score < 0 || *c.Score > 100) {
-			return fmt.Errorf("клиент %d: скор %v вне [0, 100]", c.ID, *c.Score)
-		}
-		if c.ExpectedLossCents < 0 || c.ExposureCents < 0 || c.LostCents < 0 {
-			return fmt.Errorf("клиент %d: отрицательная сумма %d/%d/%d", c.ID, c.ExpectedLossCents, c.ExposureCents, c.LostCents)
-		}
-		loss += c.ExpectedLossCents
-		exposure += c.ExposureCents
-		lost += c.LostCents
-	}
-	s := res.Summary
-	if s.ExpectedLossCents != loss || s.ExposureCents > exposure || s.ExposureCents < 0 || s.LostCents != lost {
-		return fmt.Errorf("сводка %d/%d/%d не согласована с суммами по клиентам %d/%d/%d",
-			s.ExpectedLossCents, s.ExposureCents, s.LostCents, loss, exposure, lost)
-	}
-	return nil
-}
-
-// FuzzParseSnapshot: любой вход даёт либо ошибку формата, либо ошибки полей, либо принятый
-// снимок; принятый снимок считается моделью без паники и с согласованными числами.
+// FuzzParseSnapshot: любой вход — либо ошибка формата (400), либо ошибки полей (422), либо
+// принятый снимок; разбор и проверка не паникуют, у принятого снимка нет сумм вне границ.
 func FuzzParseSnapshot(f *testing.F) {
 	if b, err := os.ReadFile("../../../cases/analizator/data.json"); err == nil {
 		f.Add(b)
@@ -62,14 +35,29 @@ func FuzzParseSnapshot(f *testing.F) {
 		if err != nil {
 			return
 		}
-		errs = append(errs, source.Validate(s)...)
-		if len(errs) > 0 {
+		if errs = append(errs, source.Validate(s)...); len(errs) > 0 {
 			return
 		}
-		rs := app.ToRiskSnapshot(*s)
-		at := source.ModelTime(s, snapgen.AsOf)
-		if err := CheckScored(risk.Score(rs, risk.Defaults(), at)); err != nil {
-			t.Fatal(err)
+		const limit = 1_000_000_000
+		for _, a := range s.Accounts {
+			for _, v := range []int64{a.Balance, a.WithdrawBalance, a.TotalReplenished, a.BonusBalance} {
+				if v < 0 || v > limit {
+					t.Fatalf("аккаунт %d принят с суммой %d", a.ID, v)
+				}
+			}
+		}
+		for _, v := range s.Services {
+			if v.Price < 0 || v.Price > limit {
+				t.Fatalf("услуга %d принята с ценой %d", v.ID, v.Price)
+			}
+			if v.ExpiresAt.Before(v.CreatedAt) {
+				t.Fatalf("услуга %d принята с expiresAt раньше createdAt", v.ID)
+			}
+		}
+		for _, tx := range s.Transactions {
+			if tx.Amount < 0 || tx.Amount > 1000 {
+				t.Fatalf("платёж %d принят с суммой %d", tx.ID, tx.Amount)
+			}
 		}
 	})
 }

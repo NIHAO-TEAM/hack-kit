@@ -18,5 +18,5 @@
 
 ## 4. Готовность
 
-- [ ] 4.1 `make check` зелёный
-- [ ] 4.2 Сценарии `specs/source` проходят
+- [x] 4.1 (gofmt, vet, golangci-lint, go test -race; govulncheck и тесты с БД — см. PR) `make check` зелёный
+- [x] 4.2 Сценарии `specs/source` проходят
