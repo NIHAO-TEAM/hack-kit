@@ -11,3 +11,6 @@ func (qualityStale) Eval(ctx ServiceCtx) (string, bool) {
 	s := ctx.Service
 	return "ошибка данных: в ожидании оплаты дольше 5 дней", s.Status == StatusProlongWait && ctx.AsOf.Sub(s.ExpiresAt) > pwaitGrace
 }
+func (qualityStale) Subject() string {
+	return "в ожидании оплаты дольше 5 дней"
+}

@@ -6,8 +6,8 @@
 
 ## 2. Логика
 
-- [ ] 2.1 `GetSourceStatus` заполняет `checks` по реестру проверок — проверка: тест `TestStatusQualityChecks` (снимок с застарелым `prolong_wait` → `stale_status` `ok=false`, счётчик и услуга в `items`)
-- [ ] 2.2 Набор организаторов: `checks` совпадают с `qualityCounts` сводки — проверка: тест на сиде
+- [x] 2.1 (интеграционный тест проверит CI: нет PostgreSQL) `GetSourceStatus` заполняет `checks` по реестру проверок — проверка: тест `TestStatusQualityChecks` (снимок с застарелым `prolong_wait` → `stale_status` `ok=false`, счётчик и услуга в `items`)
+- [x] 2.2 (проверит CI) Набор организаторов: `checks` совпадают с `qualityCounts` сводки — проверка: тест на сиде
 
 ## 3. Экран
 

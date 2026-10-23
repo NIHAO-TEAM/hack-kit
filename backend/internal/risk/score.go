@@ -39,6 +39,8 @@ type ServiceResult struct {
 	LossCents int64
 	Features  []FeatureHit
 	Quality   []string
+	// QualityIDs — идентификаторы сработавших проверок, в порядке Quality.
+	QualityIDs []string
 }
 
 // ActionResult — действие с ценой: эффект = ожидаемая потеря после − до (отрицательный — выгода).
@@ -73,11 +75,30 @@ type Summary struct {
 	QualityCounts     map[string]int
 }
 
+// CheckItem — услуга, на которой сработала проверка.
+type CheckItem struct {
+	ServiceID int64
+	AccountID int64
+}
+
+// maxCheckItems — сколько услуг проверки отдаём списком; Count всегда полный.
+const maxCheckItems = 10
+
+// CheckResult — итог одной проверки качества данных по снимку.
+type CheckResult struct {
+	ID      string
+	OK      bool
+	Message string
+	Count   int
+	Items   []CheckItem
+}
+
 // Result — результат расчёта по снимку.
 type Result struct {
 	AsOf      time.Time
 	Customers []Customer
 	Summary   Summary
+	Checks    []CheckResult // по одной записи на каждую зарегистрированную проверку, по ID
 }
 
 // Score считает модель по правилам docs/model-rules.md. Чистая функция: часов не читает, ввода-вывода нет.
@@ -102,6 +123,10 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 		Levels:        map[string]int{LevelHigh: 0, LevelMedium: 0, LevelLow: 0, StateLost: 0, StateUnscored: 0},
 		QualityCounts: map[string]int{},
 	}}
+	hits := map[string]*CheckResult{}
+	for _, c := range cs {
+		hits[c.ID()] = &CheckResult{ID: c.ID(), OK: true}
+	}
 	for _, a := range accounts {
 		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs)
 		if c.State == StateScored {
@@ -126,7 +151,20 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 			for _, q := range sr.Quality {
 				res.Summary.QualityCounts[q]++
 			}
+			for _, id := range sr.QualityIDs {
+				h := hits[id]
+				h.OK = false
+				h.Count++
+				if len(h.Items) < maxCheckItems {
+					h.Items = append(h.Items, CheckItem{ServiceID: sr.ID, AccountID: a.ID})
+				}
+			}
 		}
+	}
+	for _, c := range cs {
+		h := hits[c.ID()]
+		h.Message = checkMessage(c, h.Count)
+		res.Checks = append(res.Checks, *h)
 	}
 	return res
 }
@@ -259,6 +297,7 @@ func scoreService(ctx ServiceCtx, st Settings, fs []Feature, cs []Check) Service
 	for _, c := range cs {
 		if msg, hit := c.Eval(ctx); hit {
 			sr.Quality = append(sr.Quality, msg)
+			sr.QualityIDs = append(sr.QualityIDs, c.ID())
 		}
 	}
 	return sr
