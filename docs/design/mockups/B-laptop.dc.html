@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B · Квитанция — очередь удержания</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&amp;family=Golos+Text:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#201C16}a:hover{color:#6B6358}
+table{border-collapse:collapse}
+</style>
+</helmet>
+<div style="font-family: 'Golos Text', system-ui, sans-serif; background: #F6F2E9; color: #201C16; min-height: 1000px; box-sizing: border-box">
+  <header style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 28px; padding: 20px 40px 16px; border-bottom: 1px solid #D9CFBD">
+    <div style="font-family: 'PT Serif', Georgia, serif; font-size: 24px; font-weight: 700">Контур удержания</div>
+    <nav style="display: flex; gap: 20px; font-size: 15px; flex-wrap: wrap">
+      <a href="#" style="text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px">Очередь</a>
+      <a href="#" style="text-decoration: none; color: #6B6358">Сводка</a>
+    </nav>
+    <div style="margin-left: auto; font-size: 13px; color: #6B6358">выписка на 19 октября, 18:00 МСК · маркетолог</div>
+  </header>
+
+  <main style="max-width: 1360px; margin: 0 auto; padding: 28px 40px; display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start">
+    <section style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px; align-items: baseline">
+        <div>
+          <div style="font-size: 13px; color: #6B6358">Ожидаемая потеря за 30 дней</div>
+          <div style="font-family: 'PT Serif', serif; font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums">3 879,73 €</div>
+        </div>
+        <div>
+          <div style="font-size: 13px; color: #6B6358">Под угрозой</div>
+          <div style="font-family: 'PT Serif', serif; font-size: 26px; font-variant-numeric: tabular-nums">6 900,46 €</div>
+        </div>
+        <div>
+          <div style="font-size: 13px; color: #6B6358">Уже потеряно</div>
+          <div style="font-family: 'PT Serif', serif; font-size: 26px; font-variant-numeric: tabular-nums; color: #6B6358">7 368,34 €</div>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid #E2B8A3; border-bottom: 1px solid #E2B8A3; background: #FBEDE4; padding: 12px 16px; font-size: 15px">
+        <strong style="color: #8E3415">Сегодня до конца дня:</strong> №1 — почасовой сервер истекает через 30 минут, автопродление выключено. №1001 (стенд) — до удаления 2 дня 7 часов.
+      </div>
+
+      <div style="background: #FFFDF8; border: 1px solid #E3DBCB">
+        <div style="display: flex; align-items: baseline; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #E3DBCB; flex-wrap: wrap">
+          <h1 style="margin: 0; font-family: 'PT Serif', serif; font-size: 20px">Очередь удержания</h1>
+          <span style="font-size: 13px; color: #6B6358">по ожидаемой потере, сначала дорогие</span>
+        </div>
+        <div style="overflow-x: auto">
+          <table style="width: 100%; font-size: 14px; font-variant-numeric: tabular-nums">
+            <thead>
+              <tr style="text-align: left; font-size: 12px; color: #6B6358">
+                <th style="padding: 10px 20px; font-weight: 500">ID ↕</th>
+                <th style="padding: 10px 8px; font-weight: 500">Email ↕</th>
+                <th style="padding: 10px 8px; font-weight: 500; text-align: right">Баланс ↕</th>
+                <th style="padding: 10px 8px; font-weight: 500; text-align: right">Пополнено ↕</th>
+                <th style="padding: 10px 8px; font-weight: 500">Риск ↕</th>
+                <th style="padding: 10px 8px; font-weight: 500; text-align: right">Потеря ↓</th>
+                <th style="padding: 10px 20px; font-weight: 500">Почему</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-top: 1px solid #EFE8DA">
+                <td style="padding: 12px 20px">9</td><td style="padding: 12px 8px">user-0009@example.test</td>
+                <td style="padding: 12px 8px; text-align: right">915,06 €</td><td style="padding: 12px 8px; text-align: right">2 698,95 €</td>
+                <td style="padding: 12px 8px"><span style="color: #8E3415; font-weight: 600">высокий</span> · 88</td>
+                <td style="padding: 12px 8px; text-align: right; font-family: 'PT Serif', serif; font-weight: 700; font-size: 16px">3 459,27 €</td>
+                <td style="padding: 12px 20px">не хватает 529,84 € на 7 дней</td>
+              </tr>
+              <tr style="border-top: 1px solid #EFE8DA">
+                <td style="padding: 12px 20px">1</td><td style="padding: 12px 8px">user-0001@example.test</td>
+                <td style="padding: 12px 8px; text-align: right">838,10 €</td><td style="padding: 12px 8px; text-align: right">969,22 €</td>
+                <td style="padding: 12px 8px">средний · 56</td>
+                <td style="padding: 12px 8px; text-align: right; font-family: 'PT Serif', serif; font-weight: 700; font-size: 16px">383,15 €</td>
+                <td style="padding: 12px 20px">автопродление выкл., истекает через 30 мин</td>
+              </tr>
+              <tr style="border-top: 1px solid #EFE8DA">
+                <td style="padding: 12px 20px">5</td><td style="padding: 12px 8px">user-0005@example.test</td>
+                <td style="padding: 12px 8px; text-align: right">286,57 €</td><td style="padding: 12px 8px; text-align: right">2 936,08 €</td>
+                <td style="padding: 12px 8px"><span style="color: #8E3415; font-weight: 600">высокий</span> · 91</td>
+                <td style="padding: 12px 8px; text-align: right; font-family: 'PT Serif', serif">14,72 €</td>
+                <td style="padding: 12px 20px">ждёт оплаты; статус устарел — к биллингу</td>
+              </tr>
+              <tr style="border-top: 1px solid #EFE8DA">
+                <td style="padding: 12px 20px">10</td><td style="padding: 12px 8px">user-0010@example.test</td>
+                <td style="padding: 12px 8px; text-align: right">203,79 €</td><td style="padding: 12px 8px; text-align: right">4 206,69 €</td>
+                <td style="padding: 12px 8px"><span style="color: #8E3415; font-weight: 600">высокий</span> · 95</td>
+                <td style="padding: 12px 8px; text-align: right; font-family: 'PT Serif', serif">13,33 €</td>
+                <td style="padding: 12px 20px">ждёт оплаты; статус устарел — к биллингу</td>
+              </tr>
+              <tr style="border-top: 1px solid #EFE8DA">
+                <td style="padding: 12px 20px">4</td><td style="padding: 12px 8px">user-0004@example.test</td>
+                <td style="padding: 12px 8px; text-align: right">553,02 €</td><td style="padding: 12px 8px; text-align: right">709,24 €</td>
+                <td style="padding: 12px 8px">средний · 61</td>
+                <td style="padding: 12px 8px; text-align: right; font-family: 'PT Serif', serif">7,06 €</td>
+                <td style="padding: 12px 20px">сервер выключен, но оплачивается</td>
+              </tr>
+              <tr style="border-top: 1px solid #EFE8DA">
+                <td style="padding: 12px 20px">6</td><td style="padding: 12px 8px">user-0006@example.test</td>
+                <td style="padding: 12px 8px; text-align: right">34,78 €</td><td style="padding: 12px 8px; text-align: right">1 077,26 €</td>
+                <td style="padding: 12px 8px; color: #6B6358">низкий · 46</td>
+                <td style="padding: 12px 8px; text-align: right; font-family: 'PT Serif', serif">2,20 €</td>
+                <td style="padding: 12px 20px">продления не проходят</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <aside aria-label="Чек действий" style="flex: 1 1 340px; background: #FFFDF8; border: 1px solid #E3DBCB; padding: 22px 24px 28px; display: flex; flex-direction: column; gap: 14px">
+      <div style="font-family: 'PT Serif', serif; font-size: 18px; font-weight: 700; text-align: center">Чек на сегодня</div>
+      <div style="font-size: 12px; color: #6B6358; text-align: center">что сделать · сколько снимет с потери</div>
+      <div style="border-top: 2px dashed #D9CFBD"></div>
+      <div style="display: flex; gap: 8px; align-items: baseline; font-size: 15px">
+        <span>№9 · пополнить на 529,84 €</span>
+        <span style="flex: 1; border-bottom: 2px dotted #CFC4AF; transform: translateY(-4px)"></span>
+        <span style="font-family: 'PT Serif', serif; font-weight: 700; color: #2F6B3A">−1 067,48 €</span>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: baseline; font-size: 15px">
+        <span>№1 · письмо «автопродление»</span>
+        <span style="flex: 1; border-bottom: 2px dotted #CFC4AF; transform: translateY(-4px)"></span>
+        <span style="font-family: 'PT Serif', serif; font-weight: 700; color: #2F6B3A">−365,29 €</span>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: baseline; font-size: 15px; color: #6B6358">
+        <span>№5, №10 · к биллингу, не маркетингу</span>
+        <span style="flex: 1; border-bottom: 2px dotted #CFC4AF; transform: translateY(-4px)"></span>
+        <span>0,00 €</span>
+      </div>
+      <div style="border-top: 2px dashed #D9CFBD"></div>
+      <div style="display: flex; justify-content: space-between; align-items: baseline">
+        <span style="font-weight: 600">Итого можно снять</span>
+        <span style="font-family: 'PT Serif', serif; font-size: 26px; font-weight: 700; color: #2F6B3A">−1 432,77 €</span>
+      </div>
+      <button style="font: inherit; font-size: 15px; min-height: 44px; padding: 10px 16px; background: #201C16; color: #FFFDF8; border: 0; border-radius: 2px">Взять №9 в работу</button>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

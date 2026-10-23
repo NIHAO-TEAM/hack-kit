@@ -33,7 +33,7 @@ func twoServiceSnapshot() Snapshot {
 }
 
 func TestScoreTwoServices(t *testing.T) {
-	r := Score(twoServiceSnapshot(), Defaults(), asOfT)
+	r := coreScore(twoServiceSnapshot(), Defaults(), asOfT)
 	if len(r.Customers) != 4 {
 		t.Fatalf("клиентов %d", len(r.Customers))
 	}
@@ -62,7 +62,7 @@ func TestScoreTwoServices(t *testing.T) {
 }
 
 func TestScoreStatesAndSummary(t *testing.T) {
-	r := Score(twoServiceSnapshot(), Defaults(), asOfT)
+	r := coreScore(twoServiceSnapshot(), Defaults(), asOfT)
 	if c := r.Customers[1]; c.State != StateLost || c.Score != nil || c.Level != nil || c.LostCents != 700 {
 		t.Errorf("lost: %+v", c)
 	}
@@ -89,15 +89,15 @@ func TestScoreThresholds(t *testing.T) {
 	}}
 	st := Defaults() // P = 0,8 → скор 80
 	st.High, st.Medium = 80, 50
-	if r := Score(snap, st, asOfT); *r.Customers[0].Level != LevelHigh {
+	if r := coreScore(snap, st, asOfT); *r.Customers[0].Level != LevelHigh {
 		t.Errorf("ровно на пороге high: %v", *r.Customers[0].Level)
 	}
 	st.High, st.Medium = 90, 80
-	if r := Score(snap, st, asOfT); *r.Customers[0].Level != LevelMedium {
+	if r := coreScore(snap, st, asOfT); *r.Customers[0].Level != LevelMedium {
 		t.Errorf("ровно на пороге medium: %v", *r.Customers[0].Level)
 	}
 	st.Medium = 81
-	if r := Score(snap, st, asOfT); *r.Customers[0].Level != LevelLow {
+	if r := coreScore(snap, st, asOfT); *r.Customers[0].Level != LevelLow {
 		t.Errorf("ниже medium: %v", *r.Customers[0].Level)
 	}
 }
@@ -151,14 +151,14 @@ func TestChecksAndActionsHooks(t *testing.T) {
 	if snap.Services[1].AutoProlong {
 		t.Error("действие изменило исходный снимок")
 	}
-	if r2 := Score(snap, Defaults(), asOfT); len(r2.Customers[0].Actions) != 0 {
+	if r2 := coreScore(snap, Defaults(), asOfT); len(r2.Customers[0].Actions) != 0 {
 		t.Error("пустой реестр действий должен давать пустой список")
 	}
 }
 
 func TestScoreDeterministic(t *testing.T) {
-	a := Score(twoServiceSnapshot(), Defaults(), asOfT)
-	b := Score(twoServiceSnapshot(), Defaults(), asOfT)
+	a := coreScore(twoServiceSnapshot(), Defaults(), asOfT)
+	b := coreScore(twoServiceSnapshot(), Defaults(), asOfT)
 	if a.Summary.ExpectedLossCents != b.Summary.ExpectedLossCents || *a.Customers[0].Score != *b.Customers[0].Score {
 		t.Error("недетерминированный результат")
 	}
@@ -183,11 +183,11 @@ func TestScoreProperties(t *testing.T) {
 			}
 		}
 		st := Defaults()
-		before := Score(snap, st, asOfT)
+		before := coreScore(snap, st, asOfT)
 		for _, id := range []string{"pwait", "noauto"} {
 			st2 := Defaults()
 			st2.Weights[id] = math.Min(1, st.Weights[id]+0.2)
-			after := Score(snap, st2, asOfT)
+			after := coreScore(snap, st2, asOfT)
 			for i, c := range before.Customers {
 				if c.Score == nil {
 					continue
@@ -209,4 +209,10 @@ func newLCG(seed uint64) *lcg { return &lcg{seed} }
 func (l *lcg) intn(n int64) int64 {
 	l.s = l.s*6364136223846793005 + 1442695040888963407
 	return int64(l.s>>33) % n
+}
+
+// coreScore — расчёт только на признаках ядра (pwait, noauto): ручные расчёты этих тестов
+// не зависят от признаков, которые добавляют другие изменения.
+func coreScore(s Snapshot, st Settings, asOf time.Time) Result {
+	return scoreWith(s, st, asOf, []Feature{pwait{}, noauto{}}, nil, nil)
 }
