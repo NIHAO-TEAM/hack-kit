@@ -1,0 +1,44 @@
+{
+  "asOf": "2026-10-19T15:00:00Z",
+  "customers": [
+    {
+      "actions": [],
+      "expectedLossCents": 0,
+      "exposureCents": 0,
+      "features": {},
+      "id": 1,
+      "level": null,
+      "lostCents": 37000,
+      "score": null,
+      "state": "lost"
+    }
+  ],
+  "settings": {
+    "fundsHours": 168,
+    "high": 70,
+    "horizonHours": 720,
+    "medium": 50,
+    "priceBasis": "per_period",
+    "weights": {
+      "fail": 0.4,
+      "flight": 0.15,
+      "funds": 0.7,
+      "noauto": 0.55,
+      "pwait": 0.8,
+      "susp": 0.35
+    }
+  },
+  "source": "testdata/golden/gone-only.snapshot.json",
+  "summary": {
+    "expectedLossCents": 0,
+    "exposureCents": 0,
+    "levels": {
+      "high": 0,
+      "lost": 1,
+      "low": 0,
+      "medium": 0,
+      "unscored": 0
+    },
+    "lostCents": 37000
+  }
+}
