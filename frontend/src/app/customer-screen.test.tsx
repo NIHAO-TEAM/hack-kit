@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { renderApp } from './render-app';
@@ -60,5 +60,35 @@ describe('экран «Карточка клиента»', () => {
     server.use(http.get('/api/v1/customers/:id', () => HttpResponse.error()));
     renderApp('/queue/9');
     expect(await screen.findByText(/Нет связи с сервером/)).toBeInTheDocument();
+  });
+  it('окно спасения считается от asOf сводки, а не от часов браузера', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2030-01-01T00:00:00Z') });
+    try {
+      const { server } = await import('../mocks/server');
+      server.use(
+        http.get('/api/v1/analytics/summary', () =>
+          HttpResponse.json({
+            expectedLossCents: 0,
+            atRiskCents: 0,
+            lostCents: 0,
+            asOf: '2026-10-19T15:00:00.000Z',
+          }),
+        ),
+      );
+      renderApp('/queue/9');
+      await screen.findByRole('heading', { name: 'Клиент 9' });
+      await waitFor(() => expect(screen.queryByText('время модели загружается')).toBeNull());
+      expect(screen.queryByText(/удалено/i)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('пока сводка не пришла — «время модели загружается» вместо полосы', async () => {
+    const { server } = await import('../mocks/server');
+    server.use(http.get('/api/v1/analytics/summary', () => new Promise(() => {})));
+    renderApp('/queue/9');
+    await screen.findByRole('heading', { name: 'Клиент 9' });
+    expect(screen.getAllByText('время модели загружается').length).toBeGreaterThan(0);
   });
 });

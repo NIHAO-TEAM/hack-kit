@@ -2,6 +2,7 @@ import { Anchor, Badge, Card, Grid, Group, Stack, Text, Title } from '@mantine/c
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { customerQuery, type CustomerDetail } from '@entities/customer-detail';
+import { summaryOptions } from '@entities/summary';
 import { ApiError } from '@shared/api';
 import { formatMoney } from '@shared/lib';
 import { LevelBadge, Money, StateEmpty, StateError, StateLoading, StateOffline } from '@shared/ui';
@@ -36,6 +37,7 @@ function NotFound({ id }: { id: number }) {
 export function CustomerPage({ id }: { id: number }) {
   const valid = Number.isInteger(id);
   const query = useQuery({ ...customerQuery(id), enabled: valid });
+  const summary = useQuery(summaryOptions);
   const error = query.error instanceof ApiError ? query.error : null;
 
   if (!valid) return <NotFound id={id} />;
@@ -96,7 +98,7 @@ export function CustomerPage({ id }: { id: number }) {
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Stack>
             {lost ? null : <ActionsCard actions={actions} />}
-            <ServiceList services={services} />
+            <ServiceList services={services} asOf={summary.data?.asOf ?? null} />
             <FeaturesCard features={features} score={customer.score ?? null} />
           </Stack>
         </Grid.Col>
