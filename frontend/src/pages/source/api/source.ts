@@ -77,3 +77,10 @@ export async function putSnapshot(file: File): Promise<SnapshotAccepted> {
       .catch(network),
   );
 }
+
+export type SourcePolling = components['schemas']['SourcePolling'];
+
+/** Включает опрос REST-биллинга (`paused: false`) или ставит его на паузу. */
+export async function setPolling(paused: boolean): Promise<SourcePolling> {
+  return unwrap(await api.PUT('/api/v1/source/polling', { body: { paused } }).catch(network));
+}
