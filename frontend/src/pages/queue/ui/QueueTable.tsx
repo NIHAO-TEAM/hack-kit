@@ -97,7 +97,7 @@ export function QueueTable({
   onOpen,
 }: {
   rows: CustomerRow[];
-  asOf: string;
+  asOf: string | null;
   sort: CustomerSort;
   order: CustomerOrder;
   onSort: (column: CustomerSort) => void;
@@ -155,7 +155,10 @@ export function QueueTable({
               {cell(4, <Score row={row} />)}
               {cell(5, dim ? '—' : <Money cents={row.expectedLossCents} />)}
               {cell(6, <span className={classes.reason}>{row.topReason ?? '—'}</span>)}
-              {cell(7, <RescueWindow expiresAt={row.rescueExpiresAt ?? null} asOf={asOf} />)}
+              {cell(
+                7,
+                asOf ? <RescueWindow expiresAt={row.rescueExpiresAt ?? null} asOf={asOf} /> : '—',
+              )}
               {cell(8, <ActionCell row={row} />)}
             </tr>
           );

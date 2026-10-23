@@ -52,6 +52,8 @@ export function QueuePage({
   const router = useRouter();
   const customers = useQuery({ ...customersOptions(params), placeholderData: keepPreviousData });
   const summary = useQuery(summaryOptions);
+  // Полоса «удалит биллинг» не зависит от поиска и фильтра: к биллингу уходят все.
+  const unfiltered = useQuery(customersOptions({ sort: 'expectedLoss', order: 'desc' }));
 
   const [search, setSearch] = useState(params.q ?? '');
   const [debounced] = useDebouncedValue(search, 300);
@@ -70,7 +72,8 @@ export function QueuePage({
     });
 
   const error = customers.error ?? summary.error;
-  const asOf = summary.data?.asOf ?? new Date().toISOString();
+  // Время — время стенда из сводки; часы браузера не подставляем.
+  const asOf = summary.data?.asOf ?? null;
 
   let body;
   if (error instanceof ApiError && error.status === 403) {
@@ -123,8 +126,8 @@ export function QueuePage({
         atRiskCents={summary.data?.atRiskCents ?? null}
         lostCents={summary.data?.lostCents ?? null}
       />
-      {customers.data ? (
-        <DeletionStrip rows={customers.data.items} asOf={asOf} onOpen={open} />
+      {unfiltered.data && asOf ? (
+        <DeletionStrip rows={unfiltered.data.items} asOf={asOf} onOpen={open} />
       ) : null}
       <Group gap="md" align="flex-end">
         <TextInput
