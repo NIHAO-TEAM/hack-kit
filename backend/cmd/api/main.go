@@ -112,6 +112,9 @@ func run() error {
 		return err
 	}
 
+	// Воркер пересчёта: первый расчёт идёт сразу, дальше по source.changed и model.changed.
+	app.NewRecalc(pool, bus, clock.System{}).Start(ctx)
+
 	srv := &http.Server{
 		Addr:              cfg.addr,
 		Handler:           app.New(pool, bus, clock.System{}, authAPI),
