@@ -4,8 +4,8 @@
 
 ## 1. Прогон
 
-- [ ] 1.1 `deploy-load.yml`: стенд Compose на раннере, снимок 100k, `snapshot.js`, `recalc.js`, `read.js` — проверка: запуск workflow в PR зелёный, summary с p95
-- [ ] 1.2 Job «прод, только чтение» по `workflow_dispatch`, ≤ 5 VU — проверка: `actionlint`, ручной запуск после слияния (проверит пахан)
+- [x] 1.1 `deploy-load.yml`: стенд Compose на раннере, снимок 100k, `snapshot.js`, `recalc.js`, `read.js` — проверка: запуск workflow в PR зелёный, summary с p95
+- [x] 1.2 Job «прод, только чтение» по `workflow_dispatch`, ≤ 5 VU — проверка: `actionlint`, ручной запуск после слияния (проверит пахан)
 
 ## 2. Отчёт
 

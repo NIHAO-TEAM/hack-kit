@@ -1,0 +1,147 @@
+# .github/workflows/deploy-load.yml
+#
+# Замеры нагрузки (изменение load-k6-run). Job «stand»: стенд Compose на раннере, снимок 100k клиентов,
+# сценарии snapshot.js, recalc.js, read.js; итог k6 — в summary запуска и артефактом.
+# Job «prod-read» (только workflow_dispatch): лёгкое чтение по проду, не больше 5 VU, 30 с, учётка jury.
+# snapshot.js и recalc.js по проду не запускаются: они меняют данные.
+#
+# Нужны: переменная репозитория PROD_DOMAIN и секрет E2E_JURY_PASSWORD (только для prod-read).
+
+name: Deploy load
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'docs/load/**'
+      - '.github/workflows/deploy-load.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-load-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Значения одноразовые, живут только в этом job; в лог не попадают (add-mask).
+      - name: Секреты стенда
+        run: |
+          cp .env.example .env
+          for v in POSTGRES_PASSWORD ADMIN_PASSWORD METRICS_TOKEN SOURCE_TOKEN; do
+            val=$(openssl rand -hex 16)
+            echo "::add-mask::$val"
+            echo "$v=$val" >> "$GITHUB_ENV"
+            sed -i "s|^$v=.*|$v=$val|" .env
+          done
+
+      - name: Стенд
+        run: docker compose up -d --build --wait --wait-timeout 600
+
+      - name: Данные 100k
+        run: |
+          python3 cases/analizator/generate.py --accounts 100000 --services 300000 --transactions 1000000 --out "$RUNNER_TEMP/load"
+          ls -l "$RUNNER_TEMP/load/data.json"
+
+      - uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: '0.54.0'
+
+      - name: Железо
+        run: |
+          {
+            echo "## Железо раннера"
+            echo '```'
+            echo "vCPU: $(nproc)"
+            grep MemTotal /proc/meminfo
+            k6 version
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: k6 snapshot
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          k6 run --summary-export "$RUNNER_TEMP/out/snapshot.json" \
+            -e SOURCE_TOKEN="$SOURCE_TOKEN" -e SNAPSHOT="$RUNNER_TEMP/load/data.json" docs/load/k6/snapshot.js
+
+      - name: k6 read
+        run: |
+          k6 run --summary-export "$RUNNER_TEMP/out/read.json" -e PASSWORD="$ADMIN_PASSWORD" docs/load/k6/read.js
+
+      - name: k6 recalc
+        run: |
+          k6 run --summary-export "$RUNNER_TEMP/out/recalc.json" \
+            -e PASSWORD="$ADMIN_PASSWORD" -e METRICS_TOKEN="$METRICS_TOKEN" docs/load/k6/recalc.js
+
+      - name: Итог в summary
+        if: always()
+        run: |
+          {
+            echo "## Итог k6"
+            for f in snapshot read recalc; do
+              [ -f "$RUNNER_TEMP/out/$f.json" ] || continue
+              echo "### $f"
+              echo '```json'
+              jq '.metrics | with_entries(select(.key|test("snapshot_put_seconds|patch_settings_seconds|server_recalc_seconds|http_req_duration|http_req_failed|http_reqs|checks")))' "$RUNNER_TEMP/out/$f.json"
+              echo '```'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-summary
+          path: ${{ runner.temp }}/out/*.json
+
+      - name: Логи при падении
+        if: failure()
+        run: docker compose logs --tail 100 app
+
+      - name: Остановка
+        if: always()
+        run: docker compose down -v
+
+  prod-read:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PROD_DOMAIN: ${{ vars.PROD_DOMAIN }}
+      E2E_JURY_PASSWORD: ${{ secrets.E2E_JURY_PASSWORD }}
+    steps:
+      - name: Проверка настроек
+        run: |
+          if [ -z "$PROD_DOMAIN" ]; then echo "::error::не задана переменная репозитория PROD_DOMAIN"; exit 1; fi
+          if [ -z "$E2E_JURY_PASSWORD" ]; then echo "::error::не задан секрет E2E_JURY_PASSWORD"; exit 1; fi
+
+      - uses: actions/checkout@v4
+
+      - uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: '0.54.0'
+
+      # Лёгкая нагрузка: 3 VU списка + 2 VU summary = 5 VU, 30 с (read.js по умолчанию 10+5).
+      - name: k6 read по проду
+        run: |
+          sed -e "s/vus: 10,/vus: 3,/" -e "s/vus: 5,/vus: 2,/" docs/load/k6/read.js > docs/load/k6/read-prod.js
+          mkdir -p out
+          k6 run --summary-export out/prod-read.json \
+            -e BASE_URL="https://$PROD_DOMAIN" -e LOGIN=jury -e PASSWORD="$E2E_JURY_PASSWORD" docs/load/k6/read-prod.js
+          {
+            echo "## Прод, только чтение (5 VU, 30 с)"
+            echo '```json'
+            jq '.metrics | with_entries(select(.key|test("http_req_duration|http_req_failed|http_reqs|checks")))' out/prod-read.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-prod-read
+          path: out/prod-read.json
