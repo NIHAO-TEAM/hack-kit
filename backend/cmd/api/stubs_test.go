@@ -18,9 +18,10 @@ var implemented = map[string]bool{
 	"healthz": true, "version": true, "ping": true, "pingHead": true,
 	"docs": true, "openapiYaml": true, "openapiJson": true,
 	"login": true, "getMe": true, "logout": true,
-	"putSnapshot": true, "getSourceStatus": true,
+	"putSnapshot": true, "getSourceStatus": true, "getEvents": true,
 	"getModelSettings": true, "patchModelSettings": true,
 	"listCustomers": true, "getCustomer": true,
+	"getSummary": true, "getMetrics": true, "getMetricsAlias": true,
 	"emulatorTick": true, "emulatorActions": true,
 }
 

@@ -84,7 +84,7 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	gen.HandlerWithOptions(server{
 		AuthAPI:      authAPI,
 		SourceAPI:    source.New(pool, bus, clk),
-		AnalyticsAPI: analytics.New(pool, bus, clk).WithFeed(feed),
+		AnalyticsAPI: newAnalytics(pool, bus, clk, feed),
 		ModelAPI:     model.New(settings, modelPorts(pool), clk),
 		DocsAPI:      docs.New(),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
@@ -112,4 +112,16 @@ func WithRequestID(next http.Handler) http.Handler {
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) http.Handler {
 	mux := Routes(pool, bus, clk, authAPI, feed)
 	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, mux)))
+}
+
+// overviewer — источник сводки; воркер пересчёта и тестовый стенд его реализуют.
+type overviewer interface{ Overview() *analytics.Overview }
+
+// newAnalytics подключает к модулю портфель и, если источник умеет, сводку для /analytics/summary и /metrics.
+func newAnalytics(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, feed analytics.Feed) *analytics.AnalyticsAPI {
+	api := analytics.New(pool, bus, clk).WithFeed(feed)
+	if o, ok := feed.(overviewer); ok {
+		api.WithOverview(o.Overview)
+	}
+	return api
 }

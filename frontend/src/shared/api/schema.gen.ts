@@ -717,6 +717,10 @@ export interface components {
             lostCents: number;
             /** Format: date-time */
             asOf?: string;
+            /** @description Сколько услуг и клиентов отмечено каждой проверкой качества данных */
+            qualityCounts?: {
+                [key: string]: number;
+            };
             /** Format: int64 */
             version: number;
         };
@@ -1201,6 +1205,15 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             501: components["responses"]["NotImplemented"];
+            /** @description Первый пересчёт ещё не закончился */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     getChurnChart: {
