@@ -1,11 +1,20 @@
 import { Anchor, Badge, Card, Grid, Group, Stack, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { useMemo } from 'react';
 import { customerQuery, type CustomerDetail } from '@entities/customer-detail';
 import { summaryOptions } from '@entities/summary';
 import { ApiError } from '@shared/api';
-import { formatMoney } from '@shared/lib';
-import { LevelBadge, Money, StateEmpty, StateError, StateLoading, StateOffline } from '@shared/ui';
+import { formatMoney, useChangedRows } from '@shared/lib';
+import {
+  Changed,
+  LevelBadge,
+  Money,
+  StateEmpty,
+  StateError,
+  StateLoading,
+  StateOffline,
+} from '@shared/ui';
 import { ActionsCard } from './ActionsCard';
 import { FeaturesCard } from './FeaturesCard';
 import { ServiceList } from './ServiceList';
@@ -39,6 +48,32 @@ export function CustomerPage({ id }: { id: number }) {
   const query = useQuery({ ...customerQuery(id), enabled: valid });
   const summary = useQuery(summaryOptions);
   const error = query.error instanceof ApiError ? query.error : null;
+  const detail = query.data;
+  const items = useMemo(
+    () =>
+      detail
+        ? [
+            {
+              id: 'numbers',
+              signature: JSON.stringify([
+                detail.customer.balance,
+                detail.customer.totalReplenished,
+                detail.account?.balance ?? null,
+                detail.account?.totalReplenished ?? null,
+                detail.customer.level,
+                detail.customer.score ?? null,
+                detail.customer.expectedLossCents,
+              ]),
+            },
+            {
+              id: 'action',
+              signature: JSON.stringify(detail.actions.map((a) => [a.id, a.title, a.effectCents])),
+            },
+          ]
+        : undefined,
+    [detail],
+  );
+  const changed = useChangedRows(items, detail?.version ?? null);
 
   if (!valid) return <NotFound id={id} />;
   if (query.isPending) return <StateLoading label="Загрузка карточки клиента" />;
@@ -68,36 +103,40 @@ export function CustomerPage({ id }: { id: number }) {
       {query.isError ? <StateOffline onRetry={() => void query.refetch()} /> : null}
       <Card withBorder radius="sm" padding="md" component="header">
         <Group justify="space-between" align="flex-start" wrap="wrap">
-          <Stack gap={4}>
-            <Title order={1} size="h2">
-              Клиент {customer.id}
-            </Title>
-            <Text c="dimmed">{customer.email}</Text>
-            <Text size="sm">
-              Баланс {formatMoney(account?.balance ?? customer.balance)} · пополнено{' '}
-              {formatMoney(account?.totalReplenished ?? customer.totalReplenished)}
-            </Text>
-          </Stack>
-          <Stack gap={4} align="flex-end">
-            <Group gap="xs">
-              <LevelBadge level={customer.level} />
-              <Text size="sm" c="dimmed">
-                {scoreText(customer)}
+          <Changed active={changed.has('numbers')}>
+            <Stack gap={4}>
+              <Title order={1} size="h2">
+                Клиент {customer.id}
+              </Title>
+              <Text c="dimmed">{customer.email}</Text>
+              <Text size="sm">
+                Баланс {formatMoney(account?.balance ?? customer.balance)} · пополнено{' '}
+                {formatMoney(account?.totalReplenished ?? customer.totalReplenished)}
               </Text>
-            </Group>
-            <Text size="sm" c="dimmed">
-              {lost ? 'Уже потеряно' : 'Ожидаемая потеря'}
-            </Text>
-            <Text fz="xl" fw={600}>
-              <Money cents={customer.expectedLossCents} tone={lost ? 'lost' : 'default'} />
-            </Text>
-          </Stack>
+            </Stack>
+          </Changed>
+          <Changed active={changed.has('numbers')}>
+            <Stack gap={4} align="flex-end">
+              <Group gap="xs">
+                <LevelBadge level={customer.level} />
+                <Text size="sm" c="dimmed">
+                  {scoreText(customer)}
+                </Text>
+              </Group>
+              <Text size="sm" c="dimmed">
+                {lost ? 'Уже потеряно' : 'Ожидаемая потеря'}
+              </Text>
+              <Text fz="xl" fw={600}>
+                <Money cents={customer.expectedLossCents} tone={lost ? 'lost' : 'default'} />
+              </Text>
+            </Stack>
+          </Changed>
         </Group>
       </Card>
       <Grid>
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Stack>
-            {lost ? null : <ActionsCard actions={actions} />}
+            {lost ? null : <ActionsCard actions={actions} changed={changed.has('action')} />}
             <ServiceList
               services={services}
               asOf={summary.data?.asOf ?? null}
