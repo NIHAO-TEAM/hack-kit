@@ -13,3 +13,9 @@
 ## Риски
 
 - `data-quality-checks` (#82) правит тот же `internal/source/http.go` и `pages/source` — поэтому зависимость.
+
+## Решения по ходу
+
+- Подпись для `emulator` уже была в `sourceLabel` («Эмулятор биллинга», из #82); по спеку и макету — «Эмулятор», добавлено пояснение под подписью.
+- Происхождение `emulator` получают `emulator/tick` и непустые действия `emulator/actions`; `reset` — `seed`, правки `PATCH /source/*` и `PUT` — `api`.
+- [ПРОВЕРЕНО] context7 не нужен: новых API библиотек нет.
