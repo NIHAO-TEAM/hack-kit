@@ -22,5 +22,5 @@
 ## 4. Готовность
 
 - [x] 4.1 `pnpm check` зелёный, `pnpm build` создаёт `frontend/dist`
-- [ ] 4.2 Сценарии из `specs/` проходят на моках
-- [ ] 4.3 `frontend/CHECKLIST.md` отмечен
+- [x] 4.2 Сценарии из `specs/` проходят на моках
+- [x] 4.3 `frontend/CHECKLIST.md` отмечен
