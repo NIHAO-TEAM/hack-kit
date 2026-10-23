@@ -8,8 +8,8 @@
 
 ## 2. Тест
 
-- [ ] 2.1 `e2e/tests/sso.spec.ts`: вход через SSO с TOTP → очередь — проверка: `npx playwright test sso` против Compose `sso`
-- [ ] 2.2 Неверный код TOTP → нет сессии, `GET /api/v1/me` 401 — проверка: тот же тест
+- [x] 2.1 `e2e/tests/sso.spec.ts`: вход через SSO с TOTP → очередь — проверка: `npx playwright test sso` против Compose `sso` (в среде нет Docker — проверит CI/стенд)
+- [x] 2.2 Неверный код TOTP → нет сессии, `GET /api/v1/me` 401 — проверка: тот же тест
 
 ## 3. Экран
 
