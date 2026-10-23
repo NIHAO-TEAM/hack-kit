@@ -25,3 +25,13 @@
 - WHEN клиент отправляет `HEAD /ping`
 - THEN ответ `200`, тело пустое, `Cache-Control: no-store`, в ответе есть `X-Request-Id`
 - Тест: `TestPingHead`
+
+### Requirement: параметры запроса
+
+Система SHALL отвечать на `GET /ping` с любыми параметрами запроса так же, как без них.
+
+#### Scenario: параметры в адресе
+
+- WHEN клиент отправляет `GET /ping?x=1`
+- THEN ответ `200`, тело `{"ping":"pong"}`, `Cache-Control: no-store`
+- Тест: `TestPingQuery`
