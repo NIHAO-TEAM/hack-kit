@@ -52,6 +52,16 @@ function dryRun(next: ModelSettings) {
   return {
     levelChanges: count > 0 ? { [shift > 0 ? 'medium->high' : 'high->medium']: count } : {},
     expectedLossDeltaCents: Math.round(shift * 66897),
+    customers: Array.from({ length: count }, (_, i) => ({
+      id: 9 + i,
+      name: `client${9 + i}@example.com`,
+      levelFrom: shift > 0 ? 'medium' : 'high',
+      levelTo: shift > 0 ? 'high' : 'medium',
+      scoreFrom: 0.5,
+      scoreTo: 0.7,
+      expectedLossDeltaCents: Math.round((shift * 66897) / count),
+    })),
+    customersTotal: count,
   };
 }
 

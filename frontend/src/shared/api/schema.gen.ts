@@ -781,6 +781,24 @@ export interface components {
             };
             /** Format: int64 */
             expectedLossDeltaCents: number;
+            /** @description Клиенты со сменой уровня, по убыванию модуля expectedLossDeltaCents; не больше 50. */
+            customers?: components["schemas"]["DryRunCustomer"][];
+            /** @description Сколько всего клиентов меняет уровень (может быть больше длины customers). */
+            customersTotal?: number;
+        };
+        DryRunCustomer: {
+            /** Format: int64 */
+            id: number;
+            /** @description Как клиент называется в очереди (email аккаунта). */
+            name: string;
+            levelFrom: string;
+            levelTo: string;
+            /** Format: double */
+            scoreFrom: number;
+            /** Format: double */
+            scoreTo: number;
+            /** Format: int64 */
+            expectedLossDeltaCents: number;
         };
     };
     responses: {

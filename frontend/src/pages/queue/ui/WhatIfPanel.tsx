@@ -1,7 +1,19 @@
-import { Button, Card, Group, List, Loader, Select, Slider, Stack, Text } from '@mantine/core';
+import {
+  Anchor,
+  Button,
+  Card,
+  Group,
+  List,
+  Loader,
+  Select,
+  Slider,
+  Stack,
+  Text,
+} from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 import {
   dryRunText,
@@ -18,6 +30,7 @@ import {
 import { customersKey } from '@entities/customer';
 import { can, type Role } from '@entities/session';
 import { ApiError } from '@shared/api';
+import { formatMoney } from '@shared/lib';
 import { summaryKey } from '../api/summary';
 
 export const WHATIF_DELAY_MS = 300;
@@ -38,6 +51,34 @@ function transition(key: string): string {
     .join(' → ');
 }
 
+function Affected({ result }: { result: DryRunResult }) {
+  const router = useRouter();
+  const customers = result.customers ?? [];
+  const more = (result.customersTotal ?? customers.length) - customers.length;
+  if (customers.length === 0) return null;
+  return (
+    <List size="sm" aria-label="Кого задевает">
+      {customers.map((c) => (
+        <List.Item key={c.id}>
+          <Anchor
+            href={`/queue/${c.id}`}
+            onClick={(e) => {
+              e.preventDefault();
+              void router.navigate({ href: `/queue/${c.id}` });
+            }}
+          >
+            {c.name}
+          </Anchor>
+          : {levelLabel[c.levelFrom] ?? c.levelFrom} → {levelLabel[c.levelTo] ?? c.levelTo},{' '}
+          {c.expectedLossDeltaCents > 0 ? '+' : ''}
+          {formatMoney(c.expectedLossDeltaCents)}
+        </List.Item>
+      ))}
+      {more > 0 ? <List.Item>и ещё {more}</List.Item> : null}
+    </List>
+  );
+}
+
 function Changes({ result }: { result: DryRunResult }) {
   const rows = Object.entries(result.levelChanges).filter(([, n]) => n > 0);
   return (
@@ -52,6 +93,7 @@ function Changes({ result }: { result: DryRunResult }) {
           ))}
         </List>
       ) : null}
+      <Affected result={result} />
     </Stack>
   );
 }
