@@ -147,3 +147,14 @@ describe('ошибка загрузки сессии', () => {
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
   });
 });
+
+describe('AppShell', () => {
+  it('смена темы сохраняется', async () => {
+    signedInAs('marketer');
+    localStorage.removeItem('mantine-color-scheme-value');
+    renderApp('/queue');
+    await userEvent.click(await screen.findByLabelText('Светлая'));
+    expect(localStorage.getItem('mantine-color-scheme-value')).toBe('light');
+    expect(document.documentElement.getAttribute('data-mantine-color-scheme')).toBe('light');
+  });
+});
