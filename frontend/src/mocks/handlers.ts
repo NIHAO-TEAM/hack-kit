@@ -112,6 +112,7 @@ export const handlers = [
       const customer = rows().find((r) => r.id === id);
       if (!customer) return undefined;
       return {
+        version: 1,
         customer,
         account: accounts.find((a) => a.id === id),
         services: services.filter((s) => s.ownerId === id),
