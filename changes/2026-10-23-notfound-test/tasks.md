@@ -2,7 +2,7 @@
 
 ## 1. Тест
 
-- [ ] 1.1 Новый файл `backend/cmd/api/notfound_test.go` (не `main_test.go`: параллельные изменения этапа не должны править один файл): Тест: `GET /nope` и `GET /healthz/extra` → `404`, в ответе есть `X-Request-Id`. — проверка: `go test -race ./...`
+- [x] 1.1 Новый файл `backend/cmd/api/notfound_test.go` (не `main_test.go`: параллельные изменения этапа не должны править один файл): Тест: `GET /nope` и `GET /healthz/extra` → `404`, в ответе есть `X-Request-Id`. — проверка: `go test -race ./...`
 
 ## 2. Готовность
 
