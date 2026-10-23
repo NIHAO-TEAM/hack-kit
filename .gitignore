@@ -20,3 +20,5 @@ e2e/playwright-report/
 
 # Встроенный фронт: в репозитории только заглушка
 !backend/internal/platform/webui/dist/
+# Python
+__pycache__/

@@ -4,11 +4,15 @@ package apitest
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"example.com/app/internal/app"
+	"example.com/app/internal/auth"
 	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/db"
@@ -26,7 +30,22 @@ type Stand struct {
 	Clock *clock.Fake
 	// Bus — шина событий сервера.
 	Bus *events.Bus
+	// Pool — пул соединений к базе стенда (для проверок состояния в тестах).
+	Pool *pgxpool.Pool
+	// Handler — тот же обработчик без сети, для тестов через httptest.ResponseRecorder.
+	Handler http.Handler
 }
+
+// Учётки и токены, которые стенд создаёт при старте.
+const (
+	AdminLogin    = "admin"
+	AdminPassword = "admin-pass"
+	MetricsToken  = "metrics-token"
+	SourceToken   = "source-token"
+)
+
+// Password — пароль демо-учётки роли на стенде.
+func Password(role string) string { return "pw-" + role }
 
 // New применяет миграции к чистой базе, запускает сервер и закрывает всё в t.Cleanup.
 // Без TEST_DATABASE_URL тест пропускается.
@@ -45,12 +64,72 @@ func New(t testing.TB) *Stand {
 
 	clk := clock.NewFake(time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC))
 	bus := events.New()
-	srv := httptest.NewServer(app.New(pool, bus, clk))
+	cfg := auth.Config{
+		AdminLogin:    AdminLogin,
+		AdminPassword: AdminPassword,
+		DemoPasswords: map[string]string{
+			auth.RoleMarketer: Password(auth.RoleMarketer),
+			auth.RoleAnalyst:  Password(auth.RoleAnalyst),
+			auth.RoleJury:     Password(auth.RoleJury),
+		},
+		MetricsToken: MetricsToken,
+		SourceToken:  SourceToken,
+	}
+	authAPI := auth.New(pool, clk, cfg)
+	if err := authAPI.OnStart(ctx); err != nil {
+		t.Fatalf("apitest: учётки: %v", err)
+	}
+	handler := app.New(pool, bus, clk, authAPI)
+	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
 	client, err := gen.NewClientWithResponses(srv.URL)
 	if err != nil {
 		t.Fatalf("apitest: клиент: %v", err)
 	}
-	return &Stand{Client: client, URL: srv.URL, Clock: clk, Bus: bus}
+	return &Stand{Pool: pool, Client: client, URL: srv.URL, Clock: clk, Bus: bus, Handler: handler}
+}
+
+// As входит под ролью (marketer, analyst, jury) или логином admin и возвращает клиента,
+// который шлёт токен сессии как Authorization: Bearer.
+func (s *Stand) As(t testing.TB, role string) *gen.ClientWithResponses {
+	t.Helper()
+	login, password := role, Password(role)
+	if role == auth.RoleAdmin {
+		login, password = AdminLogin, AdminPassword
+	}
+	res, err := s.Client.LoginWithResponse(context.Background(), gen.LoginJSONRequestBody{Login: login, Password: password})
+	if err != nil {
+		t.Fatalf("apitest: вход %s: %v", role, err)
+	}
+	if res.JSON200 == nil || res.JSON200.Token == nil {
+		t.Fatalf("apitest: вход %s: %d %s", role, res.StatusCode(), res.Body)
+	}
+	return s.clientWithToken(t, *res.JSON200.Token)
+}
+
+// Anonymous возвращает клиента без сессии.
+func (s *Stand) Anonymous(t testing.TB) *gen.ClientWithResponses {
+	t.Helper()
+	return s.clientWithToken(t, "")
+}
+
+// WithBearer возвращает клиента с произвольным Bearer-токеном (служебные токены).
+func (s *Stand) WithBearer(t testing.TB, token string) *gen.ClientWithResponses {
+	t.Helper()
+	return s.clientWithToken(t, token)
+}
+
+func (s *Stand) clientWithToken(t testing.TB, token string) *gen.ClientWithResponses {
+	t.Helper()
+	c, err := gen.NewClientWithResponses(s.URL, gen.WithRequestEditorFn(func(_ context.Context, req *http.Request) error {
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("apitest: клиент: %v", err)
+	}
+	return c
 }
