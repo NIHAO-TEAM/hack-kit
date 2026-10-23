@@ -8,7 +8,7 @@
 
 ## 2. Логика
 
-- [ ] 2.1 `snapshot.go`, `settings.go` (умолчания из реестра, `Validate`) — проверка: unit-тест `Validate` (вес 1,2, `High ≤ Medium`, горизонт 0 → ошибка)
+- [x] 2.1 `snapshot.go`, `settings.go` (умолчания из реестра, `Validate`) — проверка: unit-тест `Validate` (вес 1,2, `High ≤ Medium`, горизонт 0 → ошибка)
 - [ ] 2.2 `registry.go`: интерфейс `Feature`, `Register`, детерминированный порядок — проверка: тест «тестовый признак появляется в `Defaults().Weights`»
 - [ ] 2.3 `charges.go` по правилу 3 — проверка: табличный тест: `hour` → 720 и 168; `month` с `expiresAt` 31.01 → шаги 28.02, 31.03; просроченная услуга — шаг от `asOf`; `prolong_wait` → 1
 - [ ] 2.4 `feature_pwait.go`, `feature_noauto.go` по правилу 5 — проверка: табличные тесты (осталось 2 дня → 0,6; срок вышел → 1; до `expiresAt` 8 дней → 0)
