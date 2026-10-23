@@ -39,7 +39,7 @@ export function ServiceList({
       <Accordion variant="separated" radius="sm">
         {services.map((s) => (
           <Accordion.Item key={s.id} value={String(s.id)}>
-            <Accordion.Control aria-label={`Услуга ${s.id}`}>
+            <Accordion.Control>
               <Group justify="space-between" wrap="wrap">
                 <Stack gap={0}>
                   <Text fw={500}>{s.name}</Text>
