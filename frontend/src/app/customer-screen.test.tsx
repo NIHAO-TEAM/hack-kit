@@ -17,16 +17,28 @@ describe('экран «Карточка клиента»', () => {
     expect(screen.getByText(/платежи на 30 дней × вероятность срыва/i)).toBeInTheDocument();
   });
 
-  it('раскрыть услугу 19 — видны funds, susp, вклад и формула', async () => {
+  it('карточка клиента 9: признаки по убыванию вклада и формула с числами ответа', async () => {
+    renderApp('/queue/9');
+    const table = await screen.findByRole('table', { name: 'Признаки риска клиента' });
+    const rows = within(table).getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('noauto');
+    expect(rows[2]).toHaveTextContent('fail');
+    expect(within(table).getByText('funds')).toBeInTheDocument();
+    expect(within(table).getByText('susp')).toBeInTheDocument();
+    expect(within(table).getByText('Вклад')).toBeInTheDocument();
+    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,88');
+  });
+
+  it('раскрытая услуга не выдаёт признаки клиента за свои', async () => {
     const user = userEvent.setup();
     renderApp('/queue/9');
     await user.click(await screen.findByRole('button', { name: /Услуга 19/ }));
-    const table = await screen.findByRole('table', { name: 'Признаки риска' });
-    const rows = within(table).getAllByRole('row');
-    expect(rows[1]).toHaveTextContent('funds');
-    expect(within(table).getByText('susp')).toBeInTheDocument();
-    expect(within(table).getByText('Вклад')).toBeInTheDocument();
-    expect(screen.getAllByText(/^P = 1 − \(1 − 0,7·1\)/).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('table', { name: /Признаки риска/ })).toHaveLength(1);
+  });
+
+  it('нечисловой адрес — «Такого клиента нет»', async () => {
+    renderApp('/queue/abc');
+    expect(await screen.findByText('Такого клиента нет')).toBeInTheDocument();
   });
 
   it('клиент 2: «потерян», сумма «уже потеряно»', async () => {

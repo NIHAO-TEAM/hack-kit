@@ -5,10 +5,9 @@ type Detail = components['schemas']['CustomerDetail'];
 
 /** Карточки двух ключевых клиентов демо-сценария; остальные собирает `fallback`. */
 const featured: Record<number, Pick<Detail, 'features' | 'actions' | 'explanation'>> = {
+  // Числа — из testdata/golden/organizers.json, клиент 9 (признаки услуги 9).
   9: {
     features: [
-      { id: 'funds', value: 1, weight: 0.7, contribution: 0.7, reason: 'Баланса не хватит' },
-      { id: 'susp', value: 1, weight: 0.35, contribution: 0.35, reason: 'Услуга приостановлена' },
       {
         id: 'noauto',
         value: 1,
@@ -16,21 +15,37 @@ const featured: Record<number, Pick<Detail, 'features' | 'actions' | 'explanatio
         contribution: 0.55,
         reason: 'Автопродление выключено',
       },
+      { id: 'fail', value: 1, weight: 0.4, contribution: 0.4, reason: 'Были неудачные платежи' },
+      { id: 'susp', value: 1, weight: 0.35, contribution: 0.35, reason: 'Услуга приостановлена' },
+      {
+        id: 'funds',
+        value: 0.366697,
+        weight: 0.7,
+        contribution: 0.256688,
+        reason: 'Баланса не хватит',
+      },
+      {
+        id: 'flight',
+        value: 0.605337,
+        weight: 0.15,
+        contribution: 0.0908,
+        reason: 'Баланс уходит',
+      },
     ],
     actions: [
       {
         id: 'topup',
         title: 'Пополнить на 529,84 €',
         effectCents: -106748,
-        newScore: 0.2,
-        newLevel: 'low',
+        newScore: 0.8346,
+        newLevel: 'high',
       },
       {
         id: 'autoprolong',
         title: 'Включить автопродление',
-        effectCents: -41000,
-        newScore: 0.5,
-        newLevel: 'medium',
+        effectCents: -123,
+        newScore: 0.7364,
+        newLevel: 'high',
       },
     ],
     explanation: 'Платежи на 30 дней × вероятность срыва',
@@ -52,7 +67,7 @@ export function customerDetailHandler(
       return HttpResponse.json({
         ...base,
         ...extra,
-        customer: { ...base.customer, score: 0.87, level: 'high', expectedLossCents: 345927 },
+        customer: { ...base.customer, score: 0.8814, level: 'high', expectedLossCents: 345927 },
       });
     }
     if (id === 2) {

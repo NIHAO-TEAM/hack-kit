@@ -6,6 +6,7 @@ import { ApiError } from '@shared/api';
 import { formatMoney } from '@shared/lib';
 import { LevelBadge, Money, StateEmpty, StateError, StateLoading, StateOffline } from '@shared/ui';
 import { ActionsCard } from './ActionsCard';
+import { FeaturesCard } from './FeaturesCard';
 import { ServiceList } from './ServiceList';
 
 function BackLink() {
@@ -23,18 +24,25 @@ function scoreText(customer: CustomerDetail['customer']): string {
   return `скор ${Math.round(customer.score * 100)} %`;
 }
 
+function NotFound({ id }: { id: number }) {
+  return (
+    <StateEmpty title="Такого клиента нет" action={<BackLink />}>
+      Клиент {Number.isNaN(id) ? 'с таким номером' : id} не найден: проверьте номер или вернитесь к
+      очереди.
+    </StateEmpty>
+  );
+}
+
 export function CustomerPage({ id }: { id: number }) {
-  const query = useQuery(customerQuery(id));
+  const valid = Number.isInteger(id);
+  const query = useQuery({ ...customerQuery(id), enabled: valid });
   const error = query.error instanceof ApiError ? query.error : null;
 
+  if (!valid) return <NotFound id={id} />;
   if (query.isPending) return <StateLoading label="Загрузка карточки клиента" />;
   if (!query.data) {
     if (error?.status === 404) {
-      return (
-        <StateEmpty title="Такого клиента нет" action={<BackLink />}>
-          Клиент {id} не найден: проверьте номер или вернитесь к очереди.
-        </StateEmpty>
-      );
+      return <NotFound id={id} />;
     }
     return error?.isNetwork ? (
       <StateOffline onRetry={() => void query.refetch()} />
@@ -88,7 +96,8 @@ export function CustomerPage({ id }: { id: number }) {
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Stack>
             {lost ? null : <ActionsCard actions={actions} />}
-            <ServiceList services={services} features={features} score={customer.score ?? null} />
+            <ServiceList services={services} />
+            <FeaturesCard features={features} score={customer.score ?? null} />
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
