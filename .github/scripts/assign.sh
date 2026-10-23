@@ -17,8 +17,8 @@
 # здесь не срабатывает, исполнителя будит сам скрипт (fire.sh). Исполнитель при этом сам перепроверяет
 # план в main (executor.md, шаг 0).
 #
-# Окружение: GH_TOKEN, GITHUB_REPOSITORY, RUNNER_TEMP, SECRETS_JSON (toJSON(secrets): только чтение
-# FIRE_<ID>_URL / FIRE_<ID>_TOKEN, в лог не печатать).
+# Окружение: GH_TOKEN, GITHUB_REPOSITORY, RUNNER_TEMP, FIRE_<ID>_URL / FIRE_<ID>_TOKEN исполнителей
+# (assign.yml передаёт их по именам, в лог не печатать).
 set -euo pipefail
 
 REPO=${GITHUB_REPOSITORY:?}
@@ -96,8 +96,9 @@ load_of() {
 fire_executor() { # id pr stage
   local id=$1 pr=$2 stage=$3 sid
   sid=$(printf '%s' "$id" | tr 'a-z-' 'A-Z_')
-  FIRE_URL=$(jq -r --arg k "FIRE_${sid}_URL" '.[$k] // empty' <<<"$SECRETS_JSON")
-  FIRE_TOKEN=$(jq -r --arg k "FIRE_${sid}_TOKEN" '.[$k] // empty' <<<"$SECRETS_JSON")
+  local url_var="FIRE_${sid}_URL" token_var="FIRE_${sid}_TOKEN"
+  FIRE_URL=${!url_var:-}
+  FIRE_TOKEN=${!token_var:-}
   export FIRE_URL FIRE_TOKEN
   bash .github/scripts/fire.sh "PR #$pr в $REPO, исполнитель $id, старт (автоназначение по этапу $stage)"
 }
