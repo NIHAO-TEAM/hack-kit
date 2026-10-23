@@ -7,6 +7,9 @@
 | Имя | GitHub | Роль | Что решает |
 |---|---|---|---|
 | Onisar | `@Onisar202` | владелец продукта и дизайна | «да» на предложения, защищённые пути, ADR, макеты |
+| Gr1nDer05 | `@Gr1nDer05` | исполнитель | — |
+| valotr0n | `@valotr0n` | исполнитель, ревьюер | — |
+| immxrtalbeast | `@immxrtalbeast` | исполнитель | — |
 
 ## Исполнители
 
@@ -15,6 +18,9 @@
 | id | Человек | Часть | Модель | Изменений на руках, не больше | Доступен |
 |---|---|---|---|---|---|
 | `exec-1` | Onisar | backend, frontend | Sonnet 5.5 (medium) | 2 | да |
+| `exec-2` | Gr1nDer05 | backend, frontend | Sonnet 5.5 (medium) | 2 | да |
+| `exec-3` | valotr0n | backend, frontend | Sonnet 5.5 (medium) | 2 | да |
+| `exec-4` | immxrtalbeast | backend, frontend | Sonnet 5.5 (medium) | 2 | да |
 
 «Доступен: нет» (кончились лимиты, ночь) — пахан не предлагает этому исполнителю. Человек меняет значение сам.
 
@@ -22,12 +28,12 @@
 
 Аккаунт, от которого routine ревьюера публикует итоги `[review]`. `review-post.yml` принимает итог только от него.
 
-- `@Onisar202`
+- `@valotr0n`
 
 ## Служебные агенты
 
 | Агент | Где работает | Чей аккаунт или токен | Модель |
 |---|---|---|---|
-| Ревьюер | routine `reviewer` (API-триггер), итог разбирает `review-post.yml` | Onisar | Sonnet 5.5 (high) |
+| Ревьюер | routine `reviewer` (API-триггер), итог разбирает `review-post.yml` | valotr0n | Sonnet 5.5 (high) |
 | Критик | routine, каждую ночь | Onisar | Opus 5.5 (high) |
 | Пахан, сессия | локальный Claude Code | владелец продукта | Opus 5.5 (high) |
