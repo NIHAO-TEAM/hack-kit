@@ -13,9 +13,14 @@ const csrf: Middleware = {
 };
 
 export function createApiClient(baseUrl = '') {
-  const client = createClient<paths>({ baseUrl, credentials: 'include' });
+  const client = createClient<paths>({
+    baseUrl,
+    credentials: 'include',
+    // fetch берётся при каждом запросе, а не при создании клиента: так его подменяют моки и тесты
+    fetch: (request) => globalThis.fetch(request),
+  });
   client.use(csrf);
   return client;
 }
 
-export const api = createApiClient();
+export const api = createApiClient(globalThis.location?.origin ?? '');

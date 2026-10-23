@@ -17,7 +17,18 @@ const users: Record<string, User> = {
   jury: { id: 3, login: 'jury', role: 'jury' },
 };
 
-let current: User | null = null;
+const SESSION_KEY = 'mock-session';
+
+/** Сессия моков живёт в sessionStorage: перезагрузка вкладки её не сбрасывает. */
+function getCurrent(): User | null {
+  const login = sessionStorage.getItem(SESSION_KEY);
+  return login ? (users[login] ?? null) : null;
+}
+
+function setCurrent(user: User | null): void {
+  if (user) sessionStorage.setItem(SESSION_KEY, user.login);
+  else sessionStorage.removeItem(SESSION_KEY);
+}
 
 function problem(status: number, title: string, headers?: Record<string, string>) {
   return HttpResponse.json(
@@ -59,23 +70,24 @@ export const handlers = [
     }
     const user = users[body.login];
     if (!user || body.password !== 'demo') return problem(401, 'Неверный логин или пароль');
-    current = user;
+    setCurrent(user);
     return HttpResponse.json({ user, csrfToken: 'mock-csrf' });
   }),
-  http.get(`${API}/auth/me`, () =>
-    current ? HttpResponse.json(current) : problem(401, 'Нет сессии'),
-  ),
+  http.get(`${API}/auth/me`, () => {
+    const current = getCurrent();
+    return current ? HttpResponse.json(current) : problem(401, 'Нет сессии');
+  }),
   http.post(`${API}/auth/logout`, () => {
-    current = null;
+    setCurrent(null);
     return new HttpResponse(null, { status: 204 });
   }),
   http.get(`${API}/customers`, () => {
-    if (!current) return problem(401, 'Нет сессии');
+    if (!getCurrent()) return problem(401, 'Нет сессии');
     const items = rows().sort((a, b) => b.expectedLossCents - a.expectedLossCents);
     return HttpResponse.json({ items, total: items.length });
   }),
   http.get(`${API}/customers/:id`, ({ params }) => {
-    if (!current) return problem(401, 'Нет сессии');
+    if (!getCurrent()) return problem(401, 'Нет сессии');
     const id = Number(params.id);
     const customer = rows().find((r) => r.id === id);
     if (!customer) return problem(404, 'Клиент не найден');
@@ -88,7 +100,7 @@ export const handlers = [
     });
   }),
   http.get(`${API}/analytics/summary`, () => {
-    if (!current) return problem(401, 'Нет сессии');
+    if (!getCurrent()) return problem(401, 'Нет сессии');
     const all = rows();
     const count = (l: RiskLevel) => all.filter((r) => r.level === l).length;
     return HttpResponse.json({
@@ -106,7 +118,7 @@ export const handlers = [
     });
   }),
   http.get(`${API}/model/settings`, () => {
-    if (!current) return problem(401, 'Нет сессии');
+    if (!getCurrent()) return problem(401, 'Нет сессии');
     return HttpResponse.json({
       weights: {},
       thresholds: { high: 0.7, medium: 0.4 },

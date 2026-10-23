@@ -11,6 +11,9 @@ importers:
       '@mantine/core':
         specifier: 9.7.3
         version: 9.7.3(@mantine/hooks@9.7.3(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@mantine/form':
+        specifier: 9.7.3
+        version: 9.7.3(react@19.3.1)
       '@mantine/hooks':
         specifier: 9.7.3
         version: 9.7.3(react@19.3.1)
@@ -438,6 +441,11 @@ packages:
       react: ^19.2.0
       react-dom: ^19.2.0
 
+  '@mantine/form@9.7.3':
+    resolution: {integrity: sha512-Y5FrEi3Tsh6kwZLEQV86MUs0HgrSIaoXPzwcRjsjRXdz067eeI55JVuPaXezTfHi00arTqIjgJbhBIJRHl4V+w==}
+    peerDependencies:
+      react: ^19.2.0
+
   '@mantine/hooks@9.7.3':
     resolution: {integrity: sha512-GMHoMS1qul1dBLIHd/N9ef2Pr8UKYYHfuM+g2ej3gYqU0kH4sTiR9FNHksoTQi0PzATRoaNlUYjjMe9rbDRw5A==}
     peerDependencies:
@@ -587,6 +595,9 @@ packages:
   '@sindresorhus/merge-streams@4.0.0':
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
     engines: {node: '>=18'}
+
+  '@standard-schema/spec@1.1.0':
+    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
   '@tabler/icons-react@3.49.0':
     resolution: {integrity: sha512-Um59pm5RVNUaQjFUtG0r4oYJbZuBS3tGugAA2tgBg0WufMk34Eio3nsO30RUkLuL2giYPQUNdY9HvqltLLYyNA==}
@@ -1451,6 +1462,10 @@ packages:
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
     engines: {node: '>=0.10.0'}
+
+  klona@2.0.6:
+    resolution: {integrity: sha512-dhG34DXATL5hSxJbIexCft8FChFXtmskoZYnoPWjXQuebWYCNkVeV3KkGegCK9CP1oswI/vQibS2GY7Em/sJJA==}
+    engines: {node: '>= 8'}
 
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
@@ -2721,6 +2736,13 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
+  '@mantine/form@9.7.3(react@19.3.1)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      fast-deep-equal: 3.1.3
+      klona: 2.0.6
+      react: 19.3.1
+
   '@mantine/hooks@9.7.3(react@19.3.1)':
     dependencies:
       react: 19.3.1
@@ -2838,6 +2860,8 @@ snapshots:
   '@rolldown/pluginutils@1.0.1': {}
 
   '@sindresorhus/merge-streams@4.0.0': {}
+
+  '@standard-schema/spec@1.1.0': {}
 
   '@tabler/icons-react@3.49.0(react@19.3.1)':
     dependencies:
@@ -3691,6 +3715,8 @@ snapshots:
       '@keyv/serialize': 1.1.1
 
   kind-of@6.0.3: {}
+
+  klona@2.0.6: {}
 
   levn@0.4.1:
     dependencies:

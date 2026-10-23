@@ -10,33 +10,94 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppModelRouteImport } from './routes/_app.model'
+import { Route as AppQueueRouteImport } from './routes/_app.queue'
+import { Route as AppSourceRouteImport } from './routes/_app.source'
+import { Route as AppSummaryRouteImport } from './routes/_app.summary'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppModelRoute = AppModelRouteImport.update({
+  id: '/model',
+  path: '/model',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppQueueRoute = AppQueueRouteImport.update({
+  id: '/queue',
+  path: '/queue',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSourceRoute = AppSourceRouteImport.update({
+  id: '/source',
+  path: '/source',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSummaryRoute = AppSummaryRouteImport.update({
+  id: '/summary',
+  path: '/summary',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/model': typeof AppModelRoute
+  '/queue': typeof AppQueueRoute
+  '/source': typeof AppSourceRoute
+  '/summary': typeof AppSummaryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/model': typeof AppModelRoute
+  '/queue': typeof AppQueueRoute
+  '/source': typeof AppSourceRoute
+  '/summary': typeof AppSummaryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_app/model': typeof AppModelRoute
+  '/_app/queue': typeof AppQueueRoute
+  '/_app/source': typeof AppSourceRoute
+  '/_app/summary': typeof AppSummaryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/login' | '/model' | '/queue' | '/source' | '/summary'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/login' | '/model' | '/queue' | '/source' | '/summary'
+  id:
+    | '__root__'
+    | '/'
+    | '/_app'
+    | '/login'
+    | '/_app/model'
+    | '/_app/queue'
+    | '/_app/source'
+    | '/_app/summary'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +109,71 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/model': {
+      id: '/_app/model'
+      path: '/model'
+      fullPath: '/model'
+      preLoaderRoute: typeof AppModelRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/queue': {
+      id: '/_app/queue'
+      path: '/queue'
+      fullPath: '/queue'
+      preLoaderRoute: typeof AppQueueRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/source': {
+      id: '/_app/source'
+      path: '/source'
+      fullPath: '/source'
+      preLoaderRoute: typeof AppSourceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/summary': {
+      id: '/_app/summary'
+      path: '/summary'
+      fullPath: '/summary'
+      preLoaderRoute: typeof AppSummaryRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppModelRoute: typeof AppModelRoute
+  AppQueueRoute: typeof AppQueueRoute
+  AppSourceRoute: typeof AppSourceRoute
+  AppSummaryRoute: typeof AppSummaryRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppModelRoute: AppModelRoute,
+  AppQueueRoute: AppQueueRoute,
+  AppSourceRoute: AppSourceRoute,
+  AppSummaryRoute: AppSummaryRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
