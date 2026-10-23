@@ -155,6 +155,14 @@ func (f *lazyFeed) Overview() *analytics.Overview {
 	return nil
 }
 
+// QualityChecks отдаёт проверки качества данных воркера; до его запуска — nil.
+func (f *lazyFeed) QualityChecks(version int64) []gen.QualityCheck {
+	if r := f.recalc.Load(); r != nil {
+		return r.QualityChecks(version)
+	}
+	return nil
+}
+
 func (f *lazyFeed) Portfolio() *analytics.Portfolio {
 	if r := f.recalc.Load(); r != nil {
 		return r.Portfolio()

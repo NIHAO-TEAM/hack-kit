@@ -1,36 +1,52 @@
-import { Group, Paper, Stack, Text, Title } from '@mantine/core';
-import { useQuery } from '@tanstack/react-query';
-import { qualityQuery } from '../api/source';
-import { qualityTitle } from '../model/quality';
-import { StateError, StateLoading } from '@shared/ui';
+import { Anchor, Group, List, Paper, Stack, Text, Title } from '@mantine/core';
+import { useRouter } from '@tanstack/react-router';
+import { type SourceStatus } from '../api/source';
 
-/** Проверки качества: сколько услуг и клиентов отметила каждая. Нули не прячем: «0» — тоже ответ. */
-export function QualityChecks() {
-  const query = useQuery(qualityQuery);
-  if (query.isPending) return <StateLoading label="Загрузка проверок качества" />;
-  if (query.isError) {
-    return (
-      <StateError title="Не удалось загрузить проверки" onRetry={() => void query.refetch()}>
-        {query.error.message}
-      </StateError>
-    );
-  }
-  const entries = Object.entries(query.data).sort(([a], [b]) => a.localeCompare(b));
+type Check = SourceStatus['checks'][number];
+
+/** Проверки качества данных из статуса источника: подписи и услуги приходят с сервера. */
+export function QualityChecks({ checks }: { checks: Check[] }) {
+  const router = useRouter();
+  const found = checks.filter((c) => !c.ok);
   return (
     <Paper withBorder p="lg" radius="lg" component="section" aria-label="Проверки качества данных">
       <Stack gap="sm">
         <Title order={2} size="h4">
           Можно ли верить данным
         </Title>
-        {entries.length === 0 ? (
-          <Text c="dimmed">Проверки ничего не нашли: ошибок данных нет.</Text>
+        {checks.length === 0 ? (
+          <Text c="dimmed">Проверки считаются: результат появится после пересчёта.</Text>
         ) : (
-          entries.map(([id, count]) => (
-            <Group key={id} justify="space-between" wrap="nowrap">
-              <Text>{qualityTitle(id)}</Text>
-              <Text fw={600}>{count}</Text>
-            </Group>
-          ))
+          <>
+            {found.length === 0 ? <Text c="dimmed">Противоречий не найдено.</Text> : null}
+            {checks.map((c) => (
+              <Stack key={c.id} gap={4}>
+                <Group gap="xs" wrap="nowrap">
+                  <Text fw={c.ok ? 400 : 600} c={c.ok ? 'dimmed' : undefined}>
+                    {c.message ?? c.id}
+                  </Text>
+                </Group>
+                {c.items?.length ? (
+                  <List size="sm" spacing={2} aria-label={`Услуги: ${c.message ?? c.id}`}>
+                    {c.items.map((it) => (
+                      <List.Item key={it.serviceId}>
+                        Услуга {it.serviceId}, клиент{' '}
+                        <Anchor
+                          href={`/queue/${it.accountId}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            void router.navigate({ href: `/queue/${it.accountId}` });
+                          }}
+                        >
+                          {it.accountId}
+                        </Anchor>
+                      </List.Item>
+                    ))}
+                  </List>
+                ) : null}
+              </Stack>
+            ))}
+          </>
         )}
       </Stack>
     </Paper>
