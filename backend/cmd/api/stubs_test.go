@@ -19,6 +19,7 @@ var implemented = map[string]bool{
 	"docs": true, "openapiYaml": true, "openapiJson": true,
 	"login": true, "getMe": true, "logout": true,
 	"putSnapshot": true, "getSourceStatus": true,
+	"listCustomers": true, "getCustomer": true,
 	"emulatorTick": true, "emulatorActions": true,
 }
 
@@ -35,9 +36,10 @@ func TestEveryUnimplementedPathAnswers501(t *testing.T) {
 	}
 	h := stand.Handler
 	token := *login.JSON200.Token
-	checked := 0
+	checked, total := 0, 0
 	for path, item := range swagger.Paths.Map() {
 		for method, op := range item.Operations() {
+			total++
 			// Встроенная спека хранит operationId с заглавной буквы.
 			if implemented[strings.ToLower(op.OperationID[:1])+op.OperationID[1:]] {
 				continue
@@ -76,8 +78,9 @@ func TestEveryUnimplementedPathAnswers501(t *testing.T) {
 			checked++
 		}
 	}
-	if checked < 10 {
-		t.Errorf("проверено операций %d, ждали не меньше 10", checked)
+	// Порог — на весь контракт: заглушек остаётся всё меньше, а обход должен охватывать контракт целиком.
+	if total < 15 {
+		t.Errorf("обойдено операций %d (из них заглушек %d), ждали не меньше 15", total, checked)
 	}
 }
 

@@ -211,18 +211,21 @@
       "exposureCents": 616450,
       "features": {
         "19": {
+          "bonus_locked": 1.0,
           "fail": 0.0,
           "flight": 0.605337,
           "funds": 0.366697,
           "susp": 1.0
         },
         "29": {
+          "bonus_locked": 1.0,
           "fail": 0.0,
           "flight": 0.605337,
           "funds": 0.366697,
           "susp": 1.0
         },
         "9": {
+          "bonus_locked": 1.0,
           "fail": 1.0,
           "flight": 0.605337,
           "funds": 0.366697,
@@ -371,6 +374,7 @@
       "exposureCents": 3200,
       "features": {
         "1005": {
+          "bonus_locked": 1.0,
           "fail": 0.0,
           "flight": 0.0,
           "funds": 0.625
@@ -407,6 +411,7 @@
     "medium": 50,
     "priceBasis": "per_period",
     "weights": {
+      "bonus_locked": 0.0,
       "fail": 0.4,
       "flight": 0.15,
       "funds": 0.7,
