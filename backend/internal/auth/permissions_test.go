@@ -25,7 +25,7 @@ var wantAccess = map[string]struct{ marketer, analyst, jury, admin bool }{
 
 // Операции без сессии: вход, документация, спека, служебные пути.
 var publicOperations = []string{
-	"login", "oidcLogin", "oidcCallback", "docs", "openapiYaml", "openapiJson",
+	"login", "getAuthConfig", "oidcLogin", "oidcCallback", "docs", "openapiYaml", "openapiJson",
 	"healthz", "version", "ping", "pingHead",
 }
 

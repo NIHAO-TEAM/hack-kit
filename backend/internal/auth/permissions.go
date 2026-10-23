@@ -37,6 +37,7 @@ var operations = map[string]struct {
 	"GET /{$}":                             {"front", accessPublic},
 	"GET /":                                {"frontSPA", accessPublic},
 	"POST /api/v1/auth/login":              {"login", accessPublic},
+	"GET /api/v1/auth/config":              {"getAuthConfig", accessPublic},
 	"GET /api/v1/auth/oidc/login":          {"oidcLogin", accessPublic},
 	"GET /api/v1/auth/oidc/callback":       {"oidcCallback", accessPublic},
 	"GET /api/v1/auth/me":                  {"getMe", accessAnyRole},

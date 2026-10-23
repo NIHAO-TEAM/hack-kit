@@ -17,7 +17,7 @@ import (
 var implemented = map[string]bool{
 	"healthz": true, "version": true, "ping": true, "pingHead": true,
 	"docs": true, "openapiYaml": true, "openapiJson": true,
-	"login": true, "getMe": true, "logout": true,
+	"login": true, "getMe": true, "logout": true, "getAuthConfig": true,
 	"putSnapshot": true, "getSourceStatus": true, "getEvents": true,
 	"getModelSettings": true, "patchModelSettings": true,
 	"listCustomers": true, "getCustomer": true,
