@@ -8,7 +8,7 @@
 
 ## 2. Логика
 
-- [ ] 2.1 Снимок эмулятора помечен `emulator` — проверка: тест `internal/source`: после `emulator/tick` статус отдаёт `source: emulator`, после `PUT /source/snapshot` — `api`
+- [x] 2.1 Снимок эмулятора помечен `emulator` — проверка: тест `internal/source`: после `emulator/tick` статус отдаёт `source: emulator`, после `PUT /source/snapshot` — `api`
 
 ## 3. Экран
 
