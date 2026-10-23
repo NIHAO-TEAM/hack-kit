@@ -21,7 +21,7 @@ const termLabel: Record<Service['paymentTerm'], string> = {
   year: 'год',
 };
 
-/** Услуги клиента: срок, статус, окно спасения; раскрытие — признаки и формула. */
+/** Услуги клиента: срок, статус, окно спасения; раскрытие — срок и пояснение (признаки по услугам сервер пока не отдаёт). */
 export function ServiceList({
   services,
   asOf = new Date().toISOString(),
