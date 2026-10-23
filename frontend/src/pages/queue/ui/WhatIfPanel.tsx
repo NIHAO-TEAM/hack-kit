@@ -31,7 +31,7 @@ import { customersKey } from '@entities/customer';
 import { can, type Role } from '@entities/session';
 import { ApiError } from '@shared/api';
 import { formatMoney } from '@shared/lib';
-import { summaryKey } from '../api/summary';
+import { summaryKey } from '@entities/summary';
 
 export const WHATIF_DELAY_MS = 300;
 
