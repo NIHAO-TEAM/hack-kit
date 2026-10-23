@@ -1,0 +1,15 @@
+.chip {
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--warn-on-tint);
+  background: var(--warn-tint);
+  border: 1px solid var(--warn-fg);
+  border-radius: var(--mantine-radius-md);
+  cursor: pointer;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
