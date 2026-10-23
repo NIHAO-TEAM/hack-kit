@@ -1,0 +1,45 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  labels: {{- include "churn.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-%s-security-headers@kubernetescrd" .Release.Namespace .Release.Name | quote }}
+    {{- if .Values.ingress.certResolver }}
+    traefik.ingress.kubernetes.io/router.tls.certresolver: {{ .Values.ingress.certResolver | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tlsSecret }}
+  tls:
+    - hosts: [{{ required "domain обязателен" .Values.domain | quote }}]
+      secretName: {{ .Values.ingress.tlsSecret }}
+  {{- else }}
+  tls:
+    - hosts: [{{ required "domain обязателен" .Values.domain | quote }}]
+  {{- end }}
+  rules:
+    - host: {{ required "domain обязателен" .Values.domain | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-app
+                port: {name: http}
+---
+# Заголовки безопасности (HSTS и др.); подключаются аннотацией Ingress ниже.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}-security-headers
+  labels: {{- include "churn.labels" . | nindent 4 }}
+spec:
+  headers:
+    stsSeconds: 31536000
+    contentTypeNosniff: true
+    referrerPolicy: strict-origin-when-cross-origin
+{{- end }}

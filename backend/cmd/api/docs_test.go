@@ -24,8 +24,11 @@ func TestDocsOpenWithoutLogin(t *testing.T) {
 		t.Errorf("Content-Type %q", ct)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "SwaggerUIBundle") || strings.Contains(body, "https://") {
+	if !strings.Contains(body, "init.js") || strings.Contains(body, "https://") {
 		t.Errorf("страница должна запускать Swagger UI без внешних ссылок")
+	}
+	if init := get("/api/v1/docs/assets/init.js"); !strings.Contains(init.Body.String(), "SwaggerUIBundle") {
+		t.Errorf("init.js должен запускать SwaggerUIBundle")
 	}
 	for _, asset := range []string{"swagger-ui.css", "swagger-ui-bundle.js"} {
 		if r := get("/api/v1/docs/assets/" + asset); r.Code != http.StatusOK || r.Body.Len() < 1000 {
