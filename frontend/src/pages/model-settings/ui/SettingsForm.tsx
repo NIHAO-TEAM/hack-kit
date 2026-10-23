@@ -1,11 +1,27 @@
-import { Card, Group, NumberInput, SegmentedControl, Slider, Stack, Text } from '@mantine/core';
-import { useForm } from '@mantine/form';
 import {
+  Button,
+  Card,
+  Group,
+  NumberInput,
+  SegmentedControl,
+  Slider,
+  Stack,
+  Text,
+} from '@mantine/core';
+import { useForm } from '@mantine/form';
+import { notifications } from '@mantine/notifications';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  defaultSettings,
   featureHint,
   featureTitle,
   type ModelSettings,
   type ModelSettingsPatch,
+  modelSettingsKey,
+  saveSettings,
+  settingsQuery,
 } from '@entities/model-config';
+import { ApiError } from '@shared/api';
 import { PreviewPanel } from './PreviewPanel';
 
 export type FormValues = {
@@ -35,8 +51,53 @@ export function toPatch(v: FormValues): ModelSettingsPatch {
   };
 }
 
+/** Поле ошибки сервера → поле формы: `thresholds.high` живёт в форме как `high`. */
+function formField(field: string): string {
+  return field.replace(/^thresholds\./, '');
+}
+
 export function SettingsForm({ settings }: { settings: ModelSettings }) {
   const form = useForm<FormValues>({ initialValues: toFormValues(settings) });
+  const queryClient = useQueryClient();
+
+  const save = useMutation({
+    mutationFn: () => saveSettings(toPatch(form.values)),
+    onSuccess: (saved) => {
+      // Новая версия: форма пересоздаётся по `key` в ModelPage. Очередь обновит живой сигнал.
+      queryClient.setQueryData(settingsQuery.queryKey, saved);
+      void queryClient.invalidateQueries({ queryKey: [...modelSettingsKey, 'preview'] });
+      notifications.show({ message: `Сохранено, версия ${saved.version}`, color: 'teal' });
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 422) {
+        form.setErrors(
+          Object.fromEntries(Object.entries(e.fieldErrors).map(([f, m]) => [formField(f), m])),
+        );
+        return;
+      }
+      notifications.show({
+        title: 'Не удалось сохранить',
+        message: e instanceof ApiError ? e.message : 'Ошибка запроса',
+        color: 'red',
+      });
+    },
+  });
+
+  function reset() {
+    form.clearErrors();
+    form.setValues({
+      weights: Object.fromEntries(
+        Object.keys(form.values.weights).map((id) => [
+          id,
+          defaultSettings.weights[id] ?? form.values.weights[id] ?? 0,
+        ]),
+      ),
+      high: defaultSettings.thresholds.high,
+      medium: defaultSettings.thresholds.medium,
+      horizonDays: defaultSettings.horizonDays,
+      priceBasis: defaultSettings.priceBasis,
+    });
+  }
 
   return (
     <Group align="flex-start" wrap="wrap">
@@ -74,6 +135,12 @@ export function SettingsForm({ settings }: { settings: ModelSettings }) {
       </Stack>
       <Stack flex="0 1 320px" pos="sticky" top={16}>
         <PreviewPanel patch={toPatch(form.values)} changed={form.isDirty()} />
+        <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!form.isDirty()}>
+          Сохранить
+        </Button>
+        <Button variant="default" onClick={reset}>
+          Сбросить к умолчанию
+        </Button>
       </Stack>
     </Group>
   );
