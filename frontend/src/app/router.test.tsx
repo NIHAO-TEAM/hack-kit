@@ -106,6 +106,21 @@ describe('вход и выход', () => {
     expect(await screen.findByText('Не удалось выйти')).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/queue');
   });
+
+  it.each([403, 500])(
+    'сервер не завершил сессию (%i, пустое тело): остаёмся в панели и видим сообщение',
+    async (status) => {
+      const user = userEvent.setup();
+      server.use(http.post('/api/v1/auth/logout', () => new HttpResponse(null, { status })));
+      const { router } = renderApp('/login');
+      await user.type(await screen.findByLabelText('Логин'), 'marketer');
+      await user.type(screen.getByLabelText('Пароль'), 'demo');
+      await user.click(screen.getByRole('button', { name: 'Войти' }));
+      await user.click(await screen.findByRole('button', { name: 'Выйти' }));
+      expect(await screen.findByText('Не удалось выйти')).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe('/queue');
+    },
+  );
 });
 
 describe('ошибка загрузки сессии', () => {

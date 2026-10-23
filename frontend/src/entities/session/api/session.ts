@@ -34,6 +34,6 @@ export async function logout() {
   const { error, response } = await api.POST('/api/v1/auth/logout').catch(() => {
     throw toApiError(0, null);
   });
-  if (error && response.status !== 401) throw toApiError(response.status, error, response);
+  if (!response.ok && response.status !== 401) throw toApiError(response.status, error, response);
   setCsrfToken(null);
 }
