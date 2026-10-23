@@ -39,6 +39,12 @@ func identityFrom(ctx context.Context) (Identity, bool) {
 	return id, ok
 }
 
+// LoginFrom возвращает логин вошедшего пользователя из контекста запроса; без сессии — пусто.
+func LoginFrom(ctx context.Context) string {
+	id, _ := identityFrom(ctx)
+	return id.Login
+}
+
 const sessionCookie = "session"
 
 // bearerToken возвращает токен из заголовка Authorization.
@@ -155,7 +161,7 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("auth: вход %q: %v", req.Login, err)
+		log.Printf("auth: вход: %v", err)
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка входа")
 		return
 	}

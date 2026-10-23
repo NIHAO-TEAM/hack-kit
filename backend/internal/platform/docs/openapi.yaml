@@ -359,6 +359,10 @@ components:
           type: integer
           minimum: 1
           default: 1
+        hours:
+          type: integer
+          minimum: 1
+          description: Сдвиг в часах; если задан, days игнорируется
     EmulatorAction:
       type: object
       required: [customerId, actionId]
@@ -368,6 +372,11 @@ components:
           format: int64
         actionId:
           type: string
+          description: "top_up (нужен cents), enable_autoprolong, reset (customerId игнорируется)"
+        cents:
+          type: integer
+          format: int64
+          description: Сумма пополнения в евроцентах, только для top_up
     EmulatorActionsRequest:
       type: object
       required: [actions]
@@ -398,15 +407,42 @@ components:
           type: number
           format: double
           nullable: true
-          description: Риск оттока 0..1; null для unscored.
+          description: Риск оттока в процентах 0..100 (как порог модели); null для unscored и lost.
         level:
           $ref: "#/components/schemas/RiskLevel"
         expectedLossCents:
           type: integer
           format: int64
+        topReason:
+          type: string
+          description: Главная причина простыми словами; нет у unscored и lost.
+        topAction:
+          $ref: "#/components/schemas/ActionBrief"
+        expiresAt:
+          type: string
+          format: date-time
+          description: Окно спасения — срок услуги в ожидании оплаты (prolong_wait).
+        deleteAt:
+          type: string
+          format: date-time
+          description: Когда услугу в ожидании оплаты удалят (expiresAt + 5 дней).
+        billing:
+          type: boolean
+          description: Тег «к биллингу» — сбой автосписания, а не отток.
+    ActionBrief:
+      type: object
+      required: [id, title, effectCents]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        effectCents:
+          type: integer
+          format: int64
     CustomerPage:
       type: object
-      required: [items, total]
+      required: [items, total, version]
       properties:
         items:
           type: array
@@ -414,6 +450,10 @@ components:
             $ref: "#/components/schemas/CustomerRow"
         total:
           type: integer
+        version:
+          type: integer
+          format: int64
+          description: Версия пересчёта, по которому построена страница.
     Feature:
       type: object
       required: [id, value, weight, contribution, reason]
@@ -445,12 +485,49 @@ components:
         newScore:
           type: number
           format: double
+          description: Риск после действия, 0..100.
         newLevel:
           $ref: "#/components/schemas/RiskLevel"
+    ServiceRisk:
+      type: object
+      required: [serviceId, probability, rCents, lossCents, features, quality]
+      properties:
+        serviceId:
+          type: integer
+          format: int64
+        probability:
+          type: number
+          format: double
+          description: Вероятность непродления услуги 0..1.
+        rCents:
+          type: integer
+          format: int64
+          description: Сумма под угрозой R за горизонт, центы.
+        lossCents:
+          type: integer
+          format: int64
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/Feature"
+        quality:
+          type: array
+          description: Сработавшие проверки качества данных.
+          items:
+            type: string
     CustomerDetail:
       type: object
-      required: [customer, services, features, actions]
+      required: [customer, services, features, actions, version]
       properties:
+        version:
+          type: integer
+          format: int64
+          description: Версия пересчёта.
+        serviceRisks:
+          type: array
+          description: Оценка каждой живой услуги.
+          items:
+            $ref: "#/components/schemas/ServiceRisk"
         customer:
           $ref: "#/components/schemas/CustomerRow"
         account:
@@ -499,6 +576,11 @@ components:
         asOf:
           type: string
           format: date-time
+        qualityCounts:
+          type: object
+          description: Сколько услуг и клиентов отмечено каждой проверкой качества данных
+          additionalProperties:
+            type: integer
         version:
           type: integer
           format: int64
@@ -554,6 +636,13 @@ components:
         version:
           type: integer
           format: int64
+        updatedBy:
+          type: string
+          description: Кто сохранил эту версию; для версии 0 (умолчания) поля нет.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Когда сохранена версия; для версии 0 (умолчания) поля нет.
     ModelSettingsPatch:
       type: object
       properties:
@@ -907,6 +996,12 @@ paths:
                 $ref: "#/components/schemas/Summary"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: Первый пересчёт ещё не закончился
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/analytics/churn-chart:
@@ -981,6 +1076,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/source/snapshot:
