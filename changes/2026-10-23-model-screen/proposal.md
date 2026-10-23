@@ -23,6 +23,7 @@
 - frontend: `pages/model-settings`, `entities/model-settings`
 - контракт `api/openapi.yaml`: нет
 - защищённые пути: нет
+- зависит от: `design-tokens`
 
 ## Связанные решения
 
