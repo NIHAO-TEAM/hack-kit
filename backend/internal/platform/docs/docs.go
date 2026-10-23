@@ -32,9 +32,7 @@ const page = `<!doctype html>
 <body>
 <div id="swagger-ui"></div>
 <script src="/api/v1/docs/assets/swagger-ui-bundle.js"></script>
-<script>
-window.ui = SwaggerUIBundle({ url: "/api/v1/openapi.yml", dom_id: "#swagger-ui" });
-</script>
+<script src="/api/v1/docs/assets/init.js"></script>
 </body>
 </html>
 `

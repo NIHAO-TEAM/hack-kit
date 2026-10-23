@@ -161,7 +161,7 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("auth: вход %q: %v", req.Login, err)
+		log.Printf("auth: вход: %v", err)
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка входа")
 		return
 	}
