@@ -7,7 +7,7 @@
 - [x] 1.1 `api/openapi.yaml`: пути и схемы по таблице `design.md`, `securitySchemes`, `problem+json`, `int64` для денег; `/healthz`, `/version`, `/ping` без изменений — проверка: `npx @redocly/cli lint api/openapi.yaml` без ошибок; `contract-diff.sh` не видит удалений старых путей
 - [x] 1.2 `oapi-codegen` (версия фиксирована в `tools.go` или `go.mod`), `make generate` пишет `internal/platform/api/gen/` — проверка: `make generate && git diff --exit-code`
 - [x] 1.3 Миграции `goose`: таблицы организаторов 1:1 из `cases/analizator/001_schema.up.sql` + `snapshots`, `model_settings`, `users`, `sessions`; применяются при старте — проверка: интеграционный тест «миграции вверх и вниз на чистой базе»
-- [ ] 1.4 Проверить, что CI ловит дифф генерации; если нет — запись в «Найдено по ходу» — проверка: чтение `.github/workflows/ci.yml`
+- [x] 1.4 Проверить, что CI ловит дифф генерации; если нет — запись в «Найдено по ходу» — проверка: чтение `.github/workflows/ci.yml`
 
 ## 2. Логика
 
