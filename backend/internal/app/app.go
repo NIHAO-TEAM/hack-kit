@@ -77,11 +77,15 @@ func problemOnBadRequest(w http.ResponseWriter, r *http.Request, err error) {
 // заглушки, они базой не пользуются.
 func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) *http.ServeMux {
 	mux := http.NewServeMux()
+	var settings *model.Store
+	if pool != nil {
+		settings = model.NewStore(pool, bus, ValidateSettings)
+	}
 	gen.HandlerWithOptions(server{
 		AuthAPI:      authAPI,
 		SourceAPI:    source.New(pool, bus, clk),
 		AnalyticsAPI: analytics.New(pool, bus, clk).WithFeed(feed),
-		ModelAPI:     model.New(pool, bus, clk),
+		ModelAPI:     model.New(settings, modelPorts(pool), clk),
 		DocsAPI:      docs.New(),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
 	mux.Handle("GET /api/v1/docs/assets/", docs.Assets())

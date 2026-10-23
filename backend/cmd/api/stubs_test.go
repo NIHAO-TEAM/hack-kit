@@ -19,6 +19,7 @@ var implemented = map[string]bool{
 	"docs": true, "openapiYaml": true, "openapiJson": true,
 	"login": true, "getMe": true, "logout": true,
 	"putSnapshot": true, "getSourceStatus": true, "getEvents": true,
+	"getModelSettings": true, "patchModelSettings": true,
 	"listCustomers": true, "getCustomer": true,
 	"emulatorTick": true, "emulatorActions": true,
 }

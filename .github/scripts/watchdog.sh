@@ -6,7 +6,8 @@
 #   - итог (бот: «[ci] итог ревью принят …» или «[review] … source: ci») новее его последнего [fix]/[merge]
 #     и старше OWED_MIN минут;
 #   - черновик с [start], а ни коммитов, ни его комментариев дольше DRAFT_MIN минут;
-#   - метка стоит дольше START_MIN минут, а [start] так и не появился (запуск потерялся).
+#   - метка стоит дольше START_MIN минут, а [start] так и не появился (запуск потерялся);
+#   - needs-human сняли после его последнего ответа, а он не вернулся за UNHOLD_MIN минут.
 # Тогда комментарий «[guard] перезапуск исполнителя <id> (сторож) …» и /fire: новая сессия перехватывает PR
 # по шагу 0 executor.md. После MAX_RESTARTS перезапусков сторожа на PR — needs-human: значит, дело не
 # в обрыве сессии.
@@ -18,6 +19,7 @@ REPO=${GITHUB_REPOSITORY:?}
 OWED_MIN=40
 DRAFT_MIN=45
 START_MIN=30
+UNHOLD_MIN=2
 MAX_RESTARTS=3
 now=$(date -u +%s)
 
@@ -51,6 +53,14 @@ for p in "${PRS[@]}"; do
     [ "$(age_min "$latest")" -ge "$DRAFT_MIN" ] && reason="черновик без коммитов и комментариев исполнителя $(age_min "$latest") мин"
   elif [ -n "$verdict_at" ] && [[ "$verdict_at" > "${answer_at:-0}" ]]; then
     [ "$(age_min "$verdict_at")" -ge "$OWED_MIN" ] && reason="итог $(age_min "$verdict_at") мин без ответа исполнителя"
+  fi
+  # needs-human сняли после последнего ответа исполнителя: его сессия кончилась на [needs-human], комментарий
+  # человека или пахана её не будит (23.10: #66 стоял больше часа после снятия метки).
+  unhold_at=$(gh api "repos/$REPO/issues/$pr/events" --paginate \
+    --jq '[.[] | select(.event == "unlabeled" and .label.name == "needs-human")] | last | .created_at // ""' | tail -n1)
+  if [ -z "$reason" ] && [ -n "$unhold_at" ] && [[ "$unhold_at" > "${exec_at:-0}" ]] && [[ "$unhold_at" > "${restart_at:-0}" ]] \
+     && [ "$(age_min "$unhold_at")" -ge "$UNHOLD_MIN" ]; then
+    reason="needs-human снят $(age_min "$unhold_at") мин назад, исполнитель не вернулся"
   fi
   [ -n "$reason" ] || continue
   # Перезапуск уже был после последнего события, которого ждём, — новой сессии нужно время.
