@@ -67,6 +67,27 @@ services:
     expose:
       - "8080"
 
+  # Метрики: порты не публикуются, доступен только внутри сети Compose.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:?нет METRICS_TOKEN в .env}
+    # Токен сборщика пишется в файл при старте: в конфиге и в образе его нет.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - umask 077 && printf '%s' "$$METRICS_TOKEN" > /tmp/metrics_token && exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d
+    expose:
+      - "9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - promdata:/prometheus
+    depends_on:
+      app:
+        condition: service_healthy
+
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -90,6 +111,7 @@ services:
 
 volumes:
   pgdata:
+  promdata:
   # Не пересоздавать caddy_data: там сертификат (лимит Let's Encrypt — 5 в неделю на домен).
   caddy_data:
   caddy_config:
