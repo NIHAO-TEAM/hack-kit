@@ -6,6 +6,7 @@ import { ApiError } from '@shared/api';
 import { StateError, StateLoading, StateOffline } from '@shared/ui';
 import { EditPanel } from './EditPanel';
 import { EmulatorPanel } from './EmulatorPanel';
+import { PollingPanel } from './PollingPanel';
 import { QualityChecks } from './QualityChecks';
 import { StatusHeader } from './StatusHeader';
 import { UploadPanel } from './UploadPanel';
@@ -43,6 +44,7 @@ export function SourcePage() {
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 5 }}>
           <Stack>
+            <PollingPanel status={query.data} />
             <EditPanel />
             <EmulatorPanel />
           </Stack>

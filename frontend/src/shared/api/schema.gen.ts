@@ -332,6 +332,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/source/polling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Включить или поставить на паузу опрос REST-биллинга (аналитик) */
+        put: operations["setSourcePolling"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/source/services/{id}": {
         parameters: {
             query?: never;
@@ -609,6 +626,25 @@ export interface components {
             /** Format: int64 */
             ageSeconds: number;
             checks: components["schemas"]["QualityCheck"][];
+            polling?: components["schemas"]["SourcePolling"];
+        };
+        /** @description Опрос REST-биллинга (BILLING_URL). Нет поля в статусе — опрос не настроен. */
+        SourcePolling: {
+            /** @description Опрос на паузе (после ручной загрузки снимка), пока его не включат. */
+            paused: boolean;
+            intervalSeconds: number;
+            /**
+             * Format: date-time
+             * @description Последний удачный опрос.
+             */
+            lastOkAt?: string;
+            /** @description Причина последнего сбоя; пусто, если последний опрос удался. */
+            lastError?: string;
+            /** Format: int64 */
+            errorsTotal: number;
+        };
+        SourcePollingRequest: {
+            paused: boolean;
         };
         ServicePatch: {
             status?: components["schemas"]["ServiceStatus"];
@@ -1431,6 +1467,43 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    setSourcePolling: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourcePollingRequest"];
+            };
+        };
+        responses: {
+            /** @description Состояние опроса */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourcePolling"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Опрос не настроен (BILLING_URL пуст) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             501: components["responses"]["NotImplemented"];
         };
     };
