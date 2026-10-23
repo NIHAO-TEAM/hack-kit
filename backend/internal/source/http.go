@@ -99,16 +99,6 @@ func writeJSON(w http.ResponseWriter, v any) {
 	}
 }
 
-// PatchService — PATCH /api/v1/source/services/{id}.
-func (*SourceAPI) PatchService(w http.ResponseWriter, r *http.Request, _ gen.ServiceId) {
-	httpx.NotImplemented(w, r)
-}
-
-// PatchAccount — PATCH /api/v1/source/accounts/{id}.
-func (*SourceAPI) PatchAccount(w http.ResponseWriter, r *http.Request, _ gen.AccountId) {
-	httpx.NotImplemented(w, r)
-}
-
 // maxTickHours — предел одного сдвига времени: год.
 const maxTickHours = 365 * 24
 
@@ -174,9 +164,25 @@ func (a *SourceAPI) EmulatorActions(w http.ResponseWriter, r *http.Request) {
 
 type badRequest struct{ error }
 
+type notFound struct{ error }
+
 // emulate читает снимок, применяет шаг и пишет результат тем же путём, что PUT /source/snapshot:
 // событие source.changed запускает пересчёт и обновление экранов.
 func (a *SourceAPI) emulate(w http.ResponseWriter, r *http.Request, step func(*Snapshot) (*Snapshot, string, error)) {
+	acc, _, ok := a.commit(w, r, step)
+	if !ok {
+		return
+	}
+	w.Header().Set("X-Billing-Emulator", "simulated") // «имитация биллинга»
+	writeJSON(w, gen.SnapshotAccepted{
+		Version: acc.Version, AsOf: acc.AsOf,
+		Accounts: acc.Accounts, Services: acc.Services, Transactions: acc.Transactions,
+	})
+}
+
+// commit выполняет шаг над текущим снимком и записывает результат. При ошибке сам отвечает
+// problem+json и возвращает ok=false.
+func (a *SourceAPI) commit(w http.ResponseWriter, r *http.Request, step func(*Snapshot) (*Snapshot, string, error)) (acc Accepted, next *Snapshot, ok bool) {
 	emulatorMu.Lock()
 	defer emulatorMu.Unlock()
 
@@ -199,8 +205,13 @@ func (a *SourceAPI) emulate(w http.ResponseWriter, r *http.Request, step func(*S
 	}
 	next, origin, err := step(&cur)
 	var br badRequest
+	var nf notFound
 	if errors.As(err, &br) {
 		httpx.WriteProblem(w, r, http.StatusBadRequest, br.Error())
+		return
+	}
+	if errors.As(err, &nf) {
+		httpx.WriteProblem(w, r, http.StatusNotFound, nf.Error())
 		return
 	}
 	if err != nil {
@@ -209,16 +220,12 @@ func (a *SourceAPI) emulate(w http.ResponseWriter, r *http.Request, step func(*S
 		return
 	}
 	now := a.clk.Now()
-	acc, err := replace(r.Context(), a.pool, next, ModelTime(next, now), now, origin)
+	acc, err = replace(r.Context(), a.pool, next, ModelTime(next, now), now, origin)
 	if err != nil {
 		log.Printf("source: эмулятор, запись: %v", err)
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не записан, прежние данные сохранены")
 		return
 	}
 	a.bus.Publish(TopicChanged, acc.Version)
-	w.Header().Set("X-Billing-Emulator", "simulated") // «имитация биллинга»
-	writeJSON(w, gen.SnapshotAccepted{
-		Version: acc.Version, AsOf: acc.AsOf,
-		Accounts: acc.Accounts, Services: acc.Services, Transactions: acc.Transactions,
-	})
+	return acc, next, true
 }
