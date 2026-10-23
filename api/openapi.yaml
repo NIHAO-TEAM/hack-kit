@@ -95,6 +95,12 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+    UnprocessableEntity:
+      description: Снимок не прошёл проверку связей и значений; errors[] — по полям
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
     NotImplemented:
       description: Модуль ещё не реализован
       content:
@@ -276,11 +282,15 @@ components:
             $ref: "#/components/schemas/Transaction"
     SnapshotAccepted:
       type: object
-      required: [version, accounts, services, transactions]
+      required: [version, asOf, accounts, services, transactions]
       properties:
         version:
           type: integer
           format: int64
+        asOf:
+          type: string
+          format: date-time
+          description: Время модели этого снимка.
         accounts:
           type: integer
         services:
@@ -304,6 +314,10 @@ components:
         version:
           type: integer
           format: int64
+        source:
+          type: string
+          enum: [seed, api]
+          description: Откуда загружен текущий снимок.
         asOf:
           type: string
           format: date-time
@@ -974,6 +988,9 @@ paths:
       operationId: putSnapshot
       tags: [source]
       summary: Загрузка или полная замена снимка данных с пересчётом (аналитик или сервисный токен)
+      description: >-
+        Принимаются также написания из текста кейса: поля pice, paymentTem, autoprolong и
+        значения quater_year, pefomed, not_pefomed; в ответах — имена схемы.
       security:
         - cookieAuth: []
         - bearerAuth: []
@@ -997,6 +1014,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/source/status:

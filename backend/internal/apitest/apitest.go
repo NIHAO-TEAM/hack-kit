@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"example.com/app/internal/app"
 	"example.com/app/internal/auth"
 	"example.com/app/internal/platform/api/gen"
@@ -28,6 +30,8 @@ type Stand struct {
 	Clock *clock.Fake
 	// Bus — шина событий сервера.
 	Bus *events.Bus
+	// Pool — пул соединений к базе стенда (для проверок состояния в тестах).
+	Pool *pgxpool.Pool
 	// Handler — тот же обработчик без сети, для тестов через httptest.ResponseRecorder.
 	Handler http.Handler
 }
@@ -83,7 +87,7 @@ func New(t testing.TB) *Stand {
 	if err != nil {
 		t.Fatalf("apitest: клиент: %v", err)
 	}
-	return &Stand{Client: client, URL: srv.URL, Clock: clk, Bus: bus, Handler: handler}
+	return &Stand{Pool: pool, Client: client, URL: srv.URL, Clock: clk, Bus: bus, Handler: handler}
 }
 
 // As входит под ролью (marketer, analyst, jury) или логином admin и возвращает клиента,
