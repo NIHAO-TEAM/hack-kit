@@ -1,0 +1,152 @@
+package source
+
+import (
+	"bytes"
+	"context"
+	_ "embed"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"example.com/app/internal/platform/clock"
+	"example.com/app/internal/platform/events"
+)
+
+// Источники снимка в snapshots.source.
+const (
+	OriginSeed = "seed"
+	OriginAPI  = "api"
+)
+
+// TopicChanged — тема шины, в которую после коммита снимка уходит номер версии.
+const TopicChanged = "source.changed"
+
+// lockKey — ключ advisory-блокировки: два снимка одновременно не пишутся.
+const lockKey = 7301001
+
+// Status — состояние текущего снимка.
+type Status struct {
+	Version  int64
+	AsOf     *time.Time
+	LoadedAt time.Time
+	Source   string
+}
+
+// Accepted — итог записи снимка.
+type Accepted struct {
+	Version      int64
+	AsOf         time.Time
+	Accounts     int
+	Services     int
+	Transactions int
+}
+
+// replace заменяет данные целиком в одной транзакции и заводит строку snapshots.
+// Любая ошибка откатывает всё: прежние данные и версия остаются.
+func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedAt time.Time, source string) (Accepted, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return Accepted{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockKey); err != nil {
+		return Accepted{}, err
+	}
+	if _, err := tx.Exec(ctx, "TRUNCATE transactions, services, accounts"); err != nil {
+		return Accepted{}, fmt.Errorf("очистка: %w", err)
+	}
+
+	accRows := make([][]any, len(s.Accounts))
+	for i, a := range s.Accounts {
+		accRows[i] = []any{a.ID, a.Email, a.Balance, a.WithdrawBalance, a.TotalReplenished, a.BonusBalance, a.BonusState}
+	}
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"accounts"},
+		[]string{"id", "email", "balance", "withdrawBalance", "totalReplenished", "bonusBalance", "bonusState"},
+		pgx.CopyFromRows(accRows)); err != nil {
+		return Accepted{}, fmt.Errorf("accounts: %w", err)
+	}
+
+	svcRows := make([][]any, len(s.Services))
+	for i, v := range s.Services {
+		svcRows[i] = []any{v.ID, v.Name, v.OwnerID, v.PaymentTerm, v.AutoProlong, v.CreatedAt, v.ExpiresAt, v.Status, v.Price}
+	}
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"services"},
+		[]string{"id", "name", "ownerId", "paymentTerm", "autoProlong", "createdAt", "expiresAt", "status", "price"},
+		pgx.CopyFromRows(svcRows)); err != nil {
+		return Accepted{}, fmt.Errorf("services: %w", err)
+	}
+
+	txRows := make([][]any, len(s.Transactions))
+	for i, t := range s.Transactions {
+		txRows[i] = []any{t.ID, t.Amount, t.Status, t.PerformedAt, t.CreatedAt, t.Type, t.ServiceID}
+	}
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"transactions"},
+		[]string{"id", "amount", "status", "performedAt", "createdAt", "type", "serviceId"},
+		pgx.CopyFromRows(txRows)); err != nil {
+		return Accepted{}, fmt.Errorf("transactions: %w", err)
+	}
+
+	// Идентификаторы заданы снимком; последовательности подтягиваем, чтобы последующие
+	// вставки (правки, эмулятор) не упёрлись в занятые id.
+	for _, t := range []string{"accounts", "services", "transactions"} {
+		q := fmt.Sprintf(`SELECT setval(pg_get_serial_sequence('%[1]s', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM %[1]s`, t)
+		if _, err := tx.Exec(ctx, q); err != nil {
+			return Accepted{}, fmt.Errorf("sequence %s: %w", t, err)
+		}
+	}
+
+	var version int64
+	if err := tx.QueryRow(ctx,
+		"INSERT INTO snapshots (as_of, loaded_at, source) VALUES ($1, $2, $3) RETURNING version",
+		asOf, loadedAt, source).Scan(&version); err != nil {
+		return Accepted{}, fmt.Errorf("snapshots: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Accepted{}, err
+	}
+	return Accepted{Version: version, AsOf: asOf, Accounts: len(s.Accounts), Services: len(s.Services), Transactions: len(s.Transactions)}, nil
+}
+
+// currentStatus читает последнюю версию снимка; ok=false, если снимков ещё нет.
+func currentStatus(ctx context.Context, pool *pgxpool.Pool) (st Status, ok bool, err error) {
+	err = pool.QueryRow(ctx,
+		"SELECT version, as_of, loaded_at, source FROM snapshots ORDER BY version DESC LIMIT 1").
+		Scan(&st.Version, &st.AsOf, &st.LoadedAt, &st.Source)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Status{}, false, nil
+	}
+	return st, err == nil, err
+}
+
+// organizers — набор организаторов, копия cases/analizator/data.json.
+//
+//go:embed seed/organizers.json
+var organizers []byte
+
+// seedAsOf — время модели сида: слайд кейса считается на 19.10.2026 15:00 UTC.
+var seedAsOf = time.Date(2026, 10, 19, 15, 0, 0, 0, time.UTC)
+
+// OnStart загружает набор организаторов, если включён SEED_ORGANIZERS и снимков ещё нет.
+// Повторный старт снимок и версию не меняет.
+func OnStart(ctx context.Context, pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, enabled bool) error {
+	if !enabled {
+		return nil
+	}
+	if _, ok, err := currentStatus(ctx, pool); err != nil || ok {
+		return err
+	}
+	s, errs, err := ParseSnapshot(bytes.NewReader(organizers))
+	if err != nil || len(errs) > 0 {
+		return fmt.Errorf("source: вшитый сид не разбирается: %v %v", err, errs)
+	}
+	acc, err := replace(ctx, pool, s, seedAsOf, clk.Now(), OriginSeed)
+	if err != nil {
+		return fmt.Errorf("source: сид: %w", err)
+	}
+	bus.Publish(TopicChanged, acc.Version)
+	return nil
+}

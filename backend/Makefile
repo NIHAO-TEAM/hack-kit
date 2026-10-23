@@ -1,5 +1,5 @@
 # generate пишет код сервера и клиента из ../api/openapi.yaml (oapi-codegen, версия в go.mod).
-# sqlc подключат модули, у которых появятся queries.sql.
+# sqlc: запросы модулей (queries.sql) лежат в internal/<модуль>/, код — в db/.
 GOLANGCI_VERSION := v2.1.6
 
 .PHONY: generate check test test-int
@@ -7,6 +7,7 @@ GOLANGCI_VERSION := v2.1.6
 generate:
 	cp ../api/openapi.yaml internal/platform/docs/openapi.yaml
 	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen -config oapi-codegen.yaml ../api/openapi.yaml
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate
 
 check:
 	test -z "$$(gofmt -l .)"
