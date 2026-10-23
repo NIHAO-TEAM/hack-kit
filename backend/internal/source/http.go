@@ -76,18 +76,18 @@ func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "снимок не прошёл проверку", fe...)
 		return
 	}
-	// Пауза и запись под одним замком с опросом: опрос не затрёт ручной снимок.
+	// Запись и пауза под одним замком с опросом: опрос не затрёт ручной снимок.
 	emulatorMu.Lock()
 	defer emulatorMu.Unlock()
-	if a.adapter != nil {
-		a.adapter.Pause() // ручной снимок главнее опроса, пока его не включат на экране «Источник»
-	}
 	now := a.clk.Now()
 	acc, err := replace(r.Context(), a.pool, s, ModelTime(s, now), now, OriginAPI)
 	if err != nil {
 		log.Printf("source: запись снимка: %v", err)
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не записан, прежние данные сохранены")
 		return
+	}
+	if a.adapter != nil {
+		a.adapter.Pause() // ручной снимок главнее опроса, пока его не включат на экране «Источник»
 	}
 	a.bus.Publish(TopicChanged, acc.Version)
 	writeJSON(w, gen.SnapshotAccepted{
