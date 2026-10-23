@@ -42,7 +42,11 @@ function Section() {
   const navigate = Route.useNavigate();
   return (
     <RightGate role={user.role} right="queue.view" section="Очередь">
-      <QueuePage params={params} onParams={(next) => void navigate({ search: next })} />
+      <QueuePage
+        params={params}
+        role={user.role}
+        onParams={(next) => void navigate({ search: next })}
+      />
     </RightGate>
   );
 }
