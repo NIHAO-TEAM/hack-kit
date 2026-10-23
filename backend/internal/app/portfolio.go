@@ -133,6 +133,12 @@ func buildCustomer(c risk.Customer, a risk.Account, svcs []risk.Service) analyti
 			top = i
 		}
 	}
+	// неживая услуга с флагом качества: в карточке видна, на скор и деньги не влияет
+	for _, sq := range c.Quality {
+		out.Risks = append(out.Risks, gen.ServiceRisk{
+			ServiceId: sq.ServiceID, Features: []gen.Feature{}, Quality: append([]string{}, sq.Flags...),
+		})
+	}
 	if top >= 0 {
 		out.Features = out.Risks[top].Features
 		if len(out.Features) > 0 {
