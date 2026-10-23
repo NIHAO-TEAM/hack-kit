@@ -1,0 +1,37 @@
+Статус: на ревью
+
+# Вход через Keycloak проверен сквозным тестом
+
+## Зачем
+
+Шкала «Архитектура» 9: «Вход через OIDC с ключом доступа или TOTP, по паролю — запасной». В `keycloak-oidc` (#66) сказано: «[ПРЕДПОЛОЖЕНО] Работа ключа доступа/TOTP в Keycloak 26.0 по импортированному realm не проверена в браузере», кнопка SSO видна и при выключенном SSO (сервер отвечает `501`).
+
+## Что меняется
+
+- `e2e/tests/sso.spec.ts` (Firefox): «Войти через SSO» → Keycloak → логин `secure` + пароль + код TOTP (секрет из окружения) → очередь с ролью из claim; неверный код — понятная ошибка Keycloak, сессии нет.
+- Realm `deploy/keycloak/churn-realm.json`: у демо-пользователя `secure` заранее заведён TOTP (секрет из переменной при импорте, не в репо), чтобы тест и жюри входили без ручной настройки; найденные ошибки realm исправлены.
+- Кнопка SSO на экране входа скрыта, если SSO выключен (`GET /api/v1/auth/oidc/login` отвечает `501`).
+- На проде: если Keycloak поднят, `https://<домен>/sso/realms/churn/.well-known/openid-configuration` отвечает 200 — проверка в README; ручная проверка ключа доступа — шаги для человека в `docs/architecture.md`.
+
+Вне изменения:
+- Автотест ключа доступа (WebAuthn): виртуального аутентификатора в Firefox Playwright нет, а браузер e2e — только Firefox (`e2e/README.md`). Проверяет человек по шагам.
+- Свой TOTP вместо Keycloak — нет (вердикт: только если Keycloak не поднят к часу 30).
+
+## Затронутые части
+
+- backend: нет (если тест найдёт ошибку в `internal/auth/oidc.go` — исправление здесь)
+- frontend: `pages/login` (скрытие кнопки)
+- контракт `api/openapi.yaml`: нет
+- защищённые пути: да — `e2e/` (новый тест), `deploy/keycloak/` (realm), `deploy/bootstrap.sh` и `deploy/docker-compose.prod.yml` (проброс `KC_SECURE_TOTP_SECRET` в Keycloak и его генерация при первом запуске)
+- зависит от: `keycloak-oidc`
+
+## Связанные решения
+
+- ADR: 0001
+- Макет: экран входа (ADR-0002), без новых элементов
+
+## Найдено по ходу
+
+- В realm у `secure` стояли required actions `CONFIGURE_TOTP` и `webauthn-register-passwordless`: они блокировали бы автотест при первом входе. Убраны, TOTP заведён при импорте; ключ доступа — вручную (см. `design.md`, «Решения по ходу»).
+- Docker в среде исполнителя нет: realm-импорт и `sso.spec.ts` не прогонялись. Формат credential `otp` и селекторы страниц Keycloak (`#username`, `#password`, `#otp`, `#kc-login`) — [ПРЕДПОЛОЖЕНО].
+- Прод уже импортировал realm: чтобы появился TOTP, нужны `KC_SECURE_TOTP_SECRET` в `.env` и пересоздание `kcdata` (шаги — `docs/architecture.md`).
