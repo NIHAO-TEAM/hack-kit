@@ -43,6 +43,13 @@ type ServiceResult struct {
 	QualityIDs []string
 }
 
+// ServiceQuality — флаги качества неживой услуги (заблокированной, удалённой): в скор не входит.
+type ServiceQuality struct {
+	ServiceID int64
+	Flags     []string
+	IDs       []string // идентификаторы проверок, в порядке Flags
+}
+
 // ActionResult — действие с ценой: эффект = ожидаемая потеря после − до (отрицательный — выгода).
 type ActionResult struct {
 	ID             string
@@ -63,6 +70,7 @@ type Customer struct {
 	ExposureCents     int64
 	LostCents         int64
 	Services          []ServiceResult
+	Quality           []ServiceQuality
 	Actions           []ActionResult
 }
 
@@ -160,6 +168,19 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 				}
 			}
 		}
+		for _, sq := range c.Quality {
+			for _, q := range sq.Flags {
+				res.Summary.QualityCounts[q]++
+			}
+			for _, id := range sq.IDs {
+				h := hits[id]
+				h.OK = false
+				h.Count++
+				if len(h.Items) < maxCheckItems {
+					h.Items = append(h.Items, CheckItem{ServiceID: sq.ServiceID, AccountID: a.ID})
+				}
+			}
+		}
 	}
 	for _, c := range cs {
 		h := hits[c.ID()]
@@ -244,6 +265,11 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 			live = append(live, sv)
 			continue
 		}
+		// проверки качества идут и по неживым услугам; признаков и скора у них нет
+		h := qualityFlags(ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID]}, cs)
+		if len(h.Messages) > 0 {
+			c.Quality = append(c.Quality, ServiceQuality{ServiceID: sv.ID, Flags: h.Messages, IDs: h.IDs})
+		}
 		asActive := sv
 		asActive.Status = StatusActive
 		c.LostCents += amount(asActive, asOf, st.horizonHours(), st.PriceBasis)
@@ -297,13 +323,26 @@ func scoreService(ctx ServiceCtx, st Settings, fs []Feature, cs []Check) Service
 		}
 		return sr.Features[i].ID < sr.Features[j].ID
 	})
+	h := qualityFlags(ctx, cs)
+	sr.Quality, sr.QualityIDs = h.Messages, h.IDs
+	return sr
+}
+
+// qualityHits — сработавшие проверки услуги: тексты и id в одном порядке.
+type qualityHits struct {
+	Messages []string
+	IDs      []string
+}
+
+func qualityFlags(ctx ServiceCtx, cs []Check) qualityHits {
+	var out qualityHits
 	for _, c := range cs {
 		if msg, hit := c.Eval(ctx); hit {
-			sr.Quality = append(sr.Quality, msg)
-			sr.QualityIDs = append(sr.QualityIDs, c.ID())
+			out.Messages = append(out.Messages, msg)
+			out.IDs = append(out.IDs, c.ID())
 		}
 	}
-	return sr
+	return out
 }
 
 // accountFunds — «нужно» и «есть» за окно запаса средств (правило 5, funds).
