@@ -32,6 +32,7 @@ docker compose up -d
 | `DEMO_MARKETER_PASSWORD`, `DEMO_ANALYST_PASSWORD`, `DEMO_JURY_PASSWORD` | демо-учётки; пустой пароль — учётка не создаётся |
 | `METRICS_TOKEN`, `SOURCE_TOKEN` | токены `/metrics` и приёма снимка источника |
 | `SEED_ORGANIZERS` | загрузить набор организаторов при старте |
+| `BILLING_URL`, `BILLING_TOKEN`, `BILLING_POLL_SECONDS` | опрос REST-биллинга: снимок той же формы, что `data.json`; пустой `BILLING_URL` — выключен, интервал по умолчанию 60 с |
 
 ## Модель и архитектура
 
