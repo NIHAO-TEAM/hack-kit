@@ -1,4 +1,4 @@
-// Package auth — вход по логину и паролю, сессии и права ролей. OIDC (слой 2) — заглушка.
+// Package auth — вход по логину и паролю, сессии и права ролей. вход через OIDC.
 package auth
 
 import (
@@ -23,13 +23,18 @@ import (
 
 // AuthAPI обслуживает пути /auth/* и проверяет доступ ко всем остальным.
 type AuthAPI struct {
-	svc *service
-	cfg Config
+	svc  *service
+	cfg  Config
+	oidc *oidcClient
 }
 
 // New создаёт обработчик модуля. pool может быть nil (тесты без базы): сессий тогда нет.
 func New(pool *pgxpool.Pool, clk clock.Clock, cfg Config) *AuthAPI {
-	return &AuthAPI{svc: newService(pool, clk, cfg), cfg: cfg}
+	a := &AuthAPI{svc: newService(pool, clk, cfg), cfg: cfg}
+	if cfg.OIDC.enabled() {
+		a.oidc = &oidcClient{cfg: cfg.OIDC}
+	}
+	return a
 }
 
 type ctxKey struct{}
@@ -160,10 +165,7 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.svc.clearFailures(key)
-	http.SetCookie(w, &http.Cookie{
-		Name: sessionCookie, Value: sess.Token, Path: "/", Expires: sess.ExpiresAt,
-		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
-	})
+	a.setSessionCookie(w, sess)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := json.NewEncoder(w).Encode(gen.LoginResult{User: toUser(sess.Identity), Token: &sess.Token, CsrfToken: &sess.CSRFToken}); err != nil {
@@ -198,10 +200,10 @@ func (a *AuthAPI) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// OidcLogin — GET /api/v1/auth/oidc/login (слой 2).
-func (*AuthAPI) OidcLogin(w http.ResponseWriter, r *http.Request) { httpx.NotImplemented(w, r) }
-
-// OidcCallback — GET /api/v1/auth/oidc/callback (слой 2).
-func (*AuthAPI) OidcCallback(w http.ResponseWriter, r *http.Request, _ gen.OidcCallbackParams) {
-	httpx.NotImplemented(w, r)
+// setSessionCookie ставит cookie сессии; общая для входа по паролю и через SSO.
+func (a *AuthAPI) setSessionCookie(w http.ResponseWriter, sess Session) {
+	http.SetCookie(w, &http.Cookie{
+		Name: sessionCookie, Value: sess.Token, Path: "/", Expires: sess.ExpiresAt,
+		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
+	})
 }

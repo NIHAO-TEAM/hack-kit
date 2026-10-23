@@ -5,11 +5,14 @@ go 1.24.0
 toolchain go1.24.7
 
 require (
+	github.com/coreos/go-oidc/v3 v3.11.0
+	github.com/go-jose/go-jose/v4 v4.0.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/oapi-codegen/runtime v1.3.1
 	github.com/pressly/goose/v3 v3.24.3
 	golang.org/x/crypto v0.41.0
+	golang.org/x/oauth2 v0.27.0
 )
 
 require (

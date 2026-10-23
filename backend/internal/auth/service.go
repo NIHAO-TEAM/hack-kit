@@ -155,6 +155,11 @@ func (s *service) login(ctx context.Context, login, password string) (Session, e
 	if !VerifyPassword(password, user.PasswordHash) {
 		return Session{}, ErrBadCredentials
 	}
+	return s.issueSession(ctx, user.ID, user.Login, user.Role)
+}
+
+// issueSession заводит сессию для пользователя; общая для входа по паролю и через SSO.
+func (s *service) issueSession(ctx context.Context, userID int64, login, role string) (Session, error) {
 	token, err := randomToken()
 	if err != nil {
 		return Session{}, err
@@ -169,12 +174,12 @@ func (s *service) login(ctx context.Context, login, password string) (Session, e
 		return Session{}, fmt.Errorf("auth: очистка сессий: %w", err)
 	}
 	if err := s.q.CreateSession(ctx, db.CreateSessionParams{
-		TokenHash: hashToken(token), UserID: user.ID, CsrfToken: csrf, ExpiresAt: expires,
+		TokenHash: hashToken(token), UserID: userID, CsrfToken: csrf, ExpiresAt: expires,
 	}); err != nil {
 		return Session{}, fmt.Errorf("auth: сессия: %w", err)
 	}
 	return Session{
-		Identity:  Identity{UserID: user.ID, Login: user.Login, Role: user.Role, CSRFToken: csrf, TokenHash: hashToken(token)},
+		Identity:  Identity{UserID: userID, Login: login, Role: role, CSRFToken: csrf, TokenHash: hashToken(token)},
 		Token:     token,
 		ExpiresAt: expires,
 	}, nil

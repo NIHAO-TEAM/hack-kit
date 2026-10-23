@@ -142,3 +142,30 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (UpsertU
 	)
 	return i, err
 }
+
+const upsertSSOUser = `-- name: UpsertSSOUser :one
+INSERT INTO users (login, password_hash, role)
+VALUES ($1, '!', $2)
+ON CONFLICT (login) DO UPDATE
+SET role = EXCLUDED.role
+RETURNING id, login, role
+`
+
+type UpsertSSOUserParams struct {
+	Login string
+	Role  string
+}
+
+type UpsertSSOUserRow struct {
+	ID    int64
+	Login string
+	Role  string
+}
+
+// Учётка из внешнего провайдера: пароля нет (хеш не распознаётся), роль обновляется при каждом входе.
+func (q *Queries) UpsertSSOUser(ctx context.Context, arg UpsertSSOUserParams) (UpsertSSOUserRow, error) {
+	row := q.db.QueryRow(ctx, upsertSSOUser, arg.Login, arg.Role)
+	var i UpsertSSOUserRow
+	err := row.Scan(&i.ID, &i.Login, &i.Role)
+	return i, err
+}

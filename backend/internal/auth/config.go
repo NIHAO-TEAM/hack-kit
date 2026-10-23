@@ -16,10 +16,13 @@ type Config struct {
 	CookieSecure bool
 	// TrustedProxy разрешает брать IP клиента из X-Forwarded-For.
 	TrustedProxy bool
+	// OIDC — вход через внешнего провайдера (Keycloak); без Issuer и ClientID SSO выключен.
+	OIDC OIDCConfig
 }
 
 // ConfigFromEnv читает ADMIN_LOGIN, ADMIN_PASSWORD, DEMO_{MARKETER,ANALYST,JURY}_PASSWORD,
-// METRICS_TOKEN, SOURCE_TOKEN, COOKIE_SECURE, TRUSTED_PROXY.
+// METRICS_TOKEN, SOURCE_TOKEN, COOKIE_SECURE, TRUSTED_PROXY, OIDC_ISSUER_URL, OIDC_CLIENT_ID,
+// OIDC_CLIENT_SECRET, OIDC_REDIRECT_URL.
 func ConfigFromEnv() Config {
 	return Config{
 		AdminLogin:    os.Getenv("ADMIN_LOGIN"),
@@ -33,5 +36,11 @@ func ConfigFromEnv() Config {
 		SourceToken:  os.Getenv("SOURCE_TOKEN"),
 		CookieSecure: os.Getenv("COOKIE_SECURE") == "true",
 		TrustedProxy: os.Getenv("TRUSTED_PROXY") == "true",
+		OIDC: OIDCConfig{
+			Issuer:       os.Getenv("OIDC_ISSUER_URL"),
+			ClientID:     os.Getenv("OIDC_CLIENT_ID"),
+			ClientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
+			RedirectURL:  os.Getenv("OIDC_REDIRECT_URL"),
+		},
 	}
 }
