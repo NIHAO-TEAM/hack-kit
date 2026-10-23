@@ -1,0 +1,113 @@
+# .github/workflows/deploy.yml
+#
+# Выкат на прод (Compose + Caddy, deploy/): после зелёного CI на main или вручную.
+# Образ собирается на сервере и тегируется sha; проверка https://<домен>/healthz,
+# не прошла — возврат на прошлый тег и красный job.
+#
+# Нужны (заводят люди): секрет DEPLOY_SSH_KEY, переменные репозитория PROD_HOST, PROD_USER, PROD_DOMAIN.
+# Пароли и токены прода создаются на сервере (deploy/bootstrap.sh) и сюда не попадают.
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Только push в main этого репозитория: PR из форка с веткой main сюда не попадает.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PROD_HOST: ${{ vars.PROD_HOST }}
+      PROD_USER: ${{ vars.PROD_USER }}
+      PROD_DOMAIN: ${{ vars.PROD_DOMAIN }}
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+    steps:
+      - name: Проверка настроек
+        run: |
+          for v in PROD_HOST PROD_USER PROD_DOMAIN; do
+            if [ -z "${!v}" ]; then echo "::error::не задана переменная репозитория $v"; exit 1; fi
+          done
+          if [ -z "${{ secrets.DEPLOY_SSH_KEY != '' && 'yes' || '' }}" ]; then
+            echo "::error::не задан секрет DEPLOY_SSH_KEY"; exit 1
+          fi
+
+      - name: SSH-ключ
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 15 "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Выкат
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$PROD_USER@$PROD_HOST" \
+            "SHA='$SHA' REPO_URL='$REPO_URL' PROD_DOMAIN='$PROD_DOMAIN' bash -s" <<'REMOTE'
+          set -euo pipefail
+          APP_DIR="$HOME/churn"
+          SRC="$APP_DIR/src"
+          mkdir -p "$APP_DIR"
+          if [ ! -d "$SRC/.git" ]; then git clone --quiet "$REPO_URL" "$SRC"; fi
+          git -C "$SRC" fetch --quiet origin "$SHA" || git -C "$SRC" fetch --quiet origin
+          git -C "$SRC" checkout --quiet --force "$SHA"
+
+          export PROD_DOMAIN APP_DIR
+          bash "$SRC/deploy/bootstrap.sh"
+
+          prev="$(cat "$APP_DIR/current_tag" 2>/dev/null || true)"
+          export ENV_FILE="$APP_DIR/.env"
+          compose() { docker compose -f "$SRC/deploy/docker-compose.prod.yml" --env-file "$ENV_FILE" "$@"; }
+
+          wait_healthy() {
+            local limit="$1" i=0
+            while [ "$i" -lt "$limit" ]; do
+              if curl -fsS --max-time 5 "https://$PROD_DOMAIN/healthz" >/dev/null 2>&1; then return 0; fi
+              sleep 5; i=$((i + 5))
+            done
+            return 1
+          }
+
+          export APP_TAG="$SHA"
+          # Первый выкат дольше: сборка, выпуск сертификата.
+          limit=120; [ -z "$prev" ] && limit=300
+          # Ошибка самого `compose up` (например, app не стал healthy) тоже ведёт к откату.
+          if compose up -d --build --remove-orphans && wait_healthy "$limit"; then
+            echo "$SHA" > "$APP_DIR/current_tag"
+            # Храним два последних образа приложения.
+            docker images churn-app --format '{{.Tag}}' | grep -v -x -e "$SHA" -e "$prev" -e latest \
+              | xargs -r -I{} docker rmi "churn-app:{}" >/dev/null 2>&1 || true
+            echo "выкачено: $SHA"
+            exit 0
+          fi
+
+          echo "::error::выкат $SHA не прошёл: compose up упал или /healthz не отвечает"
+          if [ -n "$prev" ] && docker image inspect "churn-app:$prev" >/dev/null 2>&1; then
+            echo "возвращаю прошлую версию $prev"
+            APP_TAG="$prev" compose up -d --no-build --remove-orphans || true
+          fi
+          exit 1
+          REMOTE
+
+      - name: Убрать ключ
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
