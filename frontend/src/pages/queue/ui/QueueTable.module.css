@@ -49,6 +49,7 @@
 
 .row {
   cursor: pointer;
+  transition: background-color 0.6s ease-out;
 }
 
 .row:hover {
@@ -156,5 +157,17 @@
 @media (width > 64em) {
   .wide {
     min-width: 12rem;
+  }
+}
+
+/* Подсветка изменившейся строки: после .row и медиазапроса, чтобы перекрыть фон карточки. */
+.row[data-changed='true'] {
+  background: var(--changed-tint);
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
   }
 }
