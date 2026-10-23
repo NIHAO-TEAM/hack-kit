@@ -1,5 +1,5 @@
 import { HttpResponse, http } from 'msw';
-import type { components } from '../schema.gen';
+import type { components } from '@shared/api';
 import data from './data.json';
 
 type User = components['schemas']['User'];

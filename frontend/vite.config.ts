@@ -14,7 +14,12 @@ export default defineConfig({
     react(),
   ],
   resolve: {
-    alias: { '~': fileURLToPath(new URL('./src', import.meta.url)) },
+    alias: Object.fromEntries(
+      ['app', 'pages', 'widgets', 'features', 'entities', 'shared'].map((layer) => [
+        `@${layer}`,
+        fileURLToPath(new URL(`./src/${layer}`, import.meta.url)),
+      ]),
+    ),
   },
   server: {
     proxy: { '/api': 'http://localhost:8080' },
