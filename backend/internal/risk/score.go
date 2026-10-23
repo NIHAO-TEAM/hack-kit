@@ -136,11 +136,22 @@ func actionResults(s Snapshot, st Settings, asOf time.Time, a Account, c Custome
 	fs []Feature, cs []Check, as []Action) []ActionResult {
 	out := []ActionResult{}
 	ctx := CustomerCtx{Account: a, Customer: c, Funds: funds}
+	for _, sv := range s.Services {
+		if sv.OwnerID == a.ID {
+			ctx.Services = append(ctx.Services, sv)
+		}
+	}
 	for _, act := range as {
 		if !act.Applies(ctx) {
 			continue
 		}
-		after := scoreOne(act.Apply(s, a.ID), a.ID, st, asOf, fs, cs)
+		var applied Snapshot
+		if sa, ok := act.(settingsAction); ok {
+			applied = sa.ApplyWith(s, a.ID, st)
+		} else {
+			applied = act.Apply(s, a.ID)
+		}
+		after := scoreOne(applied, a.ID, st, asOf, fs, cs)
 		out = append(out, ActionResult{
 			ID:             act.ID(),
 			Title:          act.Title(ctx),
@@ -150,6 +161,8 @@ func actionResults(s Snapshot, st Settings, asOf time.Time, a Account, c Custome
 			LevelAfter:     after.Level,
 		})
 	}
+	// первое — главное действие: наибольшее снижение потери (правило 9)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].LossDeltaCents < out[j].LossDeltaCents })
 	return out
 }
 

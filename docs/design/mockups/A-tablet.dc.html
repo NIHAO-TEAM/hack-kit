@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>A · Дежурный — планшет, тёмная</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#E7EAEE}a:hover{color:#9AA3AD}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; background: #0F1215; color: #E7EAEE; min-height: 1180px; box-sizing: border-box">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid #262C33; background: #161A1F">
+    <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 15px">КОНТУР/УДЕРЖАНИЕ</div>
+    <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9AA3AD">19.10 18:00 · v12</span>
+  </header>
+  <nav style="display: flex; gap: 0; border-bottom: 1px solid #262C33">
+    <a href="#" style="flex: 1; text-align: center; padding: 14px; min-height: 44px; box-sizing: border-box; text-decoration: none; font-weight: 600; border-bottom: 2px solid #F0B44C">Очередь</a>
+    <a href="#" style="flex: 1; text-align: center; padding: 14px; min-height: 44px; box-sizing: border-box; text-decoration: none; color: #9AA3AD">Сводка</a>
+  </nav>
+
+  <main style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px">
+    <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div style="background: #161A1F; border: 1px solid #262C33; padding: 14px 16px">
+        <div style="font-size: 13px; color: #9AA3AD">Ожидаемая потеря, 30 дн</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700; margin-top: 4px">3 879,73 €</div>
+      </div>
+      <div style="background: #161A1F; border: 1px solid #262C33; padding: 14px 16px">
+        <div style="font-size: 13px; color: #9AA3AD">Под угрозой</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 500; margin-top: 4px">6 900,46 €</div>
+      </div>
+    </section>
+
+    <section aria-label="Табло" style="border: 1px solid #5C4518; background: #1E1A12; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: #F0B44C">ТАБЛО · УДАЛИТ БИЛЛИНГ ЗА 5 ДНЕЙ</div>
+      <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap">
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 700; color: #FF6B5E">00д 00ч 30м</div>
+        <div style="font-size: 14px">№1 · почасовой сервер, автопродление выкл.</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap">
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 700; color: #F0B44C">02д 07ч 00м</div>
+        <div style="font-size: 14px">№1001 · стенд, ждёт оплаты</div>
+      </div>
+    </section>
+
+    <h1 style="margin: 4px 0 0; font-size: 18px; font-weight: 600">Очередь · по ожидаемой потере</h1>
+
+    <article style="background: #161A1F; border: 1px solid #262C33; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; color: #9AA3AD">№9</span>
+        <span style="font-size: 15px">user-0009@example.test</span>
+        <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700">3 459,27 €</span>
+      </div>
+      <div style="display: flex; gap: 16px; font-size: 13px; color: #9AA3AD; flex-wrap: wrap; font-family: 'JetBrains Mono', monospace">
+        <span>скор 88 · ВЫСОКИЙ</span><span>баланс 915,06 €</span><span>пополнено 2 698,95 €</span>
+      </div>
+      <div style="font-size: 15px">Не хватает 529,84 € на 7 дней</div>
+      <button style="font: inherit; font-size: 15px; min-height: 44px; padding: 10px 14px; background: #E7EAEE; color: #0F1215; border: 0; border-radius: 4px; align-self: flex-start">Пополнить на 529,84 € · <span style="color: #0B6B5A; font-weight: 600">−1 067,48 €</span></button>
+    </article>
+
+    <article style="background: #161A1F; border: 1px solid #5C4518; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; color: #9AA3AD">№1</span>
+        <span style="font-size: 15px">user-0001@example.test</span>
+        <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700">383,15 €</span>
+      </div>
+      <div style="display: flex; gap: 16px; font-size: 13px; color: #9AA3AD; flex-wrap: wrap; font-family: 'JetBrains Mono', monospace">
+        <span>скор 56 · СРЕДНИЙ</span><span>баланс 838,10 €</span><span>пополнено 969,22 €</span>
+      </div>
+      <div style="font-size: 15px">Автопродление выкл., истекает через 30 мин</div>
+      <button style="font: inherit; font-size: 15px; min-height: 44px; padding: 10px 14px; background: #E7EAEE; color: #0F1215; border: 0; border-radius: 4px; align-self: flex-start">Письмо «включите автопродление» · <span style="color: #0B6B5A; font-weight: 600">−365,29 €</span></button>
+    </article>
+
+    <section aria-label="Пусто" style="border: 1px dashed #3A424B; padding: 24px 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: #9AA3AD">В РАБОТЕ У ВАС</div>
+      <div style="font-size: 16px">Пусто. Возьмите клиента из очереди — он появится здесь до ответа.</div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9AA3AD">0 в работе · 0 € спасено сегодня</div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":820,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
