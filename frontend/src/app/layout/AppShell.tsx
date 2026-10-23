@@ -1,12 +1,4 @@
-import {
-  AppShell as MantineShell,
-  Burger,
-  Button,
-  Group,
-  NavLink,
-  Text,
-  Title,
-} from '@mantine/core';
+import { AppShell as MantineShell, Burger, Button, Group, NavLink, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
@@ -63,9 +55,9 @@ export function AppShell() {
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group wrap="nowrap">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Меню" />
-            <Title order={1} size="h4">
+            <Text fw={700} size="lg" component="div">
               Контур удержания
-            </Title>
+            </Text>
           </Group>
           <Group wrap="nowrap">
             <Text size="sm">{user.login}</Text>
