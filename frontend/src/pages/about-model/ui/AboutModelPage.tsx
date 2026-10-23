@@ -53,7 +53,12 @@ export function AboutModelPage() {
         <Title order={2} size="h3">
           Признаки и веса
         </Title>
-        <Table.ScrollContainer minWidth={560}>
+        <Table.ScrollContainer
+          minWidth={560}
+          scrollAreaProps={{
+            viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Признаки модели' },
+          }}
+        >
           <Table>
             <Table.Thead>
               <Table.Tr>
@@ -115,7 +120,16 @@ export function AboutModelPage() {
         <Text>
           У услуги 9 сработали пять признаков. Ниже — значение каждого признака и его вес.
         </Text>
-        <Table.ScrollContainer minWidth={420}>
+        <Table.ScrollContainer
+          minWidth={420}
+          scrollAreaProps={{
+            viewportProps: {
+              tabIndex: 0,
+              role: 'region',
+              'aria-label': 'Пример: значения признаков',
+            },
+          }}
+        >
           <Table>
             <Table.Thead>
               <Table.Tr>

@@ -12,6 +12,10 @@ type FieldError struct {
 	Message string
 }
 
+// maxMoneyCents — предел любой суммы снимка: 10 млн евро в центах. Выше платежи на горизонт
+// (цена × число списаний) по всем услугам переполняют int64 и дают отрицательные потери.
+const maxMoneyCents = 1_000_000_000
+
 // maxErrors — сколько ошибок возвращается в errors[].
 const maxErrors = 100
 
@@ -63,6 +67,8 @@ func Validate(s *Snapshot) []FieldError {
 		} {
 			if v < 0 {
 				e.add(p+"."+name, "отрицательная сумма %d", v)
+			} else if v > maxMoneyCents {
+				e.add(p+"."+name, "сумма %d больше предела %d", v, maxMoneyCents)
 			}
 		}
 		if !bonusStates[a.BonusState] {
@@ -90,6 +96,8 @@ func Validate(s *Snapshot) []FieldError {
 		}
 		if v.Price < 0 {
 			e.add(p+".price", "отрицательная сумма %d", v.Price)
+		} else if v.Price > maxMoneyCents {
+			e.add(p+".price", "сумма %d больше предела %d", v.Price, maxMoneyCents)
 		}
 		if v.ExpiresAt.Before(v.CreatedAt) {
 			e.add(p+".expiresAt", "раньше createdAt")

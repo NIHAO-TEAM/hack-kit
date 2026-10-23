@@ -35,4 +35,84 @@ func TestQualityOrganizers(t *testing.T) {
 	if got := res.Summary.QualityCounts["ошибка данных: в ожидании оплаты дольше 5 дней"]; got != 6 {
 		t.Errorf("ошибка данных: в ожидании оплаты дольше 5 дней: %d, ждали 6 (%v)", got, res.Summary.QualityCounts)
 	}
+	if got := res.Summary.QualityCounts["заблокирована, срок в будущем"]; got != 3 {
+		t.Errorf("заблокирована, срок в будущем: %d, ждали 3 (%v)", got, res.Summary.QualityCounts)
+	}
+	for _, c := range res.Checks {
+		if c.ID == "blocked_future" && (c.OK || c.Count != 3) {
+			t.Errorf("проверка blocked_future: %+v", c)
+		}
+	}
+}
+
+// blocked со сроком в будущем не живая услуга, но проверка качества её видит; скор и деньги не меняются.
+func TestQualityBlockedFutureOutsideScore(t *testing.T) {
+	day := 24 * time.Hour
+	base := Snapshot{
+		AsOf:     asOfT,
+		Accounts: []Account{{ID: 1, Balance: 5000}, {ID: 2, Balance: 5000}},
+		Services: []Service{
+			{ID: 10, OwnerID: 1, PaymentTerm: "month", AutoProlong: true, Status: StatusActive,
+				ExpiresAt: asOfT.Add(40 * day), Price: 900},
+			{ID: 20, OwnerID: 2, PaymentTerm: "month", Status: StatusBlocked,
+				ExpiresAt: asOfT.Add(5 * day), Price: 700},
+		},
+	}
+	with := Score(base, Defaults(), asOfT)
+	if got := with.Summary.QualityCounts["заблокирована, срок в будущем"]; got != 1 {
+		t.Errorf("blocked_future: %d, ждали 1 (%v)", got, with.Summary.QualityCounts)
+	}
+	if q := with.Customers[1].Quality; len(q) != 1 || q[0].ServiceID != 20 {
+		t.Errorf("флаг у клиента 2: %+v", q)
+	}
+
+	// та же услуга с прошедшим сроком: флага нет, а скор, уровни, деньги совпадают
+	past := base
+	past.Services = append([]Service(nil), base.Services...)
+	past.Services[1].ExpiresAt = asOfT.Add(-day)
+	without := Score(past, Defaults(), asOfT)
+	if without.Summary.QualityCounts["заблокирована, срок в будущем"] != 0 {
+		t.Errorf("срок в прошлом: %v", without.Summary.QualityCounts)
+	}
+	for i := range with.Customers {
+		a, b := with.Customers[i], without.Customers[i]
+		if a.State != b.State || a.ExpectedLossCents != b.ExpectedLossCents || a.ExposureCents != b.ExposureCents ||
+			len(a.Services) != len(b.Services) {
+			t.Errorf("клиент %d: скор или деньги изменились: %+v / %+v", a.ID, a, b)
+		}
+	}
+	if with.Summary.Levels[StateLost] != 1 {
+		t.Errorf("уровни: %v", with.Summary.Levels)
+	}
+}
+
+func TestChecksResult(t *testing.T) {
+	var snap Snapshot
+	readJSON(t, "../../../cases/analizator/data.json", &snap)
+	res := Score(snap, Defaults(), ts("2026-10-19T15:00:00Z"))
+	if len(res.Checks) != 3 {
+		t.Fatalf("проверок: %+v", res.Checks)
+	}
+	byID := map[string]CheckResult{}
+	for _, c := range res.Checks {
+		byID[c.ID] = c
+	}
+	st := byID["stale_status"]
+	if st.OK || st.Count != 6 || len(st.Items) != 6 || st.Message != "6 услуг в ожидании оплаты дольше 5 дней" {
+		t.Errorf("stale_status: %+v", st)
+	}
+	if st.Items[0].ServiceID == 0 || st.Items[0].AccountID == 0 {
+		t.Errorf("пустой элемент: %+v", st.Items[0])
+	}
+	if c := byID["blocked_future"]; !c.OK && c.Count == 0 || c.OK && c.Message != "Нет услуг в статусе «заблокирована» со сроком в будущем" {
+		t.Errorf("blocked_future: %+v", c)
+	}
+}
+
+func TestServicesWord(t *testing.T) {
+	for n, want := range map[int]string{1: "услуга", 2: "услуги", 5: "услуг", 11: "услуг", 21: "услуга", 12: "услуг", 24: "услуги"} {
+		if got := servicesWord(n); got != want {
+			t.Errorf("%d: %s", n, got)
+		}
+	}
 }

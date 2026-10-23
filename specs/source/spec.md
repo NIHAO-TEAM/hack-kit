@@ -57,3 +57,69 @@
 - WHEN система перезапускается с уже загруженным снимком
 - THEN снимок и его версия не меняются
 - Тест: `TestSeed`
+
+### Requirement: данные из REST
+
+Система SHALL при заданном `BILLING_URL` раз в `BILLING_POLL_SECONDS` забирать снимок той же формы, что `data.json`, с `Authorization: Bearer BILLING_TOKEN`, и писать его с `source = api`, если тело изменилось.
+
+#### Scenario: биллинг изменил данные
+
+- WHEN биллинг отдаёт снимок с новым балансом клиента 9
+- THEN через интервал опроса очередь пересчитана без действий пользователя
+- Тест: `TestPollWritesNewSnapshotAndSkipsSame`
+
+#### Scenario: тело не менялось
+
+- WHEN биллинг отдаёт то же тело
+- THEN новый снимок не пишется, версия прежняя
+- Тест: `TestPollWritesNewSnapshotAndSkipsSame`
+
+### Requirement: сбой источника не стирает данные
+
+#### Scenario: биллинг недоступен или отдал плохой снимок
+
+- WHEN биллинг отвечает 502, битым JSON или снимком, не прошедшим проверку
+- THEN данные, версия и `asOf` прежние, `churn_billing_poll_errors_total` растёт, `polling.lastError` заполнен; экран пишет «данные от HH:MM»
+- Тест: `TestPollFailureKeepsDataAndCountsErrors`, `TestMetricsCountPollErrors`
+
+### Requirement: ручная загрузка главнее опроса
+
+#### Scenario: пауза после ручного PUT
+
+- WHEN аналитик загрузил снимок через `PUT /api/v1/source/snapshot`
+- THEN `polling.paused = true`, опрос биллинг не трогает; после `PUT /api/v1/source/polling {paused:false}` ближайший опрос возвращает данные биллинга
+- Тест: `TestManualPutPausesPollingUntilResumed`
+
+#### Scenario: опрос не настроен
+
+- WHEN `BILLING_URL` пуст
+- THEN в статусе нет `polling`, `PUT /api/v1/source/polling` отвечает 404, маркетолог получает 403
+- Тест: `TestPollingEndpointWithoutAdapterIs404`
+
+### Requirement: чужой снимок не ломает стенд
+
+Система SHALL на любой снимок отвечать либо приёмом с согласованными числами, либо ошибкой (400 — тело не JSON и не форма снимка, 422 — ошибки полей), оставляя прежние данные.
+
+#### Scenario: случайный вход
+
+- WHEN в `PUT /source/snapshot` приходит произвольный байтовый поток
+- THEN разбор и проверка не падают; ответ 200, 400 или 422; принятый снимок проходит модель без паники, с согласованными числами; при 400 и 422 данные прежние
+- Тест: `FuzzParseSnapshot`, `FuzzScoreAcceptedSnapshot`, `TestPutSnapshotInvalidKeepsOld`
+
+#### Scenario: сумма выше предела
+
+- WHEN в снимке сумма (баланс, вывод, пополнения, бонус или цена услуги) больше 1 000 000 000 центов
+- THEN ответ 422 с ошибкой поля; иначе платежи на горизонт переполнили бы int64 и дали отрицательные потери
+- Тест: `TestValidateMoneyLimit`
+
+#### Scenario: крайний набор
+
+- WHEN загружен пустой снимок, снимок только из удалённых услуг, без платежей, с нулевыми ценами, датами в будущем или только почасовыми услугами
+- THEN сумма потерь очереди равна сводке и `/metrics`, скор каждого клиента в [0, 100] процентов или `null`, отрицательных потерь нет
+- Тест: `TestEdgeSnapshotsConsistent`
+
+#### Scenario: большой снимок
+
+- WHEN загружен снимок на 10 000 аккаунтов
+- THEN стенд принимает его и пересчитывает за порядка секунды; время и память — в `docs/load/2026-10-23-large-snapshot.md`
+- Тест: `TestLargeSnapshotLoad` (теги `integration load`), `TestScoreScalesWithAccounts`

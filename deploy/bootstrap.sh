@@ -90,3 +90,28 @@ for key in GRAFANA_ADMIN_PASSWORD GRAFANA_JURY_PASSWORD; do
     echo "$key добавлен в .env"
   fi
 done
+
+# 5. SSO (Keycloak): только если хватает памяти (>= 3,5 ГБ) и ещё не включён. Значения не печатаются.
+mem_kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+if grep -q '^COMPOSE_PROFILES=.*sso' "$ENV_FILE"; then
+  echo "SSO уже включён"
+elif grep -q '^OIDC_ISSUER_URL=' "$ENV_FILE"; then
+  echo "SSO настроен вручную, не трогаю"
+elif [ "$mem_kb" -ge 3670016 ]; then
+  umask 077
+  gen() { openssl rand -hex 16; }
+  cat >> "$ENV_FILE" <<ENV
+COMPOSE_PROFILES=sso
+KC_ADMIN_PASSWORD=$(gen)
+KC_SECURE_PASSWORD=$(gen)
+KC_SECURE_TOTP_SECRET=$(gen)
+OIDC_CLIENT_ID=panel
+OIDC_CLIENT_SECRET=$(gen)
+OIDC_ISSUER_URL=https://$PROD_DOMAIN/sso/realms/churn
+OIDC_DISCOVERY_URL=http://keycloak:8080/sso/realms/churn
+OIDC_REDIRECT_URL=https://$PROD_DOMAIN/api/v1/auth/oidc/callback
+ENV
+  echo "SSO включён: Keycloak на /sso (админка закрыта в Caddy)"
+else
+  echo "SSO не включён: памяти ${mem_kb} КБ меньше 3,5 ГБ (вход по паролю работает)"
+fi

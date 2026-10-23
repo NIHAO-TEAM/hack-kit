@@ -41,21 +41,56 @@ services:
       timeout: 3s
       retries: 5
 
-  # Метрики: порты не публикуются, доступен только внутри сети Compose.
+  # Профиль sso включается в .env (COMPOSE_PROFILES=sso), если VM хватает памяти: bootstrap.sh.
+  # Наружу не публикуется: Caddy проксирует /sso, админка и master-realm закрыты там же.
+  keycloak:
+    profiles: [sso]
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start", "--import-realm"]
+    environment:
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /sso
+      KC_HOSTNAME: https://${PROD_DOMAIN:?нет PROD_DOMAIN в .env}/sso
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: kcadmin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-}
+      KC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      KC_SECURE_PASSWORD: ${KC_SECURE_PASSWORD:-}
+      KC_SECURE_TOTP_SECRET: ${KC_SECURE_TOTP_SECRET:-}
+      PROD_DOMAIN: ${PROD_DOMAIN}
+      JAVA_OPTS_KC_HEAP: -Xms256m -Xmx768m
+    volumes:
+      - ./keycloak/churn-realm.json:/opt/keycloak/data/import/churn-realm.json:ro
+      - kcdata:/opt/keycloak/data
+    expose:
+      - "8080"
+    # Для Traefik из k3s: только на адрес docker0 (COMPANIONS_BIND), снаружи порт закрыт.
+    ports:
+      - "${COMPANIONS_BIND:-127.0.0.1}:18080:8080"
+
+  # Метрики: наружу не публикуются, только на COMPANIONS_BIND (диагностика).
   prometheus:
     image: prom/prometheus:v2.55.1
     restart: unless-stopped
     environment:
       METRICS_TOKEN: ${METRICS_TOKEN:?нет METRICS_TOKEN в .env}
+      # Что опрашивать: в Compose — app:8080 по http; на k3s — https://<домен> через Traefik (.env).
+      METRICS_TARGET: ${METRICS_TARGET:-app:8080}
+      METRICS_SCHEME: ${METRICS_SCHEME:-http}
     # Токен сборщика пишется в файл при старте: в конфиге и в образе его нет.
     entrypoint:
       - /bin/sh
       - -c
-      - umask 077 && printf '%s' "$$METRICS_TOKEN" > /tmp/metrics_token && exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d
+      - umask 077 && printf '%s' "$$METRICS_TOKEN" > /tmp/metrics_token && sed -e "s|__METRICS_TARGET__|$$METRICS_TARGET|" -e "s|__METRICS_SCHEME__|$$METRICS_SCHEME|" /etc/prometheus/prometheus.yml.tpl > /tmp/prometheus.yml && exec /bin/prometheus --config.file=/tmp/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d
     expose:
       - "9090"
+    ports:
+      - "${COMPANIONS_BIND:-127.0.0.1}:19090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml.tpl:ro
       - ./prometheus/rules.yml:/etc/prometheus/rules.yml:ro
       - promdata:/prometheus
     depends_on:
@@ -75,6 +110,8 @@ services:
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     expose:
       - "3000"
+    ports:
+      - "${COMPANIONS_BIND:-127.0.0.1}:13000:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -116,6 +153,19 @@ services:
       timeout: 5s
       retries: 3
 
+  # Имитация REST-биллинга для опроса (BILLING_URL=http://mock-billing:8081/snapshot.json).
+  # Отдаёт файл набора организаторов; Authorization не проверяет. Включается профилем billing:
+  #   COMPOSE_PROFILES=billing. Адаптер под наш контракт: формат API aéza неизвестен.
+  mock-billing:
+    image: busybox:1.37
+    profiles: ["billing"]
+    restart: unless-stopped
+    command: ["httpd", "-f", "-p", "8081", "-h", "/srv"]
+    volumes:
+      - ../backend/internal/source/seed/organizers.json:/srv/snapshot.json:ro
+    expose:
+      - "8081"
+
 volumes:
   pgdata:
   promdata:
@@ -123,3 +173,4 @@ volumes:
   # Не пересоздавать caddy_data: там сертификат (лимит Let's Encrypt — 5 в неделю на домен).
   caddy_data:
   caddy_config:
+  kcdata:

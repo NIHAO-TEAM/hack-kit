@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"example.com/app/internal/analytics"
+	"example.com/app/internal/audit"
 	"example.com/app/internal/auth"
 	"example.com/app/internal/model"
 	"example.com/app/internal/platform/api/gen"
@@ -57,6 +58,7 @@ type server struct {
 	*analytics.AnalyticsAPI
 	*model.ModelAPI
 	*docs.DocsAPI
+	*audit.AuditAPI
 }
 
 // Healthz, Version, Ping и PingHead — служебные операции платформы без префикса /api/v1.
@@ -73,20 +75,55 @@ func problemOnBadRequest(w http.ResponseWriter, r *http.Request, err error) {
 	httpx.WriteProblem(w, r, http.StatusBadRequest, err.Error())
 }
 
+// Option донастраивает сервер.
+type Option func(*options)
+
+type options struct{ billing *source.Adapter }
+
+// WithBilling подключает опрос REST-биллинга: статус, пауза после ручной загрузки, метрики.
+func WithBilling(a *source.Adapter) Option { return func(o *options) { o.billing = a } }
+
 // Routes собирает маршруты контракта. pool может быть nil (тесты без базы): пока модули —
 // заглушки, они базой не пользуются.
-func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) *http.ServeMux {
+func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed, opts ...Option) *http.ServeMux {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 	mux := http.NewServeMux()
 	var settings *model.Store
 	if pool != nil {
 		settings = model.NewStore(pool, bus, ValidateSettings)
 	}
+	// Журнал пишут auth, model и source через audit.Recorder; без базы журнала нет.
+	var journal *audit.Service
+	var rec audit.Recorder
+	if pool != nil {
+		journal = audit.New(pool, clk).WithActor(auth.LoginFrom)
+		rec = journal
+		authAPI.WithAudit(rec)
+	}
+	src := source.New(pool, bus, clk)
+	if c, ok := feed.(qualityChecker); ok {
+		src.WithChecks(c.QualityChecks)
+	}
+	mod := model.New(settings, modelPorts(pool), clk)
+	if rec != nil {
+		src.WithAudit(rec)
+		mod.WithAudit(rec)
+	}
+	analyticsAPI := newAnalytics(pool, bus, clk, feed)
+	if o.billing != nil {
+		src.WithAdapter(o.billing)
+		analyticsAPI.WithCollectors(o.billing.Collectors()...)
+	}
 	gen.HandlerWithOptions(server{
 		AuthAPI:      authAPI,
-		SourceAPI:    source.New(pool, bus, clk),
-		AnalyticsAPI: newAnalytics(pool, bus, clk, feed),
-		ModelAPI:     model.New(settings, modelPorts(pool), clk),
+		SourceAPI:    src,
+		AnalyticsAPI: analyticsAPI,
+		ModelAPI:     mod,
 		DocsAPI:      docs.New(),
+		AuditAPI:     audit.NewAPI(journal),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
 	mux.Handle("GET /api/v1/docs/assets/", docs.Assets())
 	mux.Handle("GET /", webui.Handler())
@@ -109,9 +146,14 @@ func WithRequestID(next http.Handler) http.Handler {
 }
 
 // New собирает полный обработчик: защитные заголовки, идентификатор запроса, проверка сессии, маршруты.
-func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) http.Handler {
-	mux := Routes(pool, bus, clk, authAPI, feed)
+func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed, opts ...Option) http.Handler {
+	mux := Routes(pool, bus, clk, authAPI, feed, opts...)
 	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, mux)))
+}
+
+// qualityChecker — источник проверок качества данных для /source/status; его реализует воркер пересчёта.
+type qualityChecker interface {
+	QualityChecks(version int64) []gen.QualityCheck
 }
 
 // overviewer — источник сводки; воркер пересчёта и тестовый стенд его реализуют.

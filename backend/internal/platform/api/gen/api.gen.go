@@ -39,6 +39,19 @@ const (
 	Unlocked AccountBonusState = "unlocked"
 )
 
+// Defines values for AuditEntryAction.
+const (
+	AccountChanged  AuditEntryAction = "accountChanged"
+	EmulatorActions AuditEntryAction = "emulatorActions"
+	EmulatorTick    AuditEntryAction = "emulatorTick"
+	Login           AuditEntryAction = "login"
+	LoginFailed     AuditEntryAction = "loginFailed"
+	Logout          AuditEntryAction = "logout"
+	ServiceChanged  AuditEntryAction = "serviceChanged"
+	SettingsChanged AuditEntryAction = "settingsChanged"
+	SnapshotLoaded  AuditEntryAction = "snapshotLoaded"
+)
+
 // Defines values for ModelSettingsAsOfMode.
 const (
 	ModelSettingsAsOfModeServer   ModelSettingsAsOfMode = "server"
@@ -169,6 +182,43 @@ type ActionBrief struct {
 	EffectCents int64  `json:"effectCents"`
 	Id          string `json:"id"`
 	Title       string `json:"title"`
+}
+
+// AuditChange defines model for AuditChange.
+type AuditChange struct {
+	// Field Что поменялось (например, weights.noauto)
+	Field string `json:"field"`
+
+	// From Значение до правки, текстом
+	From string `json:"from"`
+
+	// To Значение после правки, текстом
+	To string `json:"to"`
+}
+
+// AuditEntry defines model for AuditEntry.
+type AuditEntry struct {
+	Action AuditEntryAction `json:"action"`
+
+	// Actor Логин того, кто действовал; при неудачном входе — введённый логин
+	Actor string    `json:"actor"`
+	At    time.Time `json:"at"`
+
+	// Changes Что было и что стало; пусто, если запись без правок значений
+	Changes []AuditChange `json:"changes"`
+	Id      int64         `json:"id"`
+
+	// Summary Запись простыми словами
+	Summary string `json:"summary"`
+}
+
+// AuditEntryAction defines model for AuditEntry.Action.
+type AuditEntryAction string
+
+// AuditPage defines model for AuditPage.
+type AuditPage struct {
+	Items []AuditEntry `json:"items"`
+	Total int          `json:"total"`
 }
 
 // ChurnChart defines model for ChurnChart.
@@ -354,9 +404,18 @@ type Problem struct {
 
 // QualityCheck defines model for QualityCheck.
 type QualityCheck struct {
-	Id      string  `json:"id"`
-	Message *string `json:"message,omitempty"`
-	Ok      bool    `json:"ok"`
+	Id string `json:"id"`
+
+	// Items Услуги, на которых проверка сработала; не больше 10.
+	Items   *[]QualityCheckItem `json:"items,omitempty"`
+	Message *string             `json:"message,omitempty"`
+	Ok      bool                `json:"ok"`
+}
+
+// QualityCheckItem defines model for QualityCheckItem.
+type QualityCheckItem struct {
+	AccountId int64 `json:"accountId"`
+	ServiceId int64 `json:"serviceId"`
 }
 
 // RiskLevel defines model for RiskLevel.
@@ -425,12 +484,35 @@ type SnapshotAccepted struct {
 	Version      int64     `json:"version"`
 }
 
+// SourcePolling Опрос REST-биллинга (BILLING_URL). Нет поля в статусе — опрос не настроен.
+type SourcePolling struct {
+	ErrorsTotal     int64 `json:"errorsTotal"`
+	IntervalSeconds int   `json:"intervalSeconds"`
+
+	// LastError Причина последнего сбоя; пусто, если последний опрос удался.
+	LastError *string `json:"lastError,omitempty"`
+
+	// LastOkAt Последний удачный опрос.
+	LastOkAt *time.Time `json:"lastOkAt,omitempty"`
+
+	// Paused Опрос на паузе (после ручной загрузки снимка), пока его не включат.
+	Paused bool `json:"paused"`
+}
+
+// SourcePollingRequest defines model for SourcePollingRequest.
+type SourcePollingRequest struct {
+	Paused bool `json:"paused"`
+}
+
 // SourceStatus defines model for SourceStatus.
 type SourceStatus struct {
 	AgeSeconds int64          `json:"ageSeconds"`
 	AsOf       *time.Time     `json:"asOf,omitempty"`
 	Checks     []QualityCheck `json:"checks"`
 	LoadedAt   time.Time      `json:"loadedAt"`
+
+	// Polling Опрос REST-биллинга (BILLING_URL). Нет поля в статусе — опрос не настроен.
+	Polling *SourcePolling `json:"polling,omitempty"`
 
 	// Source Откуда загружен текущий снимок.
 	Source  *SourceStatusSource `json:"source,omitempty"`
@@ -513,6 +595,12 @@ type Unauthorized = Problem
 // UnprocessableEntity defines model for UnprocessableEntity.
 type UnprocessableEntity = Problem
 
+// ListAuditParams defines parameters for ListAudit.
+type ListAuditParams struct {
+	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // OidcCallbackParams defines parameters for OidcCallback.
 type OidcCallbackParams struct {
 	Code  *string `form:"code,omitempty" json:"code,omitempty"`
@@ -580,6 +668,9 @@ type EmulatorActionsJSONRequestBody = EmulatorActionsRequest
 
 // EmulatorTickJSONRequestBody defines body for EmulatorTick for application/json ContentType.
 type EmulatorTickJSONRequestBody = EmulatorTickRequest
+
+// SetSourcePollingJSONRequestBody defines body for SetSourcePolling for application/json ContentType.
+type SetSourcePollingJSONRequestBody = SourcePollingRequest
 
 // PatchServiceJSONRequestBody defines body for PatchService for application/json ContentType.
 type PatchServiceJSONRequestBody = ServicePatch
@@ -666,6 +757,9 @@ type ClientInterface interface {
 	// GetSummary request
 	GetSummary(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAudit request
+	ListAudit(ctx context.Context, params *ListAuditParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// LoginWithBody request with any body
 	LoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -724,6 +818,11 @@ type ClientInterface interface {
 
 	EmulatorTick(ctx context.Context, body EmulatorTickJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// SetSourcePollingWithBody request with any body
+	SetSourcePollingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SetSourcePolling(ctx context.Context, body SetSourcePollingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PatchServiceWithBody request with any body
 	PatchServiceWithBody(ctx context.Context, id ServiceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -770,6 +869,18 @@ func (c *Client) GetChurnChart(ctx context.Context, reqEditors ...RequestEditorF
 
 func (c *Client) GetSummary(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSummaryRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAudit(ctx context.Context, params *ListAuditParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAuditRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1032,6 +1143,30 @@ func (c *Client) EmulatorTick(ctx context.Context, body EmulatorTickJSONRequestB
 	return c.Client.Do(req)
 }
 
+func (c *Client) SetSourcePollingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetSourcePollingRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SetSourcePolling(ctx context.Context, body SetSourcePollingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetSourcePollingRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) PatchServiceWithBody(ctx context.Context, id ServiceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPatchServiceRequestWithBody(c.Server, id, contentType, body)
 	if err != nil {
@@ -1208,6 +1343,71 @@ func NewGetSummaryRequest(server string) (*http.Request, error) {
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListAuditRequest generates requests for ListAudit
+func NewListAuditRequest(server string, params *ListAuditParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/audit")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -1891,6 +2091,46 @@ func NewEmulatorTickRequestWithBody(server string, contentType string, body io.R
 	return req, nil
 }
 
+// NewSetSourcePollingRequest calls the generic SetSourcePolling builder with application/json body
+func NewSetSourcePollingRequest(server string, body SetSourcePollingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetSourcePollingRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSetSourcePollingRequestWithBody generates requests for SetSourcePolling with any type of body
+func NewSetSourcePollingRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/source/polling")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewPatchServiceRequest calls the generic PatchService builder with application/json body
 func NewPatchServiceRequest(server string, id ServiceId, body PatchServiceJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2276,6 +2516,9 @@ type ClientWithResponsesInterface interface {
 	// GetSummaryWithResponse request
 	GetSummaryWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSummaryResponse, error)
 
+	// ListAuditWithResponse request
+	ListAuditWithResponse(ctx context.Context, params *ListAuditParams, reqEditors ...RequestEditorFn) (*ListAuditResponse, error)
+
 	// LoginWithBodyWithResponse request with any body
 	LoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LoginResponse, error)
 
@@ -2333,6 +2576,11 @@ type ClientWithResponsesInterface interface {
 	EmulatorTickWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EmulatorTickResponse, error)
 
 	EmulatorTickWithResponse(ctx context.Context, body EmulatorTickJSONRequestBody, reqEditors ...RequestEditorFn) (*EmulatorTickResponse, error)
+
+	// SetSourcePollingWithBodyWithResponse request with any body
+	SetSourcePollingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetSourcePollingResponse, error)
+
+	SetSourcePollingWithResponse(ctx context.Context, body SetSourcePollingJSONRequestBody, reqEditors ...RequestEditorFn) (*SetSourcePollingResponse, error)
 
 	// PatchServiceWithBodyWithResponse request with any body
 	PatchServiceWithBodyWithResponse(ctx context.Context, id ServiceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchServiceResponse, error)
@@ -2409,6 +2657,32 @@ func (r GetSummaryResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetSummaryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListAuditResponse struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON200                   *AuditPage
+	ApplicationproblemJSON400 *BadRequest
+	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON403 *Forbidden
+	ApplicationproblemJSON501 *NotImplemented
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAuditResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAuditResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2800,6 +3074,33 @@ func (r EmulatorTickResponse) StatusCode() int {
 	return 0
 }
 
+type SetSourcePollingResponse struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON200                   *SourcePolling
+	ApplicationproblemJSON400 *BadRequest
+	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON403 *Forbidden
+	ApplicationproblemJSON404 *Problem
+	ApplicationproblemJSON501 *NotImplemented
+}
+
+// Status returns HTTPResponse.Status
+func (r SetSourcePollingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetSourcePollingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type PatchServiceResponse struct {
 	Body                      []byte
 	HTTPResponse              *http.Response
@@ -3037,6 +3338,15 @@ func (c *ClientWithResponses) GetSummaryWithResponse(ctx context.Context, reqEdi
 	return ParseGetSummaryResponse(rsp)
 }
 
+// ListAuditWithResponse request returning *ListAuditResponse
+func (c *ClientWithResponses) ListAuditWithResponse(ctx context.Context, params *ListAuditParams, reqEditors ...RequestEditorFn) (*ListAuditResponse, error) {
+	rsp, err := c.ListAudit(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAuditResponse(rsp)
+}
+
 // LoginWithBodyWithResponse request with arbitrary body returning *LoginResponse
 func (c *ClientWithResponses) LoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LoginResponse, error) {
 	rsp, err := c.LoginWithBody(ctx, contentType, body, reqEditors...)
@@ -3221,6 +3531,23 @@ func (c *ClientWithResponses) EmulatorTickWithResponse(ctx context.Context, body
 	return ParseEmulatorTickResponse(rsp)
 }
 
+// SetSourcePollingWithBodyWithResponse request with arbitrary body returning *SetSourcePollingResponse
+func (c *ClientWithResponses) SetSourcePollingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetSourcePollingResponse, error) {
+	rsp, err := c.SetSourcePollingWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetSourcePollingResponse(rsp)
+}
+
+func (c *ClientWithResponses) SetSourcePollingWithResponse(ctx context.Context, body SetSourcePollingJSONRequestBody, reqEditors ...RequestEditorFn) (*SetSourcePollingResponse, error) {
+	rsp, err := c.SetSourcePolling(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetSourcePollingResponse(rsp)
+}
+
 // PatchServiceWithBodyWithResponse request with arbitrary body returning *PatchServiceResponse
 func (c *ClientWithResponses) PatchServiceWithBodyWithResponse(ctx context.Context, id ServiceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchServiceResponse, error) {
 	rsp, err := c.PatchServiceWithBody(ctx, id, contentType, body, reqEditors...)
@@ -3399,6 +3726,60 @@ func ParseGetSummaryResponse(rsp *http.Response) (*GetSummaryResponse, error) {
 			return nil, err
 		}
 		response.ApplicationproblemJSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAuditResponse parses an HTTP response from a ListAuditWithResponse call
+func ParseListAuditResponse(rsp *http.Response) (*ListAuditResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAuditResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON501 = &dest
 
 	}
 
@@ -4037,6 +4418,67 @@ func ParseEmulatorTickResponse(rsp *http.Response) (*EmulatorTickResponse, error
 	return response, nil
 }
 
+// ParseSetSourcePollingResponse parses an HTTP response from a SetSourcePollingWithResponse call
+func ParseSetSourcePollingResponse(rsp *http.Response) (*SetSourcePollingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetSourcePollingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SourcePolling
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParsePatchServiceResponse parses an HTTP response from a PatchServiceWithResponse call
 func ParsePatchServiceResponse(rsp *http.Response) (*PatchServiceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4373,6 +4815,9 @@ type ServerInterface interface {
 	// Сводка риска и ожидаемых потерь
 	// (GET /api/v1/analytics/summary)
 	GetSummary(w http.ResponseWriter, r *http.Request)
+	// Журнал действий, новые сверху (аналитик, администратор)
+	// (GET /api/v1/audit)
+	ListAudit(w http.ResponseWriter, r *http.Request, params ListAuditParams)
 	// Вход по логину и паролю (открыт)
 	// (POST /api/v1/auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -4421,6 +4866,9 @@ type ServerInterface interface {
 	// Сдвиг времени эмулятора биллинга (аналитик)
 	// (POST /api/v1/source/emulator/tick)
 	EmulatorTick(w http.ResponseWriter, r *http.Request)
+	// Включить или поставить на паузу опрос REST-биллинга (аналитик)
+	// (PUT /api/v1/source/polling)
+	SetSourcePolling(w http.ResponseWriter, r *http.Request)
 	// Правка одной услуги (аналитик)
 	// (PATCH /api/v1/source/services/{id})
 	PatchService(w http.ResponseWriter, r *http.Request, id ServiceId)
@@ -4494,6 +4942,49 @@ func (siw *ServerInterfaceWrapper) GetSummary(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSummary(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAuditParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAudit(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4916,6 +5407,28 @@ func (siw *ServerInterfaceWrapper) EmulatorTick(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// SetSourcePolling operation middleware
+func (siw *ServerInterfaceWrapper) SetSourcePolling(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetSourcePolling(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PatchService operation middleware
 func (siw *ServerInterfaceWrapper) PatchService(w http.ResponseWriter, r *http.Request) {
 
@@ -5325,6 +5838,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/analytics/churn-chart", wrapper.GetChurnChart)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/analytics/summary", wrapper.GetSummary)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/audit", wrapper.ListAudit)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/auth/login", wrapper.Login)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/auth/logout", wrapper.Logout)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/auth/me", wrapper.GetMe)
@@ -5341,6 +5855,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("PATCH "+options.BaseURL+"/api/v1/source/accounts/{id}", wrapper.PatchAccount)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/source/emulator/actions", wrapper.EmulatorActions)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/source/emulator/tick", wrapper.EmulatorTick)
+	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/source/polling", wrapper.SetSourcePolling)
 	m.HandleFunc("PATCH "+options.BaseURL+"/api/v1/source/services/{id}", wrapper.PatchService)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/source/snapshot", wrapper.PutSnapshot)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/source/status", wrapper.GetSourceStatus)
@@ -5357,108 +5872,121 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"B/3D2hfJJjeXN/83AAD//0RqyrhXigAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

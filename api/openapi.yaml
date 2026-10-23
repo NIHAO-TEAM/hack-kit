@@ -14,6 +14,7 @@ tags:
   - name: analytics
   - name: model
   - name: source
+  - name: audit
   - name: platform
 components:
   securitySchemes:
@@ -307,6 +308,21 @@ components:
           type: boolean
         message:
           type: string
+        items:
+          type: array
+          description: Услуги, на которых проверка сработала; не больше 10.
+          items:
+            $ref: "#/components/schemas/QualityCheckItem"
+    QualityCheckItem:
+      type: object
+      required: [serviceId, accountId]
+      properties:
+        serviceId:
+          type: integer
+          format: int64
+        accountId:
+          type: integer
+          format: int64
     SourceStatus:
       type: object
       required: [version, loadedAt, ageSeconds, checks]
@@ -331,6 +347,34 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/QualityCheck"
+        polling:
+          $ref: "#/components/schemas/SourcePolling"
+    SourcePolling:
+      type: object
+      description: Опрос REST-биллинга (BILLING_URL). Нет поля в статусе — опрос не настроен.
+      required: [paused, intervalSeconds, errorsTotal]
+      properties:
+        paused:
+          type: boolean
+          description: Опрос на паузе (после ручной загрузки снимка), пока его не включат.
+        intervalSeconds:
+          type: integer
+        lastOkAt:
+          type: string
+          format: date-time
+          description: Последний удачный опрос.
+        lastError:
+          type: string
+          description: Причина последнего сбоя; пусто, если последний опрос удался.
+        errorsTotal:
+          type: integer
+          format: int64
+    SourcePollingRequest:
+      type: object
+      required: [paused]
+      properties:
+        paused:
+          type: boolean
     ServicePatch:
       type: object
       properties:
@@ -454,6 +498,53 @@ components:
           type: integer
           format: int64
           description: Версия пересчёта, по которому построена страница.
+    AuditChange:
+      type: object
+      required: [field, from, to]
+      properties:
+        field:
+          type: string
+          description: Что поменялось (например, weights.noauto)
+        from:
+          type: string
+          description: Значение до правки, текстом
+        to:
+          type: string
+          description: Значение после правки, текстом
+    AuditEntry:
+      type: object
+      required: [id, at, actor, action, summary, changes]
+      properties:
+        id:
+          type: integer
+          format: int64
+        at:
+          type: string
+          format: date-time
+        actor:
+          type: string
+          description: Логин того, кто действовал; при неудачном входе — введённый логин
+        action:
+          type: string
+          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions]
+        summary:
+          type: string
+          description: Запись простыми словами
+        changes:
+          type: array
+          description: Что было и что стало; пусто, если запись без правок значений
+          items:
+            $ref: "#/components/schemas/AuditChange"
+    AuditPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntry"
+        total:
+          type: integer
     Feature:
       type: object
       required: [id, value, weight, contribution, reason]
@@ -1134,6 +1225,41 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "501":
           $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/polling:
+    put:
+      operationId: setSourcePolling
+      tags: [source]
+      summary: Включить или поставить на паузу опрос REST-биллинга (аналитик)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourcePollingRequest"
+      responses:
+        "200":
+          description: Состояние опроса
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourcePolling"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Опрос не настроен (BILLING_URL пуст)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /api/v1/source/services/{id}:
     patch:
       operationId: patchService
@@ -1272,6 +1398,43 @@ paths:
                 type: string
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/audit:
+    get:
+      operationId: listAudit
+      tags: [audit]
+      summary: Журнал действий, новые сверху (аналитик, администратор)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Страница журнала
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /metrics:

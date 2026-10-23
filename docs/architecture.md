@@ -71,3 +71,23 @@
 4. Развёртывание в кластере: Helm-чарт с `values.yaml` (изменение `helm-k3s`): образ, домен, секреты, токен метрик; Prometheus снимает `/metrics`.
 
 [ПРЕДПОЛОЖЕНО] Пункты 1, 3, 4 описывают план этапа 6: на момент записи этих изменений в `main` нет, документ обновляется вместе с ними.
+
+## Проверка входа через Keycloak
+
+Автоматически (TOTP): `e2e/tests/sso.spec.ts` против Compose с профилем `sso` или прода с Keycloak. Нужны `E2E_BASE_URL`, `E2E_SSO_PASSWORD` (`KC_SECURE_PASSWORD`) и `E2E_SSO_TOTP_SECRET` (`KC_SECURE_TOTP_SECRET`). У пользователя `secure` TOTP заведён при импорте realm, секрет — из `.env`, не из репозитория.
+
+На проде: `https://<домен>/sso/realms/churn/.well-known/openid-configuration` отвечает `200`, `/sso/admin` — `404`. Realm импортируется один раз; чтобы подхватить `KC_SECURE_TOTP_SECRET` на проде с уже созданным realm, допишите переменную в `.env` и пересоздайте том `kcdata`.
+
+Ключ доступа (WebAuthn) тестом не проверяется: в Firefox Playwright нет виртуального аутентификатора. Шаги для человека:
+
+1. Войти в Keycloak как `secure` (пароль + код TOTP) на `https://<домен>/sso/realms/churn/account`.
+2. «Вход в аккаунт» → «Беспарольный вход / ключ доступа» → добавить ключ (Touch ID, Windows Hello или ключ безопасности).
+3. Выйти, на экране входа панели нажать «Войти через SSO»; Keycloak предлагает ключ доступа вместо пароля.
+4. Подтвердить ключ — откроется очередь с ролью маркетолога.
+
+## Прод после перехода на k3s
+
+- Приложение и база — в k3s (чарт `deploy/helm/churn`), вход один: Traefik на 80/443.
+- Keycloak (`/sso`), Grafana (`/grafana`) и Prometheus остались в Compose (`deploy/docker-compose.prod.yml`): порты `18080`, `13000`, `19090` слушают только на `COMPANIONS_BIND` (адрес docker0), снаружи закрыты. В Traefik они подключены через Service без селектора и EndpointSlice (`templates/companions.yaml`); админка Keycloak и master-realm закрыты.
+- Prometheus опрашивает `/metrics` через Traefik по `https://<домен>` с bearer-токеном (`METRICS_TARGET`, `METRICS_SCHEME` в `~/churn/.env`).
+- Включает всё это `deploy/k3s/single-ingress.sh`; состояние смотреть через `deploy/k3s/diagnose.sh`.

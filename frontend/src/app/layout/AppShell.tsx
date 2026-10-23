@@ -1,12 +1,4 @@
-import {
-  AppShell as MantineShell,
-  Burger,
-  Button,
-  Group,
-  NavLink,
-  Text,
-  Title,
-} from '@mantine/core';
+import { AppShell as MantineShell, Burger, Button, Group, NavLink, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,6 +7,7 @@ import { can, logout, sessionKey, type Right } from '@entities/session';
 import { IconLogout } from '@shared/ui';
 import { RealtimeProvider } from '../realtime';
 import { Route } from '../routes/_app';
+import { ThemeSwitch } from './ThemeSwitch';
 
 const sections: {
   to: '/queue' | '/summary' | '/model' | '/source' | '/about';
@@ -63,12 +56,15 @@ export function AppShell() {
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group wrap="nowrap">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Меню" />
-            <Title order={1} size="h4">
+            <Text fw={700} size="lg" component="div">
               Контур удержания
-            </Title>
+            </Text>
           </Group>
           <Group wrap="nowrap">
-            <Text size="sm">{user.login}</Text>
+            <ThemeSwitch />
+            <Text size="sm" visibleFrom="sm">
+              {user.login}
+            </Text>
             <Button
               variant="default"
               size="compact-md"

@@ -1,4 +1,4 @@
-// Package auth — вход по логину и паролю, сессии и права ролей. OIDC (слой 2) — заглушка.
+// Package auth — вход по логину и паролю, сессии и права ролей. вход через OIDC.
 package auth
 
 import (
@@ -14,8 +14,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/oauth2"
 
+	"example.com/app/internal/audit"
 	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/httpx"
@@ -23,13 +26,31 @@ import (
 
 // AuthAPI обслуживает пути /auth/* и проверяет доступ ко всем остальным.
 type AuthAPI struct {
-	svc *service
-	cfg Config
+	svc   *service
+	cfg   Config
+	oidc  *oidcClient
+	audit audit.Recorder
+}
+
+// WithAudit подключает журнал действий: вход, неудачный вход и выход.
+func (a *AuthAPI) WithAudit(r audit.Recorder) *AuthAPI {
+	a.audit = r
+	return a
+}
+
+func (a *AuthAPI) record(r *http.Request, e audit.Entry) {
+	if a.audit != nil {
+		a.audit.Record(r.Context(), e)
+	}
 }
 
 // New создаёт обработчик модуля. pool может быть nil (тесты без базы): сессий тогда нет.
 func New(pool *pgxpool.Pool, clk clock.Clock, cfg Config) *AuthAPI {
-	return &AuthAPI{svc: newService(pool, clk, cfg), cfg: cfg}
+	a := &AuthAPI{svc: newService(pool, clk, cfg), cfg: cfg}
+	if cfg.OIDC.enabled() {
+		a.oidc = &oidcClient{cfg: cfg.OIDC}
+	}
+	return a
 }
 
 type ctxKey struct{}
@@ -157,6 +178,7 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, err := a.svc.login(r.Context(), req.Login, req.Password)
 	if errors.Is(err, ErrBadCredentials) {
+		a.record(r, audit.Entry{Actor: req.Login, Action: audit.ActionLoginFailed, Summary: "Неудачный вход: неверный логин или пароль"})
 		httpx.WriteProblem(w, r, http.StatusUnauthorized, "неверный логин или пароль")
 		return
 	}
@@ -166,10 +188,8 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.svc.clearFailures(key)
-	http.SetCookie(w, &http.Cookie{
-		Name: sessionCookie, Value: sess.Token, Path: "/", Expires: sess.ExpiresAt,
-		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
-	})
+	a.record(r, audit.Entry{Actor: sess.Login, Action: audit.ActionLogin, Summary: "Вход в систему"})
+	a.setSessionCookie(w, sess)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := json.NewEncoder(w).Encode(gen.LoginResult{User: toUser(sess.Identity), Token: &sess.Token, CsrfToken: &sess.CSRFToken}); err != nil {
@@ -185,6 +205,7 @@ func (a *AuthAPI) Logout(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка выхода")
 		return
 	}
+	a.record(r, audit.Entry{Actor: id.Login, Action: audit.ActionLogout, Summary: "Выход из системы"})
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
@@ -204,10 +225,115 @@ func (a *AuthAPI) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// OidcLogin — GET /api/v1/auth/oidc/login (слой 2).
-func (*AuthAPI) OidcLogin(w http.ResponseWriter, r *http.Request) { httpx.NotImplemented(w, r) }
+// setSessionCookie ставит cookie сессии; общая для входа по паролю и через SSO.
+func (a *AuthAPI) setSessionCookie(w http.ResponseWriter, sess Session) {
+	http.SetCookie(w, &http.Cookie{
+		Name: sessionCookie, Value: sess.Token, Path: "/", Expires: sess.ExpiresAt,
+		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
+	})
+}
 
-// OidcCallback — GET /api/v1/auth/oidc/callback (слой 2).
-func (*AuthAPI) OidcCallback(w http.ResponseWriter, r *http.Request, _ gen.OidcCallbackParams) {
-	httpx.NotImplemented(w, r)
+func (a *AuthAPI) flowCookie(value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name: oidcFlowCookie, Value: value, Path: oidcFlowPath, MaxAge: maxAge,
+		HttpOnly: true, Secure: a.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
+	}
+}
+
+// OidcLogin — GET /api/v1/auth/oidc/login: перенаправляет на провайдера с PKCE, state и nonce.
+func (a *AuthAPI) OidcLogin(w http.ResponseWriter, r *http.Request) {
+	if a.oidc == nil {
+		httpx.NotImplemented(w, r)
+		return
+	}
+	conf, _, err := a.oidc.oauth(r.Context())
+	if err != nil {
+		log.Printf("auth: %v", err)
+		httpx.WriteProblem(w, r, http.StatusBadGateway, "провайдер SSO недоступен")
+		return
+	}
+	state, err1 := randomToken()
+	nonce, err2 := randomToken()
+	if err := errors.Join(err1, err2); err != nil {
+		log.Printf("auth: %v", err)
+		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка входа")
+		return
+	}
+	verifier := oauth2.GenerateVerifier()
+	http.SetCookie(w, a.flowCookie(state+"."+nonce+"."+verifier, 600))
+	url := conf.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier), oidc.Nonce(nonce))
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, url, http.StatusFound)
+}
+
+// OidcCallback — GET /api/v1/auth/oidc/callback: обменивает код, проверяет ID-токен и роль,
+// заводит ту же сессию, что и вход по паролю.
+func (a *AuthAPI) OidcCallback(w http.ResponseWriter, r *http.Request, params gen.OidcCallbackParams) {
+	if a.oidc == nil {
+		httpx.NotImplemented(w, r)
+		return
+	}
+	c, err := r.Cookie(oidcFlowCookie)
+	http.SetCookie(w, a.flowCookie("", -1))
+	if err != nil {
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "вход через SSO не начат")
+		return
+	}
+	parts := strings.SplitN(c.Value, ".", 3)
+	if len(parts) != 3 || params.State == nil || params.Code == nil || *params.Code == "" ||
+		!tokenEquals(*params.State, parts[0]) {
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "неверный state или нет кода")
+		return
+	}
+	nonce, verifier := parts[1], parts[2]
+
+	conf, verifierID, err := a.oidc.oauth(r.Context())
+	if err != nil {
+		log.Printf("auth: %v", err)
+		httpx.WriteProblem(w, r, http.StatusBadGateway, "провайдер SSO недоступен")
+		return
+	}
+	tok, err := conf.Exchange(r.Context(), *params.Code, oauth2.VerifierOption(verifier))
+	if err != nil {
+		log.Printf("auth: обмен кода: %v", err)
+		httpx.WriteProblem(w, r, http.StatusUnauthorized, "вход через SSO не удался")
+		return
+	}
+	raw, _ := tok.Extra("id_token").(string)
+	idToken, err := verifierID.Verify(r.Context(), raw)
+	if err != nil || !tokenEquals(idToken.Nonce, nonce) {
+		log.Printf("auth: ID-токен: %v", err)
+		httpx.WriteProblem(w, r, http.StatusUnauthorized, "вход через SSO не удался")
+		return
+	}
+	var claims struct {
+		Username    string `json:"preferred_username"`
+		RealmAccess struct {
+			Roles []string `json:"roles"`
+		} `json:"realm_access"`
+		Roles []string `json:"roles"`
+	}
+	if err := idToken.Claims(&claims); err != nil {
+		httpx.WriteProblem(w, r, http.StatusUnauthorized, "вход через SSO не удался")
+		return
+	}
+	role, err := roleFromClaims(claims.RealmAccess.Roles, claims.Roles)
+	if err != nil {
+		httpx.WriteProblem(w, r, http.StatusForbidden, "у пользователя нет роли для панели")
+		return
+	}
+	name := claims.Username
+	if name == "" {
+		name = idToken.Subject
+	}
+	sess, err := a.svc.ssoLogin(r.Context(), ssoLoginPrefix+name, role)
+	if err != nil {
+		log.Printf("auth: вход SSO %q: %v", name, err)
+		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка входа")
+		return
+	}
+	a.record(r, audit.Entry{Actor: sess.Login, Action: audit.ActionLogin, Summary: "Вход в систему через SSO"})
+	a.setSessionCookie(w, sess)
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, "/", http.StatusFound)
 }

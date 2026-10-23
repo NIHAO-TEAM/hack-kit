@@ -162,3 +162,28 @@ func TestModelTime(t *testing.T) {
 		t.Errorf("пустой снимок: %v", got)
 	}
 }
+
+// Находка fuzz-проверки: цена вроде MaxInt64 переполняла платежи на горизонт и давала
+// отрицательные потери. Теперь суммы выше предела — ошибка поля.
+func TestValidateMoneyLimit(t *testing.T) {
+	for _, price := range []string{"9223372036854775807", "1000000001"} {
+		body := `{"accounts":[{"id":1,"email":"a@x.test","balance":1,"withdrawBalance":0,"totalReplenished":0,"bonusBalance":0,"bonusState":"locked"}],` +
+			`"services":[{"id":1,"name":"a","ownerId":1,"paymentTerm":"hour","autoProlong":true,"createdAt":"2026-01-01T00:00:00Z","expiresAt":"2026-10-19T00:00:00Z","status":"active","price":` + price + `}],"transactions":[]}`
+		s := parseFile(t, []byte(body))
+		errs := Validate(s)
+		if len(errs) != 1 || errs[0].Field != "services[0].price" {
+			t.Errorf("цена %s: ошибки %v", price, errs)
+		}
+	}
+	for _, bal := range []string{"1000000001", "9223372036854775807"} {
+		body := `{"accounts":[{"id":1,"email":"a@x.test","balance":` + bal + `,"withdrawBalance":0,"totalReplenished":0,"bonusBalance":0,"bonusState":"locked"}],"services":[],"transactions":[]}`
+		errs := Validate(parseFile(t, []byte(body)))
+		if len(errs) != 1 || errs[0].Field != "accounts[0].balance" {
+			t.Errorf("баланс %s: ошибки %v", bal, errs)
+		}
+	}
+	edge := `{"accounts":[{"id":1,"email":"a@x.test","balance":1000000000,"withdrawBalance":0,"totalReplenished":0,"bonusBalance":0,"bonusState":"locked"}],"services":[],"transactions":[]}`
+	if errs := Validate(parseFile(t, []byte(edge))); len(errs) != 0 {
+		t.Errorf("сумма ровно на пределе отклонена: %v", errs)
+	}
+}

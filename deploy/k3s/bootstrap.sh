@@ -40,7 +40,13 @@ for _ in $(seq 1 90); do
   kubectl get crd middlewares.traefik.io >/dev/null 2>&1 && break
   sleep 2
 done
-kubectl wait --for=condition=established crd/middlewares.traefik.io --timeout=180s >/dev/null
+# Сразу после создания CRD у него ещё нет .status.conditions, и `kubectl wait` падает с accessor error, а не ждёт.
+for _ in $(seq 1 90); do
+  [ "$(kubectl get crd middlewares.traefik.io -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' 2>/dev/null)" = "True" ] && break
+  sleep 2
+done
+kubectl get crd middlewares.traefik.io -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' | grep -q True \
+  || { echo "CRD middlewares.traefik.io не стал Established за 180 с" >&2; exit 1; }
 
 # 2. helm.
 if ! command -v helm >/dev/null 2>&1; then

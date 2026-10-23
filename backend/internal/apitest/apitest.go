@@ -20,6 +20,7 @@ import (
 	"example.com/app/internal/platform/db"
 	"example.com/app/internal/platform/dbtest"
 	"example.com/app/internal/platform/events"
+	"example.com/app/internal/source"
 )
 
 // Stand — запущенный API.
@@ -52,7 +53,26 @@ func Password(role string) string { return "pw-" + role }
 
 // New применяет миграции к чистой базе, запускает сервер и закрывает всё в t.Cleanup.
 // Без TEST_DATABASE_URL тест пропускается.
-func New(t testing.TB) *Stand {
+func New(t testing.TB) *Stand { return NewWithConfig(t, nil) }
+
+// NewWithConfig — как New, но mod может поменять настройки модуля auth до старта.
+func NewWithConfig(t testing.TB, mod func(*auth.Config)) *Stand {
+	t.Helper()
+	return newStand(t, mod, nil)
+}
+
+// NewBilling поднимает стенд с адаптером REST-биллинга (сам опрос не запущен: тест зовёт Poll).
+func NewBilling(t testing.TB, cfg source.AdapterConfig) (*Stand, *source.Adapter) {
+	t.Helper()
+	var ad *source.Adapter
+	s := newStand(t, nil, func(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) []app.Option {
+		ad = source.NewAdapter(pool, bus, clk, cfg)
+		return []app.Option{app.WithBilling(ad)}
+	})
+	return s, ad
+}
+
+func newStand(t testing.TB, mod func(*auth.Config), mkOpts func(*pgxpool.Pool, *events.Bus, clock.Clock) []app.Option) *Stand {
 	t.Helper()
 	dsn := dbtest.New(t)
 	ctx := context.Background()
@@ -78,12 +98,19 @@ func New(t testing.TB) *Stand {
 		MetricsToken: MetricsToken,
 		SourceToken:  SourceToken,
 	}
+	if mod != nil {
+		mod(&cfg)
+	}
 	authAPI := auth.New(pool, clk, cfg)
 	if err := authAPI.OnStart(ctx); err != nil {
 		t.Fatalf("apitest: учётки: %v", err)
 	}
 	feed := &lazyFeed{}
-	handler := app.New(pool, bus, clk, authAPI, feed)
+	var opts []app.Option
+	if mkOpts != nil {
+		opts = mkOpts(pool, bus, clk)
+	}
+	handler := app.New(pool, bus, clk, authAPI, feed, opts...)
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
@@ -145,6 +172,14 @@ type lazyFeed struct{ recalc atomic.Pointer[app.Recalc] }
 func (f *lazyFeed) Overview() *analytics.Overview {
 	if r := f.recalc.Load(); r != nil {
 		return r.Overview()
+	}
+	return nil
+}
+
+// QualityChecks отдаёт проверки качества данных воркера; до его запуска — nil.
+func (f *lazyFeed) QualityChecks(version int64) []gen.QualityCheck {
+	if r := f.recalc.Load(); r != nil {
+		return r.QualityChecks(version)
 	}
 	return nil
 }

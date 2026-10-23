@@ -12,6 +12,19 @@ npx playwright test -c playwright.config.ts
 
 Конфиг — [playwright.config.ts](playwright.config.ts): один проект `firefox`, адрес стенда из `E2E_BASE_URL`, тесты в `tests/`.
 
+## Дымовая проверка прода
+
+`tests/smoke.spec.ts` не меняет данные и не привязана к суммам. Её после каждого выката гоняет `.github/workflows/deploy-smoke.yml` (также вручную, `workflow_dispatch`). Запуск из `e2e/`:
+
+```
+E2E_BASE_URL=https://<домен> npx playwright test smoke
+```
+
+- `E2E_BASE_URL` — адрес прода (в workflow собирается из переменной репозитория `PROD_DOMAIN`);
+- `E2E_JURY_PASSWORD` — пароль `jury`, необязателен: без него идёт только открытая часть (главная, Swagger, 401 без входа, закрытые `/metrics` и Grafana), с ним — вход, очередь, карточка и сводка = сумме очереди. В workflow это секрет репозитория с тем же именем.
+
+При падении workflow открывает одну issue с меткой `prod-down`.
+
 ## Правила
 
 - Браузер — только Firefox.
@@ -19,6 +32,7 @@ npx playwright test -c playwright.config.ts
   - `E2E_BASE_URL` — адрес стенда;
   - `E2E_DEMO_TOKEN` — токен демо-доступа;
   - `E2E_MARKETER_PASSWORD`, `E2E_ANALYST_PASSWORD` — пароли демо-учёток `marketer` и `analyst` (`demo.spec.ts`).
+  - `E2E_SSO_PASSWORD`, `E2E_SSO_TOTP_SECRET` — пароль и секрет TOTP пользователя Keycloak `secure` (`KC_SECURE_PASSWORD`, `KC_SECURE_TOTP_SECRET` из `.env` стенда), `sso.spec.ts`; без них тест пропускается. Стенд — Compose с `--profile sso` или прод с Keycloak.
 - Перед каждым прогоном сбрось стенд к начальному состоянию, иначе сценарий может упасть на данных прошлого прогона.
 - Чужие стенды — только чтение.
 
