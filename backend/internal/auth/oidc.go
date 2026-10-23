@@ -12,7 +12,9 @@ import (
 
 // OIDCConfig — подключение к провайдеру. Пустые Issuer или ClientID отключают SSO.
 type OIDCConfig struct {
-	Issuer       string
+	Issuer string
+	// DiscoveryURL — откуда читать discovery, если он не совпадает с публичным Issuer (Compose).
+	DiscoveryURL string
 	ClientID     string
 	ClientSecret string
 	RedirectURL  string
@@ -46,7 +48,12 @@ func (c *oidcClient) oauth(ctx context.Context) (*oauth2.Config, *oidc.IDTokenVe
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.provider == nil {
-		p, err := oidc.NewProvider(ctx, c.cfg.Issuer)
+		src := c.cfg.Issuer
+		if c.cfg.DiscoveryURL != "" {
+			ctx = oidc.InsecureIssuerURLContext(ctx, c.cfg.Issuer)
+			src = c.cfg.DiscoveryURL
+		}
+		p, err := oidc.NewProvider(ctx, src)
 		if err != nil {
 			return nil, nil, fmt.Errorf("auth: провайдер OIDC: %w", err)
 		}
