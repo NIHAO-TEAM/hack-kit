@@ -25,3 +25,13 @@
 - WHEN клиент отправляет `HEAD /healthz`
 - THEN ответ `200`, `Content-Type: application/json`, тело пустое, в ответе есть `X-Request-Id`
 - Тест: `TestHealthzHead`
+
+### Requirement: заголовок Accept
+
+Система SHALL отвечать на `GET /healthz` JSON-ом независимо от заголовка `Accept`.
+
+#### Scenario: браузерный Accept
+
+- WHEN клиент отправляет `GET /healthz` с `Accept: text/html`
+- THEN ответ `200`, `Content-Type: application/json`, тело `{"status":"ok"}`
+- Тест: `TestHealthzAccept/браузерный_Accept`
