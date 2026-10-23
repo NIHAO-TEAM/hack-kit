@@ -72,13 +72,14 @@ func run() error {
 	if err := authAPI.OnStart(ctx); err != nil {
 		return err
 	}
-	if err := source.OnStart(ctx); err != nil {
+	bus := events.New()
+	if err := source.OnStart(ctx, pool, bus, clock.System{}, os.Getenv("SEED_ORGANIZERS") == "true"); err != nil {
 		return err
 	}
 
 	srv := &http.Server{
 		Addr:              cfg.addr,
-		Handler:           app.New(pool, events.New(), clock.System{}, authAPI),
+		Handler:           app.New(pool, bus, clock.System{}, authAPI),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("api: слушаю %s", cfg.addr)
