@@ -75,12 +75,12 @@ func problemOnBadRequest(w http.ResponseWriter, r *http.Request, err error) {
 
 // Routes собирает маршруты контракта. pool может быть nil (тесты без базы): пока модули —
 // заглушки, они базой не пользуются.
-func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI) *http.ServeMux {
+func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) *http.ServeMux {
 	mux := http.NewServeMux()
 	gen.HandlerWithOptions(server{
 		AuthAPI:      authAPI,
 		SourceAPI:    source.New(pool, bus, clk),
-		AnalyticsAPI: analytics.New(pool, bus, clk),
+		AnalyticsAPI: analytics.New(pool, bus, clk).WithFeed(feed),
 		ModelAPI:     model.New(pool, bus, clk),
 		DocsAPI:      docs.New(),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
@@ -105,7 +105,7 @@ func WithRequestID(next http.Handler) http.Handler {
 }
 
 // New собирает полный обработчик: идентификатор запроса, проверка сессии, маршруты.
-func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI) http.Handler {
-	mux := Routes(pool, bus, clk, authAPI)
+func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) http.Handler {
+	mux := Routes(pool, bus, clk, authAPI, feed)
 	return WithRequestID(authAPI.Middleware(mux, mux))
 }

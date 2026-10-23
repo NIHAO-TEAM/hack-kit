@@ -1,4 +1,4 @@
-Статус: черновик
+Статус: в работе
 
 # `GET /customers` и `GET /customers/{id}`: рейтинг, сортировки, карточка клиента
 
@@ -18,9 +18,9 @@
 
 ## Затронутые части
 
-- backend: `internal/analytics/customers.go`
+- backend: `internal/analytics/customers.go`, `portfolio.go`, `http.go`; `internal/app/portfolio.go`, `recalc.go`, `app.go`; `cmd/api/main.go`; `internal/apitest`
 - frontend: нет
-- контракт `api/openapi.yaml`: нет
+- контракт `api/openapi.yaml`: да, только добавления (см. «Найдено по ходу»)
 - защищённые пути: нет
 - зависит от: `analytics-split`, `money-actions`, `risk-features`
 
@@ -30,4 +30,7 @@
 - Макет: не нужен
 
 ## Найдено по ходу
+
+- В контракте не было полей для причины, действия, окна спасения, «к биллингу», `version` и оценки по услугам: добавлены (необязательные поля, схемы `ActionBrief`, `ServiceRisk`), `oasdiff` ломающего не увидит. `version` обязателен в ответе (добавление в ответ).
+- `TestGolden/stand.json` в `risk` красный на `main` (признак `bonus_locked` не в эталоне стенда) — не из этого PR, не трогал.
 
