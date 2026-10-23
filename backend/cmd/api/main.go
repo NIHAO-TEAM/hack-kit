@@ -18,10 +18,14 @@ import (
 )
 
 // newMux — маршруты без базы (тесты маршрутов).
-func newMux() *http.ServeMux { return app.Routes(nil, events.New(), clock.System{}) }
+func newMux() *http.ServeMux {
+	return app.Routes(nil, events.New(), clock.System{}, auth.New(nil, clock.System{}, auth.Config{}))
+}
 
 // newHandler собирает полный обработчик без базы (тесты маршрутов).
-func newHandler() http.Handler { return app.New(nil, events.New(), clock.System{}) }
+func newHandler() http.Handler {
+	return app.New(nil, events.New(), clock.System{}, auth.New(nil, clock.System{}, auth.Config{}))
+}
 
 // config — настройки из окружения.
 type config struct {
@@ -64,7 +68,8 @@ func run() error {
 	}
 	defer pool.Close()
 
-	if err := auth.OnStart(ctx); err != nil {
+	authAPI := auth.New(pool, clock.System{}, auth.ConfigFromEnv())
+	if err := authAPI.OnStart(ctx); err != nil {
 		return err
 	}
 	if err := source.OnStart(ctx); err != nil {
@@ -73,7 +78,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              cfg.addr,
-		Handler:           app.New(pool, events.New(), clock.System{}),
+		Handler:           app.New(pool, events.New(), clock.System{}, authAPI),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("api: слушаю %s", cfg.addr)
