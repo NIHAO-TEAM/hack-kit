@@ -2,6 +2,8 @@ package source
 
 import (
 	"bytes"
+	"os"
+	"reflect"
 	"testing"
 )
 
@@ -41,4 +43,27 @@ func TestSeedBodySwitch(t *testing.T) {
 	if err != nil || bytes.Equal(b, organizers) {
 		t.Errorf("с SEED_STAND сид должен включать стенд: %v", err)
 	}
+}
+
+// Снимок для golden стенда совпадает со склейкой, которую делает сервер.
+func TestStandGoldenSnapshotMatchesMerge(t *testing.T) {
+	body, err := mergeSeeds(organizers, standSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := parseFile(t, body)
+	got := parseFile(t, mustRead(t, "../../../testdata/golden/stand.snapshot.json"))
+	if !reflect.DeepEqual(got.Accounts, want.Accounts) || !reflect.DeepEqual(got.Services, want.Services) ||
+		!reflect.DeepEqual(got.Transactions, want.Transactions) {
+		t.Error("testdata/golden/stand.snapshot.json расходится со склейкой organizers.json + stand.json")
+	}
+}
+
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }

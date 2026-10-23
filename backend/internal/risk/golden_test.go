@@ -40,6 +40,7 @@ type goldenFile struct {
 func TestGolden(t *testing.T) {
 	cases := []struct{ golden, snapshot string }{
 		{"organizers.json", "../../../cases/analizator/data.json"},
+		{"stand.json", "../../../testdata/golden/stand.snapshot.json"},
 		{"edge-empty.json", "../../../testdata/golden/empty.snapshot.json"},
 		{"edge-fresh-prolong-wait.json", "../../../testdata/golden/fresh-prolong-wait.snapshot.json"},
 		{"edge-gone-only.json", "../../../testdata/golden/gone-only.snapshot.json"},
