@@ -28,6 +28,7 @@ type SourceAPI struct {
 	bus      *events.Bus
 	clk      clock.Clock
 	maxBytes int64
+	adapter  *Adapter
 	audit    audit.Recorder
 	checks   func(version int64) []gen.QualityCheck
 }
@@ -64,6 +65,12 @@ func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *SourceAPI {
 	return &SourceAPI{pool: pool, bus: bus, clk: clk, maxBytes: max}
 }
 
+// WithAdapter подключает опрос REST-биллинга: ручная загрузка ставит его на паузу, статус его показывает.
+func (a *SourceAPI) WithAdapter(ad *Adapter) *SourceAPI {
+	a.adapter = ad
+	return a
+}
+
 // PutSnapshot — PUT /api/v1/source/snapshot. Права проверяет auth.Middleware.
 func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, a.maxBytes)
@@ -84,12 +91,18 @@ func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "снимок не прошёл проверку", fe...)
 		return
 	}
+	// Запись и пауза под одним замком с опросом: опрос не затрёт ручной снимок.
+	emulatorMu.Lock()
+	defer emulatorMu.Unlock()
 	now := a.clk.Now()
 	acc, err := replace(r.Context(), a.pool, s, ModelTime(s, now), now, OriginAPI)
 	if err != nil {
 		log.Printf("source: запись снимка: %v", err)
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не записан, прежние данные сохранены")
 		return
+	}
+	if a.adapter != nil {
+		a.adapter.Pause() // ручной снимок главнее опроса, пока его не включат на экране «Источник»
 	}
 	a.bus.Publish(TopicChanged, acc.Version)
 	a.record(r, audit.ActionSnapshotLoaded,
@@ -98,6 +111,35 @@ func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 		Version: acc.Version, AsOf: acc.AsOf,
 		Accounts: acc.Accounts, Services: acc.Services, Transactions: acc.Transactions,
 	})
+}
+
+// SetSourcePolling — PUT /api/v1/source/polling. 404, если BILLING_URL не задан.
+func (a *SourceAPI) SetSourcePolling(w http.ResponseWriter, r *http.Request) {
+	if a.adapter == nil {
+		httpx.WriteProblem(w, r, http.StatusNotFound, "опрос биллинга не настроен (BILLING_URL пуст)")
+		return
+	}
+	var req gen.SourcePollingRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if req.Paused {
+		a.adapter.Pause()
+	} else {
+		a.adapter.Resume()
+	}
+	writeJSON(w, pollingBody(a.adapter.Status()))
+}
+
+func pollingBody(st PollStatus) *gen.SourcePolling {
+	out := &gen.SourcePolling{
+		Paused: st.Paused, IntervalSeconds: int(st.Interval.Seconds()),
+		LastOkAt: st.LastOKAt, ErrorsTotal: st.ErrorsTotal,
+	}
+	if st.LastError != "" {
+		out.LastError = &st.LastError
+	}
+	return out
 }
 
 // GetSourceStatus — GET /api/v1/source/status. Без снимков: версия 0.
@@ -110,6 +152,9 @@ func (a *SourceAPI) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	now := a.clk.Now()
 	out := gen.SourceStatus{LoadedAt: now, Checks: []gen.QualityCheck{}}
+	if a.adapter != nil {
+		out.Polling = pollingBody(a.adapter.Status())
+	}
 	if ok {
 		src := gen.SourceStatusSource(st.Source)
 		out.Version, out.Source, out.AsOf, out.LoadedAt = st.Version, &src, st.AsOf, st.LoadedAt

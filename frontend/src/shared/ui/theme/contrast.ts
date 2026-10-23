@@ -26,6 +26,10 @@ export const contrastPairs: ReadonlyArray<{ fg: TokenName; bg: TokenName; min: n
     { fg: 'effect-fg' as const, bg, min: 4.5 },
     { fg: 'lost-fg' as const, bg, min: 4.5 },
   ]),
+  // Подсветка изменившихся строк (2 с) — текст на ней читается.
+  ...(
+    ['text-strong', 'text', 'text-muted', 'effect-fg', 'critical-fg', 'warn-fg', 'lost-fg'] as const
+  ).map((fg) => ({ fg, bg: 'changed-tint' as const, min: 4.5 })),
   { fg: 'on-primary', bg: 'primary', min: 4.5 },
   { fg: 'on-primary', bg: 'primary-hover', min: 4.5 },
   { fg: 'warn-on-tint', bg: 'warn-tint', min: 4.5 },

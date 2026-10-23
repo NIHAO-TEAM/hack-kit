@@ -32,6 +32,7 @@ type AnalyticsAPI struct {
 	// overview отдаёт последний результат пересчёта; nil, пока сервер не подключил воркер.
 	overview OverviewFunc
 
+	extra   []prometheus.Collector
 	regOnce sync.Once
 	reg     *prometheus.Registry
 }
@@ -44,6 +45,12 @@ func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *AnalyticsAPI {
 // WithFeed подключает источник портфеля клиентов; без него клиенты отвечают 503.
 func (a *AnalyticsAPI) WithFeed(f Feed) *AnalyticsAPI {
 	a.feed = f
+	return a
+}
+
+// WithCollectors добавляет в /metrics метрики других модулей; вызывать до первого запроса.
+func (a *AnalyticsAPI) WithCollectors(c ...prometheus.Collector) *AnalyticsAPI {
+	a.extra = append(a.extra, c...)
 	return a
 }
 

@@ -1,0 +1,15 @@
+.changed {
+  border-radius: var(--mantine-radius-sm);
+  transition: background-color 0.6s ease-out;
+}
+
+.changed[data-changed='true'] {
+  background: var(--changed-tint);
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .changed {
+    transition: none;
+  }
+}
