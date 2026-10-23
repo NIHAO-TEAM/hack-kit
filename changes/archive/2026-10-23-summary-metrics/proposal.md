@@ -1,4 +1,4 @@
-Статус: в работе
+Статус: на ревью
 
 # `GET /analytics/summary` и `/metrics` для Prometheus
 
@@ -19,7 +19,7 @@
 
 - backend: `internal/analytics/summary.go`, `internal/analytics/metrics.go`
 - frontend: нет
-- контракт `api/openapi.yaml`: нет
+- контракт `api/openapi.yaml`: добавлено без поломки — `Summary.qualityCounts`, ответ `503` у `getSummary`
 - защищённые пути: нет
 - зависит от: `analytics-split`
 
@@ -29,4 +29,5 @@
 - Макет: не нужен
 
 ## Найдено по ходу
-
+- `TestGolden/stand.json` в `internal/risk` красный на `main` после #71 (`bonus_locked` не в эталоне); не из этого изменения, код `risk` не тронут.
+- `app.New`/`app.Routes` получили аргумент `*Recalc`: `customers-api` и `live-updates` берут движок оттуда же.
