@@ -5,6 +5,8 @@
 package db
 
 import (
+	"time"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -21,7 +23,7 @@ type Account struct {
 type ModelSetting struct {
 	Version   int64
 	Body      []byte
-	UpdatedAt pgtype.Timestamptz
+	UpdatedAt time.Time
 	UpdatedBy string
 }
 
@@ -31,8 +33,8 @@ type Service struct {
 	OwnerId     int64
 	PaymentTerm string
 	AutoProlong bool
-	CreatedAt   pgtype.Timestamptz
-	ExpiresAt   pgtype.Timestamptz
+	CreatedAt   time.Time
+	ExpiresAt   time.Time
 	Status      string
 	Price       int64
 }
@@ -41,13 +43,13 @@ type Session struct {
 	TokenHash string
 	UserID    int64
 	CsrfToken string
-	ExpiresAt pgtype.Timestamptz
+	ExpiresAt time.Time
 }
 
 type Snapshot struct {
 	Version  int64
 	AsOf     pgtype.Timestamptz
-	LoadedAt pgtype.Timestamptz
+	LoadedAt time.Time
 	Source   string
 }
 
@@ -56,7 +58,7 @@ type Transaction struct {
 	Amount      int32
 	Status      string
 	PerformedAt pgtype.Timestamptz
-	CreatedAt   pgtype.Timestamptz
+	CreatedAt   time.Time
 	Type        string
 	ServiceId   int64
 }
@@ -67,5 +69,5 @@ type User struct {
 	PasswordHash string
 	Role         string
 	TotpSecret   pgtype.Text
-	CreatedAt    pgtype.Timestamptz
+	CreatedAt    time.Time
 }

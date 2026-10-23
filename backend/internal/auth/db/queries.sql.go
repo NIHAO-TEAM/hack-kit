@@ -7,8 +7,7 @@ package db
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"time"
 )
 
 const createSession = `-- name: CreateSession :exec
@@ -20,7 +19,7 @@ type CreateSessionParams struct {
 	TokenHash string
 	UserID    int64
 	CsrfToken string
-	ExpiresAt pgtype.Timestamptz
+	ExpiresAt time.Time
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
@@ -37,7 +36,7 @@ const deleteExpiredSessions = `-- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at <= $1
 `
 
-func (q *Queries) DeleteExpiredSessions(ctx context.Context, expiresAt pgtype.Timestamptz) error {
+func (q *Queries) DeleteExpiredSessions(ctx context.Context, expiresAt time.Time) error {
 	_, err := q.db.Exec(ctx, deleteExpiredSessions, expiresAt)
 	return err
 }
@@ -60,13 +59,13 @@ WHERE s.token_hash = $1 AND s.expires_at > $2
 
 type GetSessionParams struct {
 	TokenHash string
-	ExpiresAt pgtype.Timestamptz
+	ExpiresAt time.Time
 }
 
 type GetSessionRow struct {
 	TokenHash string
 	CsrfToken string
-	ExpiresAt pgtype.Timestamptz
+	ExpiresAt time.Time
 	UserID    int64
 	Login     string
 	Role      string

@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"example.com/app/internal/apitest"
 	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/httpx"
 )
@@ -15,6 +17,7 @@ import (
 var implemented = map[string]bool{
 	"healthz": true, "version": true, "ping": true, "pingHead": true,
 	"docs": true, "openapiYaml": true, "openapiJson": true,
+	"login": true, "getMe": true, "logout": true,
 }
 
 func TestEveryUnimplementedPathAnswers501(t *testing.T) {
@@ -22,7 +25,14 @@ func TestEveryUnimplementedPathAnswers501(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := newHandler()
+	// Заглушки модулей закрыты входом: ходим под jury, которому открыты все пути.
+	stand := apitest.New(t)
+	login, err := stand.Client.LoginWithResponse(context.Background(), gen.LoginJSONRequestBody{Login: "jury", Password: apitest.Password("jury")})
+	if err != nil || login.JSON200 == nil || login.JSON200.Token == nil {
+		t.Fatalf("вход jury: %v %v", err, login)
+	}
+	h := stand.Handler
+	token := *login.JSON200.Token
 	checked := 0
 	for path, item := range swagger.Paths.Map() {
 		for method, op := range item.Operations() {
@@ -38,6 +48,7 @@ func TestEveryUnimplementedPathAnswers501(t *testing.T) {
 				body = strings.NewReader("")
 			}
 			req := httptest.NewRequest(method, url, body)
+			req.Header.Set("Authorization", "Bearer "+token)
 			if op.RequestBody != nil {
 				req.Header.Set("Content-Type", "application/json")
 			}
