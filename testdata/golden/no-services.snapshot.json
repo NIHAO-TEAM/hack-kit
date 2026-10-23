@@ -1,0 +1,15 @@
+{
+  "accounts": [
+    {
+      "id": 1,
+      "email": "edge-1@example.test",
+      "balance": 10000,
+      "withdrawBalance": 0,
+      "totalReplenished": 10000,
+      "bonusBalance": 0,
+      "bonusState": "locked"
+    }
+  ],
+  "services": [],
+  "transactions": []
+}
