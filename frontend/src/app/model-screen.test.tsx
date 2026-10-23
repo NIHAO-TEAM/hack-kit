@@ -75,4 +75,20 @@ describe('экран «Модель»', () => {
       '0.55',
     );
   });
+
+  it('маркетолог видит «Недостаточно прав» и не запрашивает настройки', async () => {
+    let asked = false;
+    server.use(
+      http.get('/api/v1/auth/me', () =>
+        HttpResponse.json({ id: 1, login: 'marketer', role: 'marketer' }),
+      ),
+      http.get('/api/v1/model/settings', () => {
+        asked = true;
+        return HttpResponse.json({});
+      }),
+    );
+    renderApp('/model');
+    expect(await screen.findByRole('heading', { name: 'Недостаточно прав' })).toBeInTheDocument();
+    expect(asked).toBe(false);
+  });
 });
