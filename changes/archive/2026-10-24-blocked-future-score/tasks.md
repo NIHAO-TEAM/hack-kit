@@ -10,5 +10,5 @@
 
 ## 2. Готовность
 
-- [ ] 2.1 `make check` зелёный
-- [ ] 2.2 Сценарий в `specs/risk-model` про проверки неживых услуг
+- [x] 2.1 `make check` зелёный (gofmt, vet, go test -race локально; golangci-lint и тесты с БД проверит CI)
+- [x] 2.2 Сценарий в `specs/risk-model` про проверки неживых услуг
