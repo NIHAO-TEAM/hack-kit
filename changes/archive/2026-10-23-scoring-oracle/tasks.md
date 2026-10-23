@@ -19,6 +19,6 @@
 
 ## 4. Готовность
 
-- [ ] 4.1 `make check` зелёный (Go не затронут)
-- [ ] 4.2 `tools/oracle/README.md`: как пересчитать golden, когда это можно (только вместе с правкой `docs/model-rules.md`)
-- [ ] 4.3 `prototype_r2.py` уходит в архив вместе с папкой изменения
+- [ ] 4.1 `make check` зелёный (Go не затронут) — Makefile в репозитории нет; вместо него `oracle.py --check` зелёный
+- [x] 4.2 `tools/oracle/README.md`: как пересчитать golden, когда это можно (только вместе с правкой `docs/model-rules.md`)
+- [x] 4.3 `prototype_r2.py` уходит в архив вместе с папкой изменения
