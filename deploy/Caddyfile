@@ -16,5 +16,10 @@
 		flush_interval -1
 	}
 
+	# Мониторинг: вход и пароли — в самой Grafana.
+	handle /grafana* {
+		reverse_proxy grafana:3000
+	}
+
 	reverse_proxy app:8080
 }
