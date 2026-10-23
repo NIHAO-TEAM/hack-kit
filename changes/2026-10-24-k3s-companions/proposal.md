@@ -1,4 +1,4 @@
-Статус: черновик
+Статус: на ревью
 
 # Прод на k3s без потерь: Keycloak, Grafana, Prometheus и вход jury
 
