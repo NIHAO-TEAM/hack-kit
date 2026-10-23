@@ -29,6 +29,7 @@ type SourceAPI struct {
 	clk      clock.Clock
 	maxBytes int64
 	audit    audit.Recorder
+	checks   func(version int64) []gen.QualityCheck
 }
 
 // WithAudit подключает журнал действий: загрузка снимка, правки и шаги эмулятора.
@@ -41,6 +42,14 @@ func (a *SourceAPI) record(r *http.Request, action, summary string, changes []au
 	if a.audit != nil {
 		a.audit.Record(r.Context(), audit.Entry{Action: action, Summary: summary, Changes: changes})
 	}
+}
+
+// WithChecks подключает источник проверок качества данных: по версии снимка он отдаёт результаты
+// или nil, пока пересчёт по этой версии не готов. Модуль не знает ядра модели, поэтому сборка сервера
+// передаёт функцию снаружи.
+func (a *SourceAPI) WithChecks(f func(version int64) []gen.QualityCheck) *SourceAPI {
+	a.checks = f
+	return a
 }
 
 // defaultMaxBytes — лимит тела снимка по умолчанию (SNAPSHOT_MAX_BYTES), 512 МБ.
@@ -105,6 +114,11 @@ func (a *SourceAPI) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
 		src := gen.SourceStatusSource(st.Source)
 		out.Version, out.Source, out.AsOf, out.LoadedAt = st.Version, &src, st.AsOf, st.LoadedAt
 		out.AgeSeconds = int64(now.Sub(st.LoadedAt).Seconds())
+		if a.checks != nil {
+			if cs := a.checks(st.Version); cs != nil {
+				out.Checks = cs
+			}
+		}
 	}
 	writeJSON(w, out)
 }

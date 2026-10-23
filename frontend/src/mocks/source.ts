@@ -6,7 +6,22 @@ const base = {
   asOf: '2026-10-19T15:00:00Z',
   loadedAt: '2026-10-19T15:00:00Z',
   ageSeconds: 60,
-  checks: [],
+  checks: [
+    {
+      id: 'stale_status',
+      ok: false,
+      message: '2 услуги в ожидании оплаты дольше 5 дней',
+      items: [
+        { serviceId: 11, accountId: 3 },
+        { serviceId: 12, accountId: 4 },
+      ],
+    },
+    {
+      id: 'blocked_future',
+      ok: true,
+      message: 'Нет услуг в статусе «заблокирована» со сроком в будущем',
+    },
+  ],
 };
 
 let state = { ...base };

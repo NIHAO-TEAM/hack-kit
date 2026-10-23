@@ -37,7 +37,7 @@ export function SourcePage() {
       <Grid>
         <Grid.Col span={{ base: 12, md: 7 }}>
           <Stack>
-            <QualityChecks />
+            <QualityChecks checks={query.data.checks} />
             <UploadPanel />
           </Stack>
         </Grid.Col>

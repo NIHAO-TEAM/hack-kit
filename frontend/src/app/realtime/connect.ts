@@ -5,7 +5,13 @@ export const EVENTS_URL = '/api/v1/events';
 export const RECONNECT_MS = 3000;
 
 /** Корневые ключи запросов, которые перезагружаются после пересчёта: экраны начинают свои ключи с них. */
-export const INVALIDATED_ROOTS = ['customers', 'customer', 'summary', 'model-settings'] as const;
+export const INVALIDATED_ROOTS = [
+  'customers',
+  'customer',
+  'summary',
+  'model-settings',
+  'source',
+] as const;
 
 type EventSourceLike = Pick<EventSource, 'close' | 'readyState' | 'addEventListener'> & {
   onopen: ((e: Event) => void) | null;
