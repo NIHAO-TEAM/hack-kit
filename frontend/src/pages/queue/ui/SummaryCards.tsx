@@ -39,7 +39,7 @@ export function SummaryCards({
     },
   ];
   return (
-    <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
+    <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
       {cards.map((c) => (
         <Paper key={c.title} withBorder p="lg" radius="lg" component="section" aria-label={c.title}>
           <Stack gap={4}>
