@@ -12,6 +12,19 @@ npx playwright test -c playwright.config.ts
 
 Конфиг — [playwright.config.ts](playwright.config.ts): один проект `firefox`, адрес стенда из `E2E_BASE_URL`, тесты в `tests/`.
 
+## Дымовая проверка прода
+
+`tests/smoke.spec.ts` не меняет данные и не привязана к суммам. Её после каждого выката гоняет `.github/workflows/deploy-smoke.yml` (также вручную, `workflow_dispatch`). Запуск из `e2e/`:
+
+```
+E2E_BASE_URL=https://<домен> npx playwright test smoke
+```
+
+- `E2E_BASE_URL` — адрес прода (в workflow собирается из переменной репозитория `PROD_DOMAIN`);
+- `E2E_JURY_PASSWORD` — пароль `jury`, необязателен: без него идёт только открытая часть (главная, Swagger, 401 без входа, закрытые `/metrics` и Grafana), с ним — вход, очередь, карточка и сводка = сумме очереди. В workflow это секрет репозитория с тем же именем.
+
+При падении workflow открывает одну issue с меткой `prod-down`.
+
 ## Правила
 
 - Браузер — только Firefox.
