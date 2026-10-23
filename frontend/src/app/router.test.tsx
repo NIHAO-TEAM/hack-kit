@@ -148,7 +148,7 @@ describe('ошибка загрузки сессии', () => {
   });
 });
 
-describe('тема', () => {
+describe('AppShell', () => {
   it('смена темы сохраняется', async () => {
     signedInAs('marketer');
     localStorage.removeItem('mantine-color-scheme-value');
