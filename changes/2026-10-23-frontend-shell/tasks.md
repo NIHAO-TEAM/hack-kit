@@ -6,7 +6,7 @@
 
 - [x] 1.1 Приложение Vite + React + TS strict, зависимости по `frontend/AGENTS.md` с точными версиями — проверка: `pnpm install --frozen-lockfile && pnpm typecheck`
 - [x] 1.2 `pnpm api:types` → `src/shared/api/schema.gen.ts` из `../api/openapi.yaml` — проверка: `pnpm api:types && git diff --exit-code`
-- [ ] 1.3 MSW-моки для `auth/*`, `customers`, `customers/{id}`, `analytics/summary`, `model/settings` на данных организаторов — проверка: `pnpm dev:mock`, вход `marketer`/`demo` открывает оболочку
+- [x] 1.3 MSW-моки для `auth/*`, `customers`, `customers/{id}`, `analytics/summary`, `model/settings` на данных организаторов — проверка: `pnpm dev:mock`, вход `marketer`/`demo` открывает оболочку
 
 ## 2. Логика
 

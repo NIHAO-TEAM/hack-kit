@@ -5,8 +5,16 @@ import { App } from '~/app';
 const root = document.getElementById('root');
 if (!root) throw new Error('Нет корневого элемента #root');
 
-createRoot(root).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+async function start() {
+  if (import.meta.env.MODE === 'mock') {
+    const { worker } = await import('~/shared/api/mocks/browser');
+    await worker.start({ quiet: true });
+  }
+  createRoot(root!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
+
+void start();

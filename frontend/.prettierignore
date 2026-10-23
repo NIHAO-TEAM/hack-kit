@@ -5,3 +5,4 @@ pnpm-lock.yaml
 .agents
 .claude
 *.md
+public/mockServiceWorker.js

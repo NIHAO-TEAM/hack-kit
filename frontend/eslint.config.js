@@ -6,7 +6,14 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'src/app/routeTree.gen.ts', 'src/shared/api/schema.gen.ts'] },
+  {
+    ignores: [
+      'dist',
+      'public/mockServiceWorker.js',
+      'src/app/routeTree.gen.ts',
+      'src/shared/api/schema.gen.ts',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...query.configs['flat/recommended'],
