@@ -3,26 +3,30 @@ import type { components } from '../../api';
 
 export type RiskLevel = components['schemas']['RiskLevel'];
 
-const levels: Record<RiskLevel, { label: string; tone: 'warn' | 'critical' | 'lost' | null }> = {
-  high: { label: 'Высокий риск', tone: 'critical' },
-  medium: { label: 'Средний риск', tone: 'warn' },
-  low: { label: 'Низкий риск', tone: null },
-  unscored: { label: 'Без оценки', tone: null },
-  lost: { label: 'Потерян', tone: 'lost' },
+const levels: Record<RiskLevel, { label: string; emphasis: boolean; lost?: boolean }> = {
+  high: { label: 'Высокий риск', emphasis: true },
+  medium: { label: 'Средний риск', emphasis: true },
+  low: { label: 'Низкий риск', emphasis: false },
+  unscored: { label: 'Без оценки', emphasis: false },
+  lost: { label: 'Потерян', emphasis: false, lost: true },
 };
 
-/** Уровень риска словом; цвет только дублирует. Низкий и без оценки — без цвета. */
+/**
+ * Уровень риска словом. Красный и оранжевый ADR-0002 привязывает ко времени до удаления
+ * (RescueWindow), поэтому высокий и средний риск — нейтральная плашка, выше по весу: тёмный
+ * текст и сильная рамка. Серый — только у «Потерян».
+ */
 export function LevelBadge({ level }: { level: RiskLevel }) {
-  const { label, tone } = levels[level];
+  const { label, emphasis, lost } = levels[level];
   return (
     <Badge
       variant="light"
       radius="xs"
       tt="none"
-      fw={500}
-      bg={tone ? `var(--${tone}-tint)` : 'var(--surface-sunken)'}
-      c={tone ? `var(--${tone}-on-tint)` : 'var(--text-muted)'}
-      bd={tone ? undefined : '1px solid var(--border)'}
+      fw={emphasis ? 600 : 500}
+      bg={lost ? 'var(--lost-tint)' : 'var(--surface-sunken)'}
+      c={lost ? 'var(--lost-on-tint)' : emphasis ? 'var(--text-strong)' : 'var(--text-muted)'}
+      bd={`1px solid ${emphasis ? 'var(--border-strong)' : 'var(--border)'}`}
     >
       {label}
     </Badge>
