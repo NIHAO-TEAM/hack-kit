@@ -39,6 +39,12 @@ func identityFrom(ctx context.Context) (Identity, bool) {
 	return id, ok
 }
 
+// LoginFrom возвращает логин вошедшего пользователя из контекста запроса; без сессии — пусто.
+func LoginFrom(ctx context.Context) string {
+	id, _ := identityFrom(ctx)
+	return id.Login
+}
+
 const sessionCookie = "session"
 
 // bearerToken возвращает токен из заголовка Authorization.
