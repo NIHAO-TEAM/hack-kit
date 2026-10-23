@@ -112,7 +112,9 @@ export function AboutModelPage() {
         <Title order={2} size="h3">
           Пример: клиент 9
         </Title>
-        <Text>У услуги 9 сработали пять признаков. Ниже — значение каждого признака и его вес.</Text>
+        <Text>
+          У услуги 9 сработали пять признаков. Ниже — значение каждого признака и его вес.
+        </Text>
         <Table.ScrollContainer minWidth={420}>
           <Table>
             <Table.Thead>
