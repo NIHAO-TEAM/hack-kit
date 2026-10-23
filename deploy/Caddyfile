@@ -10,11 +10,21 @@
 		-Server
 	}
 
-	# Живые обновления (SSE) не буферизуем.
-	@sse path /api/v1/events
-	reverse_proxy @sse app:8080 {
-		flush_interval -1
+	# Keycloak (профиль sso). Админка и master-realm снаружи закрыты.
+	@kcadmin path /sso/admin /sso/admin/* /sso/realms/master /sso/realms/master/*
+	handle @kcadmin {
+		respond "Not Found" 404
+	}
+	handle /sso/* {
+		reverse_proxy keycloak:8080
 	}
 
-	reverse_proxy app:8080
+	handle {
+		# Живые обновления (SSE) не буферизуем.
+		@sse path /api/v1/events
+		reverse_proxy @sse app:8080 {
+			flush_interval -1
+		}
+		reverse_proxy app:8080
+	}
 }

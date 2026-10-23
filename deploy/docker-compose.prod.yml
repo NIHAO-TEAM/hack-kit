@@ -41,6 +41,32 @@ services:
       timeout: 3s
       retries: 5
 
+  # Профиль sso включается в .env (COMPOSE_PROFILES=sso), если VM хватает памяти: bootstrap.sh.
+  # Наружу не публикуется: Caddy проксирует /sso, админка и master-realm закрыты там же.
+  keycloak:
+    profiles: [sso]
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start", "--import-realm"]
+    environment:
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /sso
+      KC_HOSTNAME: https://${PROD_DOMAIN:?нет PROD_DOMAIN в .env}/sso
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: kcadmin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-}
+      KC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      KC_SECURE_PASSWORD: ${KC_SECURE_PASSWORD:-}
+      PROD_DOMAIN: ${PROD_DOMAIN}
+      JAVA_OPTS_KC_HEAP: -Xms256m -Xmx768m
+    volumes:
+      - ./keycloak/churn-realm.json:/opt/keycloak/data/import/churn-realm.json:ro
+      - kcdata:/opt/keycloak/data
+    expose:
+      - "8080"
+
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -67,3 +93,4 @@ volumes:
   # Не пересоздавать caddy_data: там сертификат (лимит Let's Encrypt — 5 в неделю на домен).
   caddy_data:
   caddy_config:
+  kcdata:
