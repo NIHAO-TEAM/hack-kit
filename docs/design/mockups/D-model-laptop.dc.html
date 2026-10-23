@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>D · Модель — ноутбук, тёмная</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#B9A8FF}a:hover{color:#ECEEF1}
+input[type=range]{accent-color:#7C5CFF;width:100%}
+</style>
+</helmet>
+<div style="font-family: 'Onest', system-ui, sans-serif; background: #0D0F12; color: #ECEEF1; min-height: 1000px; box-sizing: border-box; font-variant-numeric: tabular-nums">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px; padding: 14px 36px; background: #15181D; border-bottom: 1px solid #262A31">
+    <div style="font-weight: 700; font-size: 17px">Контур удержания</div>
+    <nav style="display: flex; gap: 6px; flex-wrap: wrap">
+      <a href="#" style="padding: 8px 14px; border-radius: 999px; text-decoration: none; font-size: 14px; color: #9BA3AE">Очередь</a>
+      <a href="#" style="padding: 8px 14px; border-radius: 999px; text-decoration: none; font-size: 14px; color: #9BA3AE">Сводка</a>
+      <a href="#" style="padding: 8px 14px; border-radius: 999px; background: #262A31; color: #ECEEF1; text-decoration: none; font-size: 14px">Модель</a>
+      <a href="#" style="padding: 8px 14px; border-radius: 999px; text-decoration: none; font-size: 14px; color: #9BA3AE">Источник</a>
+    </nav>
+    <div style="margin-left: auto; font-size: 13px; color: #9BA3AE">аналитик · версия настроек 0 (по умолчанию)</div>
+  </header>
+
+  <main style="max-width: 1368px; margin: 0 auto; padding: 24px 36px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+    <section style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+      <h1 style="margin: 0; font-size: 22px">Веса признаков</h1>
+      <p style="margin: 0; font-size: 14px; color: #9BA3AE">Вес — вероятность, что услуга не продлится, если сработал только этот признак. Вероятность услуги: P = 1 − Π(1 − вес · значение).</p>
+
+      <div style="background: #15181D; border: 1px solid #7C5CFF; border-radius: 12px; padding: 14px 18px; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) 70px; gap: 16px; align-items: center">
+        <div><label for="w-noauto" style="font-weight: 600">Автопродление выключено</label><div style="font-size: 13px; color: #9BA3AE">85 % таких услуг не продлят, если до срока меньше 7 дней</div></div>
+        <input id="w-noauto" type="range" min="0" max="1" step="0.05" value="0.85">
+        <div style="text-align: right; font-weight: 700">0,85 <div style="font-size: 12px; font-weight: 400; color: #9BA3AE">было 0,55</div></div>
+      </div>
+      <div style="background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 14px 18px; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) 70px; gap: 16px; align-items: center">
+        <div><label for="w-pwait" style="font-weight: 600">Ожидает оплаты</label><div style="font-size: 13px; color: #9BA3AE">растёт к концу 5 дней до удаления</div></div>
+        <input id="w-pwait" type="range" min="0" max="1" step="0.05" value="0.8">
+        <div style="text-align: right; font-weight: 700">0,80</div>
+      </div>
+      <div style="background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 14px 18px; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) 70px; gap: 16px; align-items: center">
+        <div><label for="w-funds" style="font-weight: 600">Не хватает средств</label><div style="font-size: 13px; color: #9BA3AE">на продления ближайших 7 дней</div></div>
+        <input id="w-funds" type="range" min="0" max="1" step="0.05" value="0.7">
+        <div style="text-align: right; font-weight: 700">0,70</div>
+      </div>
+      <div style="background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 14px 18px; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) 70px; gap: 16px; align-items: center">
+        <div><label for="w-fail" style="font-weight: 600">Продления не проходят</label><div style="font-size: 13px; color: #9BA3AE">доля несостоявшихся продлений</div></div>
+        <input id="w-fail" type="range" min="0" max="1" step="0.05" value="0.4">
+        <div style="text-align: right; font-weight: 700">0,40</div>
+      </div>
+      <div style="background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 14px 18px; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) 70px; gap: 16px; align-items: center">
+        <div><label for="w-susp" style="font-weight: 600">Выключена, но оплачивается</label><div style="font-size: 13px; color: #9BA3AE">сервер остановлен клиентом</div></div>
+        <input id="w-susp" type="range" min="0" max="1" step="0.05" value="0.35">
+        <div style="text-align: right; font-weight: 700">0,35</div>
+      </div>
+      <div style="background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 14px 18px; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) 70px; gap: 16px; align-items: center">
+        <div><label for="w-flight" style="font-weight: 600">Деньги могут уйти</label><div style="font-size: 13px; color: #9BA3AE">доля баланса, доступная к выводу</div></div>
+        <input id="w-flight" type="range" min="0" max="1" step="0.05" value="0.15">
+        <div style="text-align: right; font-weight: 700">0,15</div>
+      </div>
+
+      <h2 style="margin: 10px 0 0; font-size: 18px">Пороги и горизонт</h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <label style="flex: 1 1 180px; background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 12px 16px; font-size: 13px; color: #9BA3AE">Высокий риск от<input type="number" value="70" style="display: block; margin-top: 6px; font: inherit; font-size: 18px; width: 100%; background: #0D0F12; color: #ECEEF1; border: 1px solid #262A31; border-radius: 6px; padding: 6px 8px"></label>
+        <label style="flex: 1 1 180px; background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 12px 16px; font-size: 13px; color: #9BA3AE">Средний риск от<input type="number" value="50" style="display: block; margin-top: 6px; font: inherit; font-size: 18px; width: 100%; background: #0D0F12; color: #ECEEF1; border: 1px solid #262A31; border-radius: 6px; padding: 6px 8px"></label>
+        <label style="flex: 1 1 180px; background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 12px 16px; font-size: 13px; color: #9BA3AE">Горизонт денег, дней<input type="number" value="30" style="display: block; margin-top: 6px; font: inherit; font-size: 18px; width: 100%; background: #0D0F12; color: #ECEEF1; border: 1px solid #262A31; border-radius: 6px; padding: 6px 8px"></label>
+        <label style="flex: 1 1 180px; background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 12px 16px; font-size: 13px; color: #9BA3AE">Цена почасовой услуги<select style="display: block; margin-top: 6px; font: inherit; font-size: 16px; width: 100%; background: #0D0F12; color: #ECEEF1; border: 1px solid #262A31; border-radius: 6px; padding: 6px 8px"><option>за час (подтвердил эксперт)</option><option>за месяц</option></select></label>
+      </div>
+    </section>
+
+    <aside aria-label="Что изменится" style="flex: 1 1 340px; background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: #9BA3AE">ЧТО ИЗМЕНИТСЯ · ДО СОХРАНЕНИЯ</div>
+      <div style="font-size: 30px; font-weight: 700">+200,69 €</div>
+      <div style="font-size: 14px; color: #9BA3AE">ожидаемая потеря: 3 879,73 € → 4 080,42 €</div>
+      <div style="border-top: 1px solid #262A31; padding-top: 12px; font-size: 14px">Сменит уровень: <strong>1 клиент</strong></div>
+      <div style="display: flex; justify-content: space-between; font-size: 14px"><span>№1 user-0001</span><span>средний 56 → <strong style="color: #FB923C">высокий 85</strong></span></div>
+      <button style="font: inherit; font-size: 15px; padding: 12px 18px; border-radius: 8px; border: 0; background: #7C5CFF; color: #FFFFFF; margin-top: 6px">Сохранить — очередь обновится</button>
+      <button style="font: inherit; font-size: 14px; padding: 10px 18px; border-radius: 8px; border: 1px solid #262A31; background: transparent; color: #ECEEF1">Сбросить к умолчанию</button>
+      <div style="font-size: 13px; color: #9BA3AE">Последнее изменение: —. Каждое сохранение — новая версия с автором.</div>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

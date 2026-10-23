@@ -1,18 +1,58 @@
-// Package webui раздаёт собранный фронт на «/». Пока заглушка: на «/» текстовая страница
-// «фронт не собран», остальные пути — 404. Наполняет изменение compose-stand.
+// Package webui раздаёт собранный фронт на «/» с откатом на index.html для маршрутов SPA.
+// Фронт встраивается из dist/ при сборке образа; в репозитории там лежит страница-заглушка.
 package webui
 
 import (
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
+	"path"
+	"strings"
 )
 
-// Handler обслуживает «/» (регистрируется как "GET /{$}").
+//go:embed all:dist
+var embedded embed.FS
+
+// reserved — пути API и служебные: на них откат на index.html не действует, неизвестный путь — 404.
+var reserved = []string{"/api/", "/healthz", "/version", "/ping", "/metrics"}
+
+// Handler обслуживает всё, что не занято другими маршрутами (регистрируется как "GET /").
 func Handler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		if _, err := w.Write([]byte("фронт не собран\n")); err != nil {
-			log.Printf("webui: %v", err)
+	sub, err := fs.Sub(embedded, "dist")
+	if err != nil {
+		log.Fatalf("webui: %v", err)
+	}
+	return handler(sub)
+}
+
+func handler(root fs.FS) http.Handler {
+	files := http.FileServerFS(root)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := path.Clean(r.URL.Path)
+		for _, prefix := range reserved {
+			if p == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(p, prefix) {
+				http.NotFound(w, r)
+				return
+			}
 		}
+		if p != "/" {
+			if f, err := root.Open(strings.TrimPrefix(p, "/")); err == nil {
+				info, statErr := f.Stat()
+				closeErr := f.Close()
+				if statErr == nil && closeErr == nil && !info.IsDir() {
+					if strings.HasPrefix(p, "/assets/") {
+						w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+					}
+					files.ServeHTTP(w, r)
+					return
+				}
+			}
+		}
+		// Маршрут SPA или корень: index.html без кэша, чтобы новая сборка подхватывалась.
+		w.Header().Set("Cache-Control", "no-cache")
+		r2 := r.Clone(r.Context())
+		r2.URL.Path = "/"
+		files.ServeHTTP(w, r2)
 	})
 }

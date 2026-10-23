@@ -35,6 +35,7 @@ var operations = map[string]struct {
 	"GET /api/v1/openapi.yml":              {"openapiYaml", accessPublic},
 	"GET /api/v1/openapi.json":             {"openapiJson", accessPublic},
 	"GET /{$}":                             {"front", accessPublic},
+	"GET /":                                {"frontSPA", accessPublic},
 	"POST /api/v1/auth/login":              {"login", accessPublic},
 	"GET /api/v1/auth/oidc/login":          {"oidcLogin", accessPublic},
 	"GET /api/v1/auth/oidc/callback":       {"oidcCallback", accessPublic},
