@@ -1,6 +1,6 @@
 import { HttpResponse, http } from 'msw';
 import type { components } from '@shared/api';
-import { defaultSettings } from '@entities/model-settings';
+import { defaultSettings } from '@entities/model-config';
 
 type ModelSettings = components['schemas']['ModelSettings'];
 type Patch = components['schemas']['ModelSettingsPatch'];
