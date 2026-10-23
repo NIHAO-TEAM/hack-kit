@@ -35,6 +35,9 @@ func TestQualityOrganizers(t *testing.T) {
 	if got := res.Summary.QualityCounts["ошибка данных: в ожидании оплаты дольше 5 дней"]; got != 6 {
 		t.Errorf("ошибка данных: в ожидании оплаты дольше 5 дней: %d, ждали 6 (%v)", got, res.Summary.QualityCounts)
 	}
+	if got := res.Summary.QualityCounts["заблокирована, срок в будущем"]; got != 3 {
+		t.Errorf("заблокирована, срок в будущем: %d, ждали 3 (%v)", got, res.Summary.QualityCounts)
+	}
 }
 
 // blocked со сроком в будущем не живая услуга, но проверка качества её видит; скор и деньги не меняются.

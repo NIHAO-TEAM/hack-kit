@@ -41,6 +41,12 @@ type ServiceResult struct {
 	Quality   []string
 }
 
+// ServiceQuality — флаги качества неживой услуги (заблокированной, удалённой): в скор не входит.
+type ServiceQuality struct {
+	ServiceID int64
+	Flags     []string
+}
+
 // ActionResult — действие с ценой: эффект = ожидаемая потеря после − до (отрицательный — выгода).
 type ActionResult struct {
 	ID             string
@@ -61,6 +67,7 @@ type Customer struct {
 	ExposureCents     int64
 	LostCents         int64
 	Services          []ServiceResult
+	Quality           []ServiceQuality
 	Actions           []ActionResult
 }
 
@@ -124,6 +131,11 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 		}
 		for _, sr := range c.Services {
 			for _, q := range sr.Quality {
+				res.Summary.QualityCounts[q]++
+			}
+		}
+		for _, sq := range c.Quality {
+			for _, q := range sq.Flags {
 				res.Summary.QualityCounts[q]++
 			}
 		}
@@ -203,6 +215,10 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 			live = append(live, sv)
 			continue
 		}
+		// проверки качества идут и по неживым услугам; признаков и скора у них нет
+		if flags := qualityFlags(ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID]}, cs); len(flags) > 0 {
+			c.Quality = append(c.Quality, ServiceQuality{ServiceID: sv.ID, Flags: flags})
+		}
 		asActive := sv
 		asActive.Status = StatusActive
 		c.LostCents += amount(asActive, asOf, st.horizonHours(), st.PriceBasis)
@@ -256,12 +272,18 @@ func scoreService(ctx ServiceCtx, st Settings, fs []Feature, cs []Check) Service
 		}
 		return sr.Features[i].ID < sr.Features[j].ID
 	})
+	sr.Quality = qualityFlags(ctx, cs)
+	return sr
+}
+
+func qualityFlags(ctx ServiceCtx, cs []Check) []string {
+	var out []string
 	for _, c := range cs {
 		if msg, hit := c.Eval(ctx); hit {
-			sr.Quality = append(sr.Quality, msg)
+			out = append(out, msg)
 		}
 	}
-	return sr
+	return out
 }
 
 // accountFunds — «нужно» и «есть» за окно запаса средств (правило 5, funds).
