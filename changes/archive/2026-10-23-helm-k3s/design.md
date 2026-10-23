@@ -15,3 +15,4 @@
 - **Два деплоя.** `deploy.yml` (Compose) менять запрещено правилами. Автодеплой на k3s включается переменной `PROD_TARGET=k8s`; после переключения `deploy.yml` упирается в занятые 80/443 и краснеет — человеку стоит его отключить.
 - [ПРЕДПОЛОЖЕНО] Версия k3s `v1.31.4+k3s1`, Traefik из k3s поддерживает `ports.web.redirections` и `persistence` в `HelmChartConfig`; в среде k3s и кластера нет, проверит прод.
 - [ПРЕДПОЛОЖЕНО] Middleware заголовков безопасности — CRD `traefik.io/v1alpha1` (в k3s ≥1.30); `kubeconform` пропускает CRD (`-ignore-missing-schemas`).
+- **Повтор cutover после сбоя** (ревью, раунд 1): Postgres Compose ищется через `ps -aq` и на повторе запускается для свежего дампа; дамп `--clean --if-exists` восстанавливается идемпотентно. Нет контейнера Postgres — выход с «нужен человек», а не молчаливый запуск на пустой базе. `bootstrap.sh` ждёт CRD `middlewares.traefik.io`.

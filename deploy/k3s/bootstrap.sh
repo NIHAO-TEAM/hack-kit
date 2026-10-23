@@ -35,6 +35,12 @@ for _ in $(seq 1 60); do
   sleep 2
 done
 kubectl get nodes | grep -q ' Ready' || { echo "k3s не стал Ready за 120 с" >&2; exit 1; }
+# CRD Traefik ставит traefik-crd позже ноды: без них helm не создаст Middleware.
+for _ in $(seq 1 90); do
+  kubectl get crd middlewares.traefik.io >/dev/null 2>&1 && break
+  sleep 2
+done
+kubectl wait --for=condition=established crd/middlewares.traefik.io --timeout=180s >/dev/null
 
 # 2. helm.
 if ! command -v helm >/dev/null 2>&1; then

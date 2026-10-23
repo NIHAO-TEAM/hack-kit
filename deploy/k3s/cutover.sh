@@ -15,14 +15,21 @@ compose() { docker compose -f "$SRC/deploy/docker-compose.prod.yml" --env-file "
 export ENV_FILE="$APP_DIR/.env" APP_TAG="${APP_TAG:-$(cat "$APP_DIR/current_tag" 2>/dev/null || echo latest)}"
 
 dump="$APP_DIR/pre-k3s-$(date +%Y%m%d%H%M%S).sql"
-if [ -n "$(compose ps -q postgres 2>/dev/null)" ]; then
+# -a: на повторном запуске после сбоя Postgres Compose уже остановлен, но данные в его томе.
+if [ -n "$(compose ps -aq postgres 2>/dev/null)" ]; then
   echo "дамп базы Compose в $dump"
+  compose start postgres >/dev/null
+  for _ in $(seq 1 30); do
+    compose exec -T postgres pg_isready -U app -d app >/dev/null 2>&1 && break
+    sleep 2
+  done
   (umask 077; compose exec -T postgres pg_dump -U app --clean --if-exists app > "$dump")
   echo "останавливаю стек Compose (тома сохраняются)"
   compose stop
 else
-  echo "стек Compose не запущен, дамп пропущен"
-  dump=""
+  echo "нужен человек: контейнера Postgres Compose нет, переносить нечего." >&2
+  echo "если прод и так пустой — запустить deploy-k8s без cutover; иначе восстановить дамп $APP_DIR/pre-k3s-*.sql вручную" >&2
+  exit 1
 fi
 
 bash "$SRC/deploy/k3s/bootstrap.sh"
