@@ -21,7 +21,7 @@ var implemented = map[string]bool{
 	"putSnapshot": true, "getSourceStatus": true,
 	"getModelSettings": true, "patchModelSettings": true,
 	"listCustomers": true, "getCustomer": true,
-	"getSummary": true, "getMetrics": true, "getMetricsAlias": true,
+	"getSummary": true, "getChurnChart": true, "getMetrics": true, "getMetricsAlias": true,
 	"emulatorTick": true, "emulatorActions": true,
 }
 
