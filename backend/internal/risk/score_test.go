@@ -117,12 +117,12 @@ func (fakeCheck) Eval(ctx ServiceCtx) (string, bool) {
 	return "проверка сработала", ctx.Service.ID == 11
 }
 
-type topUp struct{}
+type fakeAction struct{}
 
-func (topUp) ID() string               { return "top_up" }
-func (topUp) Applies(CustomerCtx) bool { return true }
-func (topUp) Title(CustomerCtx) string { return "Включить автопродление" }
-func (topUp) Apply(s Snapshot, id int64) Snapshot {
+func (fakeAction) ID() string               { return "top_up" }
+func (fakeAction) Applies(CustomerCtx) bool { return true }
+func (fakeAction) Title(CustomerCtx) string { return "Включить автопродление" }
+func (fakeAction) Apply(s Snapshot, id int64) Snapshot {
 	out := s
 	out.Services = append([]Service(nil), s.Services...)
 	for i := range out.Services {
@@ -135,7 +135,7 @@ func (topUp) Apply(s Snapshot, id int64) Snapshot {
 
 func TestChecksAndActionsHooks(t *testing.T) {
 	snap := twoServiceSnapshot()
-	r := scoreWith(snap, Defaults(), asOfT, features.all(), []Check{fakeCheck{}}, []Action{topUp{}})
+	r := scoreWith(snap, Defaults(), asOfT, features.all(), []Check{fakeCheck{}}, []Action{fakeAction{}})
 	if r.Summary.QualityCounts["проверка сработала"] != 1 || len(r.Customers[0].Services[1].Quality) != 1 {
 		t.Errorf("качество: %+v", r.Summary.QualityCounts)
 	}
@@ -151,7 +151,7 @@ func TestChecksAndActionsHooks(t *testing.T) {
 	if snap.Services[1].AutoProlong {
 		t.Error("действие изменило исходный снимок")
 	}
-	if r2 := Score(snap, Defaults(), asOfT); len(r2.Customers[0].Actions) != 0 {
+	if r2 := scoreWith(snap, Defaults(), asOfT, features.all(), nil, nil); len(r2.Customers[0].Actions) != 0 {
 		t.Error("пустой реестр действий должен давать пустой список")
 	}
 }
