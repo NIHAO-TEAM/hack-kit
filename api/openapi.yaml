@@ -359,6 +359,10 @@ components:
           type: integer
           minimum: 1
           default: 1
+        hours:
+          type: integer
+          minimum: 1
+          description: Сдвиг в часах; если задан, days игнорируется
     EmulatorAction:
       type: object
       required: [customerId, actionId]
@@ -368,6 +372,11 @@ components:
           format: int64
         actionId:
           type: string
+          description: "top_up (нужен cents), enable_autoprolong, reset (customerId игнорируется)"
+        cents:
+          type: integer
+          format: int64
+          description: Сумма пополнения в евроцентах, только для top_up
     EmulatorActionsRequest:
       type: object
       required: [actions]
