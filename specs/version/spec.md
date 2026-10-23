@@ -31,3 +31,13 @@
 - WHEN клиент отправляет `HEAD /version`
 - THEN ответ `200`, `Content-Type: application/json`, тело пустое, в ответе есть `X-Request-Id`
 - Тест: `TestVersionHead`
+
+### Requirement: параметры запроса
+
+Система SHALL отвечать на `GET /version` с параметрами запроса так же, как без них.
+
+#### Scenario: параметры в адресе
+
+- WHEN клиент отправляет `GET /version?x=1`
+- THEN ответ `200`, в теле есть поле `version`
+- Тест: `TestVersionQuery/параметр_x`
