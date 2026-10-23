@@ -16,7 +16,7 @@
     "lint:fsd": "steiger ./src",
     "format": "prettier --check .",
     "test": "vitest run",
-    "check": "pnpm api:types && git diff --exit-code -- src/shared/api/schema.gen.ts && pnpm typecheck && pnpm lint && pnpm lint:styles && pnpm lint:fsd && pnpm format && pnpm test && pnpm build"
+    "check": "pnpm api:types && git diff --exit-code -- src/shared/api/schema.gen.ts && pnpm typecheck && pnpm lint && pnpm lint:styles && pnpm lint:fsd && pnpm format && pnpm test && pnpm build && pnpm audit --prod"
   },
   "dependencies": {
     "@fontsource/onest": "5.3.1",

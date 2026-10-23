@@ -1,0 +1,62 @@
+# Встраивание в контур — правка этого файла (или -f свой.yaml).
+
+# Домен, по которому открывается сервис. Обязателен.
+domain: ""
+
+image:
+  repository: churn-app
+  # Тег — sha коммита; деплой задаёт --set image.tag=<sha>.
+  tag: latest
+  # Образ собирается на сервере и импортируется в k3s, реестра нет.
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {memory: 512Mi}
+
+# Значения для env приложения, не секретные.
+env:
+  HTTP_ADDR: ":8080"
+  COOKIE_SECURE: "true"
+  TRUSTED_PROXY: "true"
+  SEED_ORGANIZERS: "false"
+
+# Секреты приложения (ADMIN_PASSWORD, METRICS_TOKEN, SOURCE_TOKEN, DEMO_*_PASSWORD …).
+# Пустой существующий секрет: existingSecret — имя Secret, который заведён вручную.
+secretEnv: {}
+existingSecret: ""
+
+postgres:
+  # true — свой Postgres в кластере (StatefulSet); false — внешний, адрес в externalUrl.
+  enabled: true
+  image: postgres:16-alpine
+  password: ""
+  storage: 5Gi
+  storageClassName: ""
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {memory: 512Mi}
+  # DATABASE_URL внешней базы (при enabled: false).
+  externalUrl: ""
+
+ingress:
+  enabled: true
+  className: traefik
+  # Резолвер ACME, заведённый в Traefik (deploy/k3s/bootstrap.sh).
+  certResolver: le
+  # Либо Secret с сертификатом (если certResolver пуст).
+  tlsSecret: ""
+
+networkPolicy:
+  enabled: true
+  # Пространство имён Ingress-контроллера (в k3s Traefik в kube-system).
+  ingressNamespace: kube-system
+
+# Включается, когда в кластере есть prometheus-operator (этап 6: prometheus-prod).
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  # Секрет с bearer-токеном /metrics: ключ token.
+  tokenSecret: ""

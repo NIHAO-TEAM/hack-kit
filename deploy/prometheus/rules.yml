@@ -1,0 +1,26 @@
+groups:
+  - name: churn
+    rules:
+      - alert: ExpectedLossGrowth
+        # Ожидаемая потеря выросла более чем на 20 % за час.
+        expr: churn_expected_loss_cents > 1.2 * (churn_expected_loss_cents offset 1h) and (churn_expected_loss_cents offset 1h) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ожидаемая потеря выросла более чем на 20 % за час"
+      - alert: SnapshotStale
+        # Снимок старше 10 минут: пересчёт не идёт.
+        expr: churn_snapshot_age_seconds > 600
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Снимок риска старше 10 минут"
+      - alert: ChurnTargetDown
+        expr: up{job="churn"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus не достаёт /metrics приложения"
