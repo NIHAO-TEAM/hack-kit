@@ -1,4 +1,4 @@
-import { Group, Select, Stack, TextInput, Title } from '@mantine/core';
+import { Button, Group, Select, Stack, TextInput, Title } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
@@ -10,6 +10,7 @@ import {
   type RiskLevel,
 } from '@entities/customer';
 import { ApiError } from '@shared/api';
+import type { Role } from '@entities/session';
 import {
   IconSearch,
   StateEmpty,
@@ -22,6 +23,7 @@ import { summaryOptions } from '../api/summary';
 import { DeletionStrip } from './DeletionStrip';
 import { QueueTable } from './QueueTable';
 import { SummaryCards } from './SummaryCards';
+import { WhatIfPanel } from './WhatIfPanel';
 
 const levelOptions: Array<{ value: RiskLevel; label: string }> = [
   { value: 'high', label: 'Высокий риск' },
@@ -44,10 +46,12 @@ const firstOrder: Record<CustomerSort, 'asc' | 'desc'> = {
 export function QueuePage({
   params,
   onParams,
+  role,
 }: {
   /** Сортировка и фильтры живут в адресе: ссылка на очередь воспроизводит вид. */
   params: CustomerParams;
   onParams: (next: CustomerParams) => void;
+  role: Role;
 }) {
   const router = useRouter();
   const customers = useQuery({ ...customersOptions(params), placeholderData: keepPreviousData });
@@ -55,6 +59,7 @@ export function QueuePage({
   // Полоса «удалит биллинг» не зависит от поиска и фильтра: к биллингу уходят все.
   const unfiltered = useQuery(customersOptions({ sort: 'expectedLoss', order: 'desc' }));
 
+  const [whatIf, setWhatIf] = useState(false);
   const [search, setSearch] = useState(params.q ?? '');
   const [debounced] = useDebouncedValue(search, 300);
   useEffect(() => {
@@ -117,7 +122,17 @@ export function QueuePage({
 
   return (
     <Stack gap="lg">
-      <Title order={1}>Очередь удержания</Title>
+      <Group justify="space-between" align="center">
+        <Title order={1}>Очередь удержания</Title>
+        <Button
+          variant={whatIf ? 'filled' : 'default'}
+          aria-expanded={whatIf}
+          onClick={() => setWhatIf((v) => !v)}
+        >
+          Что если
+        </Button>
+      </Group>
+      {whatIf ? <WhatIfPanel role={role} /> : null}
       {customers.isError && customers.data ? (
         <StateOffline onRetry={() => void customers.refetch()} />
       ) : null}
