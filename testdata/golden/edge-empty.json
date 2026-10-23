@@ -8,6 +8,7 @@
     "medium": 50,
     "priceBasis": "per_period",
     "weights": {
+      "bonus_locked": 0.0,
       "fail": 0.4,
       "flight": 0.15,
       "funds": 0.7,

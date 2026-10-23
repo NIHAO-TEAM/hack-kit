@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>C · Окно спасения — планшет, тёмная</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#ECEEF1}a:hover{color:#9BA3AE}
+</style>
+</helmet>
+<div style="font-family: 'Onest', system-ui, sans-serif; background: #0D0F12; color: #ECEEF1; min-height: 1180px; box-sizing: border-box; font-variant-numeric: tabular-nums">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 16px 24px; background: #15181D; border-bottom: 1px solid #262A31">
+    <div style="font-weight: 700; font-size: 17px">Контур удержания</div>
+    <span style="margin-left: auto; font-size: 13px; color: #9BA3AE">19.10, 18:00 МСК</span>
+  </header>
+  <nav style="display: flex; gap: 8px; padding: 12px 24px; border-bottom: 1px solid #262A31">
+    <a href="#" style="padding: 12px 18px; min-height: 44px; box-sizing: border-box; border-radius: 999px; background: #ECEEF1; color: #0D0F12; text-decoration: none; font-size: 15px">Очередь</a>
+    <a href="#" style="padding: 12px 18px; min-height: 44px; box-sizing: border-box; border-radius: 999px; text-decoration: none; font-size: 15px">Сводка</a>
+  </nav>
+
+  <main style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px">
+    <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div style="background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 14px 16px">
+        <div style="font-size: 13px; color: #9BA3AE">Ожидаемая потеря, 30 дн</div>
+        <div style="font-size: 28px; font-weight: 700">3 879,73 €</div>
+      </div>
+      <div style="background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 14px 16px">
+        <div style="font-size: 13px; color: #9BA3AE">Окно закрывается за 5 дней</div>
+        <div style="font-size: 28px; font-weight: 700; color: #FB923C">2 клиента</div>
+      </div>
+    </section>
+
+    <h1 style="margin: 4px 0 0; font-size: 18px; font-weight: 600">Очередь · по ожидаемой потере</h1>
+
+    <article style="background: #1E1712; border: 1px solid #5A3A22; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap">
+        <span style="font-weight: 600">№1</span><span>user-0001@example.test</span>
+        <span style="margin-left: auto; font-size: 22px; font-weight: 700">383,15 €</span>
+      </div>
+      <div role="img" aria-label="Срок истекает через 30 минут, затем 5 дней ожидания" style="position: relative; height: 16px; display: flex; border-radius: 8px; overflow: hidden; background: #262A31">
+        <div style="width: 30%; background: #3A404A"></div><div style="width: 70%; background: #7A3F17"></div>
+        <div style="position: absolute; left: 29%; top: -4px; bottom: -4px; width: 2px; background: #ECEEF1"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; color: #9BA3AE"><span>сейчас</span><span>срок</span><span>+5 дней · удаление</span></div>
+      <div style="font-size: 15px"><strong style="color: #FB923C">30 мин до срока</strong> · автопродление выключено · средний, 56</div>
+      <button style="font: inherit; font-size: 15px; min-height: 44px; padding: 10px 16px; border-radius: 8px; border: 0; background: #2DD4BF; color: #0D0F12; align-self: flex-start">Письмо «включите автопродление» · −365,29 €</button>
+    </article>
+
+    <article style="background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap">
+        <span style="font-weight: 600">№9</span><span>user-0009@example.test</span>
+        <span style="margin-left: auto; font-size: 22px; font-weight: 700">3 459,27 €</span>
+      </div>
+      <div role="img" aria-label="Баланса хватит на 4 дня 11 часов из 7" style="position: relative; height: 16px; display: flex; border-radius: 8px; overflow: hidden; background: #262A31">
+        <div style="width: 64%; background: #1F5F58"></div><div style="width: 36%; background: #7A3F17"></div>
+      </div>
+      <div style="font-size: 15px">Баланса на 4 д 11 ч · не хватает 529,84 € на 7 дней · высокий, 88</div>
+      <button style="font: inherit; font-size: 15px; min-height: 44px; padding: 10px 16px; border-radius: 8px; border: 0; background: #2DD4BF; color: #0D0F12; align-self: flex-start">Пополнить на 529,84 € · −1 067,48 €</button>
+    </article>
+
+    <article style="background: #15181D; border: 1px solid #262A31; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; color: #9BA3AE">
+      <div style="display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; color: #ECEEF1">
+        <span style="font-weight: 600">№5, №10</span><span>окно закрыто</span>
+        <span style="margin-left: auto">28,05 €</span>
+      </div>
+      <div role="img" aria-label="Окно закрыто" style="height: 16px; border-radius: 8px; background: repeating-linear-gradient(135deg, #262A31 0 6px, #15181D 6px 12px)"></div>
+      <div style="font-size: 14px">Статус устарел, автосписание не прошло — передать в биллинг</div>
+    </article>
+
+    <section aria-label="Пусто" style="border: 1px dashed #343A43; border-radius: 12px; padding: 22px 16px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 16px; font-weight: 600">Окна на завтра — пусто</div>
+      <div style="font-size: 14px; color: #9BA3AE">Ни у кого из клиентов срок не наступает в ближайшие 24–48 часов.</div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":820,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

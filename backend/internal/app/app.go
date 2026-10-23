@@ -85,7 +85,7 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 		DocsAPI:      docs.New(),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
 	mux.Handle("GET /api/v1/docs/assets/", docs.Assets())
-	mux.Handle("GET /{$}", webui.Handler())
+	mux.Handle("GET /", webui.Handler())
 	return mux
 }
 
@@ -104,8 +104,8 @@ func WithRequestID(next http.Handler) http.Handler {
 	})
 }
 
-// New собирает полный обработчик: идентификатор запроса, проверка сессии, маршруты.
+// New собирает полный обработчик: защитные заголовки, идентификатор запроса, проверка сессии, маршруты.
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI) http.Handler {
 	mux := Routes(pool, bus, clk, authAPI)
-	return WithRequestID(authAPI.Middleware(mux, mux))
+	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, mux)))
 }
