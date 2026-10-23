@@ -64,7 +64,8 @@ jobs:
           echo "draft=$draft" >> "$GITHUB_OUTPUT"
           # Какие задания нужны. Список файлов не получили — гоняем всё.
           if files=$(gh pr diff "$PR" -R "$GITHUB_REPOSITORY" --name-only); then
-            grep -qE '^(backend/|api/|tests/|\.github/workflows/ci\.yml$)' <<<"$files" && go=true || go=false
+            # testdata/, tools/oracle/, cases/ — эталоны и данные, которые читают Go-тесты (23.10 #78 прошёл без go-test).
+            grep -qE '^(backend/|api/|tests/|testdata/|tools/oracle/|cases/|\.github/workflows/ci\.yml$)' <<<"$files" && go=true || go=false
             grep -qE '^(frontend/|api/|\.github/workflows/ci\.yml$)' <<<"$files" && web=true || web=false
           else
             go=true; web=true
@@ -90,7 +91,8 @@ jobs:
 
   # Проверки идут четырьмя параллельными заданиями: время CI = самое долгое из них, а не сумма.
   # Черновики не проверяются: исполнитель пушит после каждой задачи и гоняет make check сам.
-  # Задания Go не запускаются, если PR не трогает backend/, api/, tests/; фронтенд — если не трогает frontend/, api/.
+  # Задания Go не запускаются, если PR не трогает backend/, api/, tests/, testdata/, tools/oracle/, cases/;
+  # фронтенд — если не трогает frontend/, api/.
   # «checks» — сводное задание: его требует защита ветки, по нему route решает «ревью» или «CI красный».
   go-generate:
     needs: prep
@@ -210,6 +212,10 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+
+      - name: Оракул модели совпадает с golden
+        # Эталоны testdata/golden/ снимаются оракулом; расхождение — эталон устарел или правила разошлись с кодом.
+        run: python3 -I tools/oracle/oracle.py --check
 
       - name: go test -race (с PostgreSQL)
         working-directory: backend

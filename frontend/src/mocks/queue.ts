@@ -128,4 +128,16 @@ export const queueHandlers = [
       version: 1,
     });
   }),
+  http.get(`${API}/analytics/churn-chart`, () => {
+    const actual = [0, 1, 0, 2, 1, 1, 0, 1, 1];
+    const forecast = [1, 2, 1, 3, 2, 1, 2, 1];
+    const week = 7 * 86_400_000;
+    const monday = Date.parse('2026-08-24T00:00:00Z');
+    const points = Array.from({ length: 17 }, (_, i) => ({
+      weekStart: new Date(monday + i * week).toISOString().slice(0, 10),
+      actual: i <= 8 ? (actual[i] ?? 0) : null,
+      forecast: i >= 8 ? (forecast[i - 8] ?? 0) : null,
+    }));
+    return HttpResponse.json({ points });
+  }),
 ];

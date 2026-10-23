@@ -82,3 +82,11 @@ ENV
   chmod 600 "$ENV_FILE"
   echo ".env создан (права 600)"
 fi
+
+# 4а. Пароли Grafana: дописываются в уже существующий .env, если их там нет.
+for key in GRAFANA_ADMIN_PASSWORD GRAFANA_JURY_PASSWORD; do
+  if ! grep -q "^$key=" "$ENV_FILE"; then
+    printf '%s=%s\n' "$key" "$(openssl rand -hex 16)" >> "$ENV_FILE"
+    echo "$key добавлен в .env"
+  fi
+done

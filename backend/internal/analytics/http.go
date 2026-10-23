@@ -80,3 +80,6 @@ func writeJSON(w http.ResponseWriter, _ *http.Request, v any) {
 		log.Printf("analytics: ответ: %v", err)
 	}
 }
+
+// flush сбрасывает буфер ответа клиенту; работает и через обёртки, у которых есть Unwrap.
+func flush(w responseWriter) error { return http.NewResponseController(w).Flush() }
