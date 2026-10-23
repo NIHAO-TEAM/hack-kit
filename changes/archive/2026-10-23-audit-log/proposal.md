@@ -1,4 +1,4 @@
-Статус: в работе
+Статус: на ревью
 
 # Журнал действий: вход, настройки, данные
 
@@ -29,3 +29,6 @@
 
 ## Найдено по ходу
 
+- Контракт `api/openapi.yaml` расширен (только добавления): `GET /api/v1/audit`, схемы `AuditEntry`, `AuditChange`, `AuditPage`, тег `audit`.
+- Миграция `20261024080000_audit_log.sql` (таблица `audit_log`).
+- Локально `TestSettingsAPI` и `TestReaderLoadsStandSeed` падают и на ветке без изменений (ошибка сида `transactions_amount_check`, смена уровня в предпросмотре) — не связано с журналом.

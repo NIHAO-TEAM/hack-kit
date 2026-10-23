@@ -1,6 +1,7 @@
 import { Grid, Stack, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { statusQuery } from '../api/source';
+import { AuditLog } from '@widgets/audit-log';
 import { ApiError } from '@shared/api';
 import { StateError, StateLoading, StateOffline } from '@shared/ui';
 import { EditPanel } from './EditPanel';
@@ -47,6 +48,7 @@ export function SourcePage() {
           </Stack>
         </Grid.Col>
       </Grid>
+      <AuditLog />
     </Stack>
   );
 }
