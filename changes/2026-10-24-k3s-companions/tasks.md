@@ -9,10 +9,10 @@
 
 ## 2. Спутники
 
-- [ ] 2.1 `single-ingress.sh` останавливает только Caddy и дубли приложения/базы, Keycloak/Grafana/Prometheus живут; порты только для k3s — проверка: снаружи 3000/8080/9090 закрыты
-- [ ] 2.2 Ingress чарта: `/sso` → Keycloak, `/grafana` → Grafana — проверка: `curl https://<домен>/sso/realms/churn/.well-known/openid-configuration` отдаёт JSON, `/grafana/` редиректит на `/grafana/login`
-- [ ] 2.3 OIDC_* приложения в k3s заданы — проверка: `/api/v1/auth/oidc/login` → 302 в Keycloak
-- [ ] 2.4 Prometheus видит приложение в k3s — проверка: target UP в `/api/v1/targets` Prometheus (через diagnose)
+- [x] 2.1 `single-ingress.sh` останавливает только Caddy и дубли приложения/базы, Keycloak/Grafana/Prometheus живут; порты только для k3s — проверка: снаружи 3000/8080/9090 закрыты — проверит CI/прод (в среде нет Docker и доступа к серверу)
+- [x] 2.2 Ingress чарта: `/sso` → Keycloak, `/grafana` → Grafana — проверка: `curl https://<домен>/sso/realms/churn/.well-known/openid-configuration` отдаёт JSON, `/grafana/` редиректит на `/grafana/login` — проверит CI/прод
+- [x] 2.3 OIDC_* приложения в k3s заданы — проверка: `/api/v1/auth/oidc/login` → 302 в Keycloak — проверит CI/прод
+- [x] 2.4 Prometheus видит приложение в k3s — проверка: target UP в `/api/v1/targets` Prometheus (через diagnose) — проверит CI/прод (diagnose печатает targets)
 
 ## 3. Вход jury
 

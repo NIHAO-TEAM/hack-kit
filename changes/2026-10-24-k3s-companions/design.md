@@ -23,3 +23,11 @@
 
 - [ПРЕДПОЛОЖЕНО] на VM хватает памяти на Keycloak + Grafana + Prometheus рядом с k3s (до cutover они работали в Compose на той же VM).
 - [ПРЕДПОЛОЖЕНО] если нужен секрет, которого нет в репозитории, исполнитель ставит `needs-human` и пишет, какой именно.
+
+## Решения по ходу
+
+- Выбран вариант 1: спутники остаются в Compose, вход один — Traefik. Keycloak, Grafana, Prometheus публикуют порты только на `COMPANIONS_BIND` (адрес docker0, `172.17.0.1`; по умолчанию `127.0.0.1`), снаружи закрыты. [ПРЕДПОЛОЖЕНО] адрес docker0 доступен из подов k3s.
+- Чарт: `templates/companions.yaml` — Service без селектора + EndpointSlice на `companions.hostAddress`; Ingress `/sso` → Keycloak, `/grafana` → Grafana; админка и master-realm закрыты отдельным Ingress с `ipAllowList` (как в Caddy). [ПРЕДПОЛОЖЕНО] Traefik v3 (`ipAllowList`); на v2 нужен `ipWhiteList`.
+- OIDC: `deploy.sh` переносит `OIDC_*` из `.env` в env и Secret; `OIDC_DISCOVERY_URL` из `http://keycloak:8080` подменяется на Service чарта `<релиз>-keycloak`. `.env` не меняется, откат на Compose работает.
+- Prometheus: цель и схема из `METRICS_TARGET`/`METRICS_SCHEME` (по умолчанию `app:8080`/`http`); `single-ingress.sh` ставит `<домен>:443`/`https` — опрос через Traefik с bearer-токеном.
+- Смоук: загрузка трассы Playwright требует правки существующего `deploy-smoke.yml`, а `executor.md` запрещает исполнителю менять существующие workflow. Задачи 1.1, 1.2, 3.1, 4.1 не выполнены. Новая гипотеза причины падения очереди: в k3s-Postgres нет данных (перенос базы вне изменения, Compose-база осталась в томе), поэтому таблица очереди пуста или не рисуется. [ГИПОТЕЗА] Проверить на проде: `diagnose.sh` и смоук после выката.

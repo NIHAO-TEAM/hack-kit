@@ -60,3 +60,12 @@ serviceMonitor:
   interval: 30s
   # Секрет с bearer-токеном /metrics: ключ token.
   tokenSecret: ""
+
+# Спутники (Keycloak, Grafana) работают в Compose на том же сервере, вход один — Traefik.
+# Service без селектора + EndpointSlice на адрес хоста; порты в Compose слушают только на этом адресе.
+companions:
+  enabled: true
+  # Адрес docker0 на хосте, доступный из подов (COMPANIONS_BIND в ~/churn/.env).
+  hostAddress: 172.17.0.1
+  keycloak: {port: 18080}
+  grafana: {port: 13000}
