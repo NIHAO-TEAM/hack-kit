@@ -116,9 +116,18 @@ func run() error {
 	recalc := app.NewRecalc(pool, bus, clock.System{})
 	recalc.Start(ctx)
 
+	// Опрос REST-биллинга включается, только если задан BILLING_URL.
+	var opts []app.Option
+	if bc := source.AdapterConfigFromEnv(); bc != nil {
+		billing := source.NewAdapter(pool, bus, clock.System{}, *bc)
+		go billing.Run(ctx)
+		opts = append(opts, app.WithBilling(billing))
+		log.Printf("api: опрос биллинга каждые %s", bc.Interval)
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.addr,
-		Handler:           app.New(pool, bus, clock.System{}, authAPI, recalc),
+		Handler:           app.New(pool, bus, clock.System{}, authAPI, recalc, opts...),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("api: слушаю %s", cfg.addr)
