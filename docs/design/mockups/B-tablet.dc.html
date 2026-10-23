@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>B · Квитанция — планшет, тёмная</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&amp;family=Golos+Text:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#EFE8DA}a:hover{color:#B3A893}
+</style>
+</helmet>
+<div style="font-family: 'Golos Text', system-ui, sans-serif; background: #17140F; color: #EFE8DA; min-height: 1180px; box-sizing: border-box">
+  <header style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px; padding: 18px 28px 14px; border-bottom: 1px solid #3A332A">
+    <div style="font-family: 'PT Serif', Georgia, serif; font-size: 22px; font-weight: 700">Контур удержания</div>
+    <div style="margin-left: auto; font-size: 13px; color: #B3A893">выписка на 19.10, 18:00</div>
+  </header>
+  <nav style="display: flex; border-bottom: 1px solid #3A332A">
+    <a href="#" style="flex: 1; text-align: center; padding: 14px; min-height: 44px; box-sizing: border-box; text-decoration: underline; text-underline-offset: 6px">Очередь</a>
+    <a href="#" style="flex: 1; text-align: center; padding: 14px; min-height: 44px; box-sizing: border-box; text-decoration: none; color: #B3A893">Сводка</a>
+  </nav>
+
+  <main style="padding: 22px 28px; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: baseline">
+      <div>
+        <div style="font-size: 13px; color: #B3A893">Ожидаемая потеря, 30 дней</div>
+        <div style="font-family: 'PT Serif', serif; font-size: 38px; font-weight: 700; font-variant-numeric: tabular-nums">3 879,73 €</div>
+      </div>
+      <div>
+        <div style="font-size: 13px; color: #B3A893">Под угрозой</div>
+        <div style="font-family: 'PT Serif', serif; font-size: 22px; font-variant-numeric: tabular-nums">6 900,46 €</div>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid #6E3A22; border-bottom: 1px solid #6E3A22; background: #2A1C14; padding: 12px 16px; font-size: 15px">
+      <strong style="color: #E07A4F">До конца дня:</strong> №1 — сервер истекает через 30 мин, автопродление выключено.
+    </div>
+
+    <section aria-label="Чек действий" style="background: #211D17; border: 1px solid #3A332A; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+      <div style="font-family: 'PT Serif', serif; font-size: 18px; font-weight: 700; text-align: center">Чек на сегодня</div>
+      <div style="border-top: 2px dashed #4A4135"></div>
+      <div style="display: flex; gap: 8px; align-items: baseline; font-size: 15px">
+        <span>№9 · пополнить на 529,84 €</span>
+        <span style="flex: 1; border-bottom: 2px dotted #5A5043; transform: translateY(-4px)"></span>
+        <span style="font-family: 'PT Serif', serif; font-weight: 700; color: #7BC28A">−1 067,48 €</span>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: baseline; font-size: 15px">
+        <span>№1 · письмо «автопродление»</span>
+        <span style="flex: 1; border-bottom: 2px dotted #5A5043; transform: translateY(-4px)"></span>
+        <span style="font-family: 'PT Serif', serif; font-weight: 700; color: #7BC28A">−365,29 €</span>
+      </div>
+      <div style="border-top: 2px dashed #4A4135"></div>
+      <div style="display: flex; justify-content: space-between; align-items: baseline">
+        <span style="font-weight: 600">Итого можно снять</span>
+        <span style="font-family: 'PT Serif', serif; font-size: 24px; font-weight: 700; color: #7BC28A">−1 432,77 €</span>
+      </div>
+    </section>
+
+    <h1 style="margin: 4px 0 0; font-family: 'PT Serif', serif; font-size: 20px">Очередь · сначала дорогие</h1>
+
+    <article style="background: #211D17; border: 1px solid #3A332A; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap">
+        <span style="color: #B3A893">№9</span><span>user-0009@example.test</span>
+        <span style="margin-left: auto; font-family: 'PT Serif', serif; font-size: 22px; font-weight: 700">3 459,27 €</span>
+      </div>
+      <div style="font-size: 13px; color: #B3A893; font-variant-numeric: tabular-nums">высокий · 88 · баланс 915,06 € · пополнено 2 698,95 €</div>
+      <div style="font-size: 15px">Не хватает 529,84 € на 7 дней</div>
+    </article>
+    <article style="background: #211D17; border: 1px solid #3A332A; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap">
+        <span style="color: #B3A893">№1</span><span>user-0001@example.test</span>
+        <span style="margin-left: auto; font-family: 'PT Serif', serif; font-size: 22px; font-weight: 700">383,15 €</span>
+      </div>
+      <div style="font-size: 13px; color: #B3A893; font-variant-numeric: tabular-nums">средний · 56 · баланс 838,10 € · пополнено 969,22 €</div>
+      <div style="font-size: 15px">Автопродление выкл., истекает через 30 мин</div>
+    </article>
+
+    <section aria-label="Пусто" style="border: 1px dashed #4A4135; padding: 22px 18px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-family: 'PT Serif', serif; font-size: 16px; font-weight: 700">В работе у вас — пусто</div>
+      <div style="font-size: 15px; color: #B3A893">Возьмите строку из чека — она появится здесь, пока клиент не ответит.</div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":820,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
