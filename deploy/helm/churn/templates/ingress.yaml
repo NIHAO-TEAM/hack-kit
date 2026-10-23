@@ -24,6 +24,20 @@ spec:
     - host: {{ required "domain обязателен" .Values.domain | quote }}
       http:
         paths:
+          {{- if .Values.companions.enabled }}
+          - path: /sso
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-keycloak
+                port: {name: http}
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-grafana
+                port: {name: http}
+          {{- end }}
           - path: /
             pathType: Prefix
             backend:
@@ -42,4 +56,44 @@ spec:
     stsSeconds: 31536000
     contentTypeNosniff: true
     referrerPolicy: strict-origin-when-cross-origin
+{{- if .Values.companions.enabled }}
+---
+# Админка Keycloak и master-realm снаружи закрыты (как в Caddy): более длинные пути перебивают /sso.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-sso-closed
+  labels: {{- include "churn.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-%s-deny@kubernetescrd" .Release.Namespace .Release.Name | quote }}
+    {{- if .Values.ingress.certResolver }}
+    traefik.ingress.kubernetes.io/router.tls.certresolver: {{ .Values.ingress.certResolver | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts: [{{ required "domain обязателен" .Values.domain | quote }}]
+  rules:
+    - host: {{ required "domain обязателен" .Values.domain | quote }}
+      http:
+        paths:
+          {{- range list "/sso/admin" "/sso/realms/master" }}
+          - path: {{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}-keycloak
+                port: {name: http}
+          {{- end }}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}-deny
+  labels: {{- include "churn.labels" . | nindent 4 }}
+spec:
+  ipAllowList:
+    sourceRange: ["127.0.0.1/32"]
+{{- end }}
 {{- end }}

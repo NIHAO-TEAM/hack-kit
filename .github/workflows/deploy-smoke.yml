@@ -64,6 +64,15 @@ jobs:
           CI: "true"
         run: npx playwright test smoke --retries=2 --reporter=list
 
+      - name: Скриншоты падения
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: e2e/test-results/**/*.png
+          retention-days: 3
+          if-no-files-found: ignore
+
       - name: Сводка
         if: always()
         run: |
