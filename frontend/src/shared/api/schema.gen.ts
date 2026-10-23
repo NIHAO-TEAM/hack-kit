@@ -286,7 +286,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Загрузка или полная замена снимка данных с пересчётом (аналитик или сервисный токен) */
+        /**
+         * Загрузка или полная замена снимка данных с пересчётом (аналитик или сервисный токен)
+         * @description Принимаются также написания из текста кейса: поля pice, paymentTem, autoprolong и значения quater_year, pefomed, not_pefomed; в ответах — имена схемы.
+         */
         put: operations["putSnapshot"];
         post?: never;
         delete?: never;
@@ -531,6 +534,11 @@ export interface components {
         SnapshotAccepted: {
             /** Format: int64 */
             version: number;
+            /**
+             * Format: date-time
+             * @description Время модели этого снимка.
+             */
+            asOf: string;
             accounts: number;
             services: number;
             transactions: number;
@@ -543,6 +551,11 @@ export interface components {
         SourceStatus: {
             /** Format: int64 */
             version: number;
+            /**
+             * @description Откуда загружен текущий снимок.
+             * @enum {string}
+             */
+            source?: "seed" | "api";
             /** Format: date-time */
             asOf?: string;
             /** Format: date-time */
@@ -726,6 +739,15 @@ export interface components {
         };
         /** @description Не найдено */
         NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Снимок не прошёл проверку связей и значений; errors[] — по полям */
+        UnprocessableEntity: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1210,6 +1232,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["UnprocessableEntity"];
             501: components["responses"]["NotImplemented"];
         };
     };
