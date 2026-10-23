@@ -8,7 +8,7 @@
 
 ## 2. Логика
 
-- [ ] 2.1 `FuzzParseSnapshot` + корпус — проверка: `go test -run FuzzParseSnapshot ./internal/source`, локально `-fuzz -fuzztime 2m` без падений
+- [x] 2.1 `FuzzParseSnapshot` + корпус — проверка: `go test -run FuzzParseSnapshot ./internal/source`, локально `-fuzz -fuzztime 2m` без падений
 - [ ] 2.2 Интеграционный тест крайних наборов (очередь = сводка = `/metrics`, скор в [0, 1] или `null`) — проверка: `TestEdgeSnapshotsConsistent`
 - [ ] 2.3 Исправления найденного — проверка: тест на каждый найденный вход
 
