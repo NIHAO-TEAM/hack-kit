@@ -69,7 +69,7 @@ func TestActionsGolden(t *testing.T) {
 				t.Errorf("клиент %d, действие %d: %s %d, эталон %s %d", c.ID, k, a.ID, a.LossDeltaCents, want.Type, want.LossDeltaCents)
 			}
 			if want.AmountCents != nil {
-				if w := fmt.Sprintf("Пополнить баланс на %s €", eurosText(*want.AmountCents)); a.Title != w {
+				if w := fmt.Sprintf("Пополнить баланс на %s", euros(*want.AmountCents)); a.Title != w {
 					t.Errorf("клиент %d: заголовок %q, ждали %q", c.ID, a.Title, w)
 				}
 			}

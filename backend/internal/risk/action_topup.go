@@ -12,7 +12,7 @@ func (topUp) ID() string { return "top_up" }
 func (topUp) Applies(ctx CustomerCtx) bool { return ctx.Funds.Need > ctx.Funds.Have }
 
 func (topUp) Title(ctx CustomerCtx) string {
-	return fmt.Sprintf("Пополнить баланс на %s €", eurosText(ctx.Funds.Need-ctx.Funds.Have))
+	return fmt.Sprintf("Пополнить баланс на %s", euros(ctx.Funds.Need-ctx.Funds.Have))
 }
 
 // Apply без настроек считает «нужно» по умолчанию; ядро вызывает ApplyWith с настройками расчёта.

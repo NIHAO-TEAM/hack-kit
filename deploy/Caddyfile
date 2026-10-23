@@ -1,0 +1,20 @@
+# TLS-сертификат Let's Encrypt Caddy получает и продлевает сам.
+# http:// автоматически перенаправляется на https://.
+{$PROD_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Живые обновления (SSE) не буферизуем.
+	@sse path /api/v1/events
+	reverse_proxy @sse app:8080 {
+		flush_interval -1
+	}
+
+	reverse_proxy app:8080
+}

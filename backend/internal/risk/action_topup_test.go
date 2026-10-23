@@ -69,11 +69,3 @@ func TestTopUpUsesPriceBasis(t *testing.T) {
 		t.Errorf("баланс: %d", out.Accounts[0].Balance)
 	}
 }
-
-func TestEurosText(t *testing.T) {
-	for in, want := range map[int64]string{52984: "529,84", 5: "0,05", 100: "1,00", -106748: "-1067,48"} {
-		if got := eurosText(in); got != want {
-			t.Errorf("eurosText(%d) = %q, ждали %q", in, got, want)
-		}
-	}
-}

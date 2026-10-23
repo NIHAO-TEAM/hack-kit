@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>D · Карточка клиента 1 и состояния — планшет, светлая</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#5B3FE0}a:hover{color:#111317}
+</style>
+</helmet>
+<div style="font-family: 'Onest', system-ui, sans-serif; background: #F5F6F8; color: #111317; min-height: 1400px; box-sizing: border-box; font-variant-numeric: tabular-nums">
+  <header style="display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: #FFFFFF; border-bottom: 1px solid #E1E4E9">
+    <div style="font-weight: 700; font-size: 17px">Контур удержания</div>
+    <span style="margin-left: auto; font-size: 13px; color: #5A606B">19.10, 18:00 МСК</span>
+  </header>
+  <main style="padding: 18px 24px; display: flex; flex-direction: column; gap: 14px">
+    <a href="#" style="font-size: 15px; text-decoration: none; padding: 10px 0; min-height: 44px; box-sizing: border-box">← Очередь</a>
+    <section style="display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 13px; color: #5A606B">Клиент №1</div>
+      <h1 style="margin: 0; font-size: 24px">user-0001@example.test</h1>
+      <div style="font-size: 14px; color: #5A606B">баланс 838,10 € · пополнено 969,22 €</div>
+      <div style="display: flex; gap: 20px; margin-top: 6px; flex-wrap: wrap">
+        <div><div style="font-size: 13px; color: #5A606B">Скор</div><div style="font-size: 26px; font-weight: 700">56,02 <span style="font-size: 14px; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid #5A606B">средний</span></div></div>
+        <div><div style="font-size: 13px; color: #5A606B">Ожидаемая потеря</div><div style="font-size: 26px; font-weight: 700">383,15 €</div></div>
+      </div>
+    </section>
+
+    <section style="background: #FFFFFF; border: 1px solid #E1E4E9; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: #5A606B">ГЛАВНОЕ ДЕЙСТВИЕ</div>
+      <div style="font-size: 17px; font-weight: 600">Письмо «включите автопродление»</div>
+      <div style="font-size: 14px; color: #5A606B">почасовой сервер истекает через 30 минут, денег на балансе хватит на 36 дней</div>
+      <div style="font-size: 24px; font-weight: 700; color: #0F766E">−365,29 € · скор после 41,57, низкий</div>
+      <button style="font: inherit; font-size: 15px; min-height: 44px; padding: 10px 18px; border-radius: 8px; border: 0; background: #5B3FE0; color: #FFFFFF; align-self: flex-start">Взять в работу</button>
+    </section>
+
+    <section style="background: #FFFFFF; border: 1px solid #E1E4E9; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap"><span style="font-weight: 600">service-0001</span><span style="font-size: 13px; color: #5A606B">почасовая · 0,95 € в час</span><span style="margin-left: auto; font-weight: 700">383,15 €</span></div>
+      <div role="img" aria-label="Срок через 30 минут, затем 5 дней ожидания" style="position: relative; height: 14px; display: flex; border-radius: 7px; overflow: hidden; background: #EEF0F3">
+        <div style="width: 30%; background: #D6DAE0"></div><div style="width: 70%; background: #FED7AA"></div>
+        <div style="position: absolute; left: 29%; top: -4px; bottom: -4px; width: 2px; background: #111317"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; color: #5A606B"><span>сейчас</span><span>срок 19.10 18:30</span><span>удаление 24.10 18:30</span></div>
+      <button style="font: inherit; font-size: 14px; min-height: 44px; padding: 10px 0; background: transparent; border: 0; color: #5B3FE0; align-self: flex-start">Почему 0,560 — показать признаки</button>
+    </section>
+
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: #5A606B; margin-top: 8px">СОСТОЯНИЯ ЭКРАНА</div>
+    <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div style="background: #FFFFFF; border: 1px solid #E1E4E9; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 13px; color: #5A606B">Клиент №2</div>
+        <div style="font-weight: 600">Потерян</div>
+        <div style="font-size: 14px; color: #5A606B">Все 3 услуги заблокированы. Уже потеряно 18,40 € за 30 дней.</div>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E1E4E9; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+        <div style="font-weight: 600">Нет такого клиента</div>
+        <div style="font-size: 14px; color: #5A606B">Клиента №404 нет в последнем снимке. Проверьте номер или вернитесь в очередь.</div>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E1E4E9; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px" aria-label="Загрузка">
+        <div style="height: 12px; width: 40%; border-radius: 6px; background: #EEF0F3"></div>
+        <div style="height: 20px; width: 80%; border-radius: 6px; background: #EEF0F3"></div>
+        <div style="height: 12px; width: 60%; border-radius: 6px; background: #EEF0F3"></div>
+      </div>
+      <div style="background: #FFF7F2; border: 1px solid #FED7AA; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+        <div style="font-weight: 600; color: #9A3412">Нет связи</div>
+        <div style="font-size: 14px">Данные могли устареть: показаны на 18:00. Переподключаемся…</div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":820,"height":1400}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
