@@ -3,8 +3,8 @@
 # Проверки PR в main и запрос ревью. Модель здесь не запускается: ревьюер — routine
 # на claude.ai-аккаунте человека (.github/agents/reviewer.md), секрет токена не нужен.
 #
-#   prep ── checks ──┬─ зелёный → [ci] «ревью запрошено» + API-триггер routine reviewer
-#                    └─ красный → итог «[review] … source: ci» от бота → сессия исполнителя (подписка на PR)
+#   prep ── go-generate, go-lint, go-test, web (параллельно) ── checks ──┬─ зелёный → [ci] «ревью запрошено» + API-триггер routine reviewer
+#                                                                    └─ красный → итог «[review] … source: ci» от бота → сессия исполнителя (подписка на PR)
 #
 # Итог ревьюера ([review] …) разбирает review-post.yml: раунд, protected, merge-gate, сигнал исполнителю от бота.
 # Оспаривание исполнителем — ai-review.yml.
@@ -50,6 +50,9 @@ jobs:
       skip: ${{ steps.pr.outputs.skip }}
       n: ${{ steps.pr.outputs.n }}
       head: ${{ steps.pr.outputs.head }}
+      draft: ${{ steps.pr.outputs.draft }}
+      go: ${{ steps.pr.outputs.go }}
+      web: ${{ steps.pr.outputs.web }}
     steps:
       - name: Состояние PR
         id: pr
@@ -58,6 +61,16 @@ jobs:
             --json state,isDraft,baseRefName,headRefOid \
             --jq '"\(.state) \(.isDraft) \(.baseRefName) \(.headRefOid)"')"
           echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+          # Какие задания нужны. Список файлов не получили — гоняем всё.
+          if files=$(gh pr diff "$PR" -R "$GITHUB_REPOSITORY" --name-only); then
+            grep -qE '^(backend/|api/|tests/|\.github/workflows/ci\.yml$)' <<<"$files" && go=true || go=false
+            grep -qE '^(frontend/|api/|\.github/workflows/ci\.yml$)' <<<"$files" && web=true || web=false
+          else
+            go=true; web=true
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"; echo "web=$web" >> "$GITHUB_OUTPUT"
+          echo "задания: go=$go web=$web, черновик=$draft"
           if [ "$state" != "OPEN" ] || [ "$draft" = "true" ] || [ "$base" != "main" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"; echo "PR закрыт, черновик или не в main — ревью не нужно"; exit 0
           fi
@@ -75,36 +88,25 @@ jobs:
           echo "n=$((prev + 1))" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
-  checks:
+  # Проверки идут четырьмя параллельными заданиями: время CI = самое долгое из них, а не сумма.
+  # Черновики не проверяются: исполнитель пушит после каждой задачи и гоняет make check сам.
+  # Задания Go не запускаются, если PR не трогает backend/, api/, tests/; фронтенд — если не трогает frontend/, api/.
+  # «checks» — сводное задание: его требует защита ветки, по нему route решает «ревью» или «CI красный».
+  go-generate:
+    needs: prep
+    if: ${{ !cancelled() && (github.event_name == 'push' || (needs.prep.outputs.draft == 'false' && needs.prep.outputs.go == 'true')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: ci
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U ci -d ci"
-          --health-interval 5s --health-timeout 3s --health-retries 20
-    env:
-      TEST_DATABASE_URL: postgres://ci:ci@localhost:5432/ci?sslmode=disable
-      INVARIANTS_DATABASE_URL: postgres://ci:ci@localhost:5432/ci?sslmode=disable
-    # Явный bash = -eo pipefail: без него «… | tee» скрыл бы код падения проверки.
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
-    # Вывод каждой проверки дублируется в $RUNNER_TEMP/ci.log с заголовком шага: при падении из него
-    # собирается хвост для итога «CI красный» (артефакт ci-tail-<попытка>, его читает route). API логов
-    # для этого не годится: внутри того же запуска он отдавал пустоту (находка 18).
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: Сгенерированный код совпадает с контрактом
         working-directory: backend
@@ -124,6 +126,33 @@ jobs:
             if [ -n "$out" ]; then echo "Не отформатировано gofmt:"; echo "$out"; exit 1; fi
           } 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
 
+      - name: Хвост лога
+        if: failure()
+        run: mkdir -p "$RUNNER_TEMP/part" && tail -n 80 "$RUNNER_TEMP/ci.log" > "$RUNNER_TEMP/part/go-generate.txt" 2>/dev/null || echo "Упала подготовка (checkout, setup-go)." > "$RUNNER_TEMP/part/go-generate.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ci-part-go-generate-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/part/
+          retention-days: 3
+
+  go-lint:
+    needs: prep
+    if: ${{ !cancelled() && (github.event_name == 'push' || (needs.prep.outputs.draft == 'false' && needs.prep.outputs.go == 'true')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
       - name: go vet и golangci-lint (границы модулей)
         working-directory: backend
         # Линтер ставится отдельно с повторами: сбой proxy.golang.org не должен краснить PR
@@ -139,6 +168,48 @@ jobs:
             done
             "$(go env GOPATH)/bin/golangci-lint" run ./...
           } 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
+
+      - name: Хвост лога
+        if: failure()
+        run: mkdir -p "$RUNNER_TEMP/part" && tail -n 80 "$RUNNER_TEMP/ci.log" > "$RUNNER_TEMP/part/go-lint.txt" 2>/dev/null || echo "Упала подготовка (checkout, setup-go)." > "$RUNNER_TEMP/part/go-lint.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ci-part-go-lint-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/part/
+          retention-days: 3
+
+  go-test:
+    needs: prep
+    if: ${{ !cancelled() && (github.event_name == 'push' || (needs.prep.outputs.draft == 'false' && needs.prep.outputs.go == 'true')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://ci:ci@localhost:5432/ci?sslmode=disable
+      INVARIANTS_DATABASE_URL: postgres://ci:ci@localhost:5432/ci?sslmode=disable
+    # Явный bash = -eo pipefail: без него «… | tee» скрыл бы код падения проверки.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: go test -race (с PostgreSQL)
         working-directory: backend
@@ -156,6 +227,36 @@ jobs:
             fi
             exit "$status"
           } 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
+
+      - name: Хвост лога
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/part"
+          {
+            if [ -s "$RUNNER_TEMP/go-test.log" ] && grep -qE -- '--- FAIL|^panic:' "$RUNNER_TEMP/go-test.log"; then
+              echo "### упавшие тесты Go"
+              grep -E -B2 -A20 -- '--- FAIL|^panic:' "$RUNNER_TEMP/go-test.log" | head -n 150 || true
+            fi
+            if [ -s "$RUNNER_TEMP/ci.log" ]; then tail -n 80 "$RUNNER_TEMP/ci.log"; else echo "Упала подготовка (checkout, setup-go, PostgreSQL)."; fi
+          } > "$RUNNER_TEMP/part/go-test.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ci-part-go-test-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/part/
+          retention-days: 3
+
+  web:
+    needs: prep
+    if: ${{ !cancelled() && (github.event_name == 'push' || (needs.prep.outputs.draft == 'false' && needs.prep.outputs.web == 'true')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
         with:
@@ -176,20 +277,67 @@ jobs:
             pnpm check
           } 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
 
+      - name: Хвост лога
+        if: failure()
+        run: mkdir -p "$RUNNER_TEMP/part" && tail -n 80 "$RUNNER_TEMP/ci.log" > "$RUNNER_TEMP/part/web.txt" 2>/dev/null || echo "Упала подготовка (checkout, pnpm, node)." > "$RUNNER_TEMP/part/web.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ci-part-web-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/part/
+          retention-days: 3
+
+  # Сводная проверка. Пропущенное по фильтру путей задание считается пройденным; упавшее или отменённое — нет.
+  # Хвосты упавших заданий собираются в артефакт ci-tail-<попытка>: его читает route для итога «CI красный».
+  checks:
+    needs: [prep, go-generate, go-lint, go-test, web]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Итог проверок
+        env:
+          EVENT: ${{ github.event_name }}
+          PREP: ${{ needs.prep.result }}
+          DRAFT: ${{ needs.prep.outputs.draft }}
+          GO_GENERATE: ${{ needs.go-generate.result }}
+          GO_LINT: ${{ needs.go-lint.result }}
+          GO_TEST: ${{ needs.go-test.result }}
+          WEB: ${{ needs.web.result }}
+        run: |
+          if [ "$EVENT" = "pull_request" ] && [ "$PREP" != "success" ]; then echo "prep: $PREP"; exit 1; fi
+          if [ "$DRAFT" = "true" ]; then echo "Черновик: проверки запустятся, когда PR будет готов к ревью."; exit 0; fi
+          bad=0
+          for pair in "go-generate=$GO_GENERATE" "go-lint=$GO_LINT" "go-test=$GO_TEST" "web=$WEB"; do
+            echo "$pair"
+            case "${pair#*=}" in success|skipped) ;; *) bad=1 ;; esac
+          done
+          exit "$bad"
+
+      - uses: actions/download-artifact@v4
+        if: failure()
+        continue-on-error: true
+        with:
+          pattern: ci-part-*-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/parts
+          merge-multiple: true
+
       - name: Хвост лога для исполнителя
         if: failure()
         run: |
           {
-            if [ -s "$RUNNER_TEMP/go-test.log" ] && grep -qE -- '--- FAIL|^panic:' "$RUNNER_TEMP/go-test.log"; then
-              echo "### упавшие тесты Go"
-              grep -E -B2 -A20 -- '--- FAIL|^panic:' "$RUNNER_TEMP/go-test.log" | head -n 150 || true
-            fi
-            if [ -s "$RUNNER_TEMP/ci.log" ]; then
-              echo "### последние строки проверок (последний заголовок ### — шаг, на котором остановились)"
-              tail -n 80 "$RUNNER_TEMP/ci.log"
-            else
-              echo "Проверки не начинались: упала подготовка (checkout, setup-go, установка). См. лог запуска."
-            fi
+            found=0
+            for f in "$RUNNER_TEMP"/parts/*.txt; do
+              [ -s "$f" ] || continue
+              found=1
+              echo "### задание $(basename "$f" .txt)"
+              cat "$f"
+            done
+            [ "$found" = 1 ] || echo "Хвостов нет: задание отменено или упала подготовка. См. лог запуска."
           } > "$RUNNER_TEMP/ci-tail.txt"
           cat "$RUNNER_TEMP/ci-tail.txt"
 

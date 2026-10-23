@@ -258,3 +258,16 @@ func TestVersionHead(t *testing.T) {
 		t.Errorf("тело не пустое: %q", body)
 	}
 }
+
+func TestLoadConfigRequiresAdminPassword(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("ADMIN_PASSWORD", "")
+	_, err := loadConfig()
+	if err == nil || !strings.Contains(err.Error(), "ADMIN_PASSWORD") {
+		t.Fatalf("ждали ошибку с именем ADMIN_PASSWORD, получили %v", err)
+	}
+	t.Setenv("ADMIN_PASSWORD", "secret")
+	if _, err := loadConfig(); err != nil {
+		t.Fatalf("с паролем ошибки быть не должно: %v", err)
+	}
+}
