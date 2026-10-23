@@ -153,6 +153,19 @@ services:
       timeout: 5s
       retries: 3
 
+  # Имитация REST-биллинга для опроса (BILLING_URL=http://mock-billing:8081/snapshot.json).
+  # Отдаёт файл набора организаторов; Authorization не проверяет. Включается профилем billing:
+  #   COMPOSE_PROFILES=billing. Адаптер под наш контракт: формат API aéza неизвестен.
+  mock-billing:
+    image: busybox:1.37
+    profiles: ["billing"]
+    restart: unless-stopped
+    command: ["httpd", "-f", "-p", "8081", "-h", "/srv"]
+    volumes:
+      - ../backend/internal/source/seed/organizers.json:/srv/snapshot.json:ro
+    expose:
+      - "8081"
+
 volumes:
   pgdata:
   promdata:

@@ -2,7 +2,7 @@
 // Запуск: k6 run -e PASSWORD=… docs/load/k6/read.js
 import http from 'k6/http';
 import { check } from 'k6';
-import { login, API } from './common.js';
+import { loginOnce, authHeaders, API } from './common.js';
 
 const sorts = ['expectedLoss', 'score', 'balance', 'totalReplenished', 'email', 'id'];
 
@@ -17,16 +17,18 @@ export const options = {
   },
 };
 
-export function list() {
-  if (__ITER === 0) login();
+export function setup() {
+  return loginOnce();
+}
+
+export function list(session) {
   const sort = sorts[__ITER % sorts.length];
   const offset = (__ITER % 50) * 50;
-  const res = http.get(`${API}/customers?sort=${sort}&order=desc&limit=50&offset=${offset}`);
+  const res = http.get(`${API}/customers?sort=${sort}&order=desc&limit=50&offset=${offset}`, { headers: authHeaders(session) });
   check(res, { 'список 200': (r) => r.status === 200 });
 }
 
-export function summary() {
-  if (__ITER === 0) login();
-  const res = http.get(`${API}/analytics/summary`);
+export function summary(session) {
+  const res = http.get(`${API}/analytics/summary`, { headers: authHeaders(session) });
   check(res, { 'summary 200': (r) => r.status === 200 });
 }
