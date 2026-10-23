@@ -129,7 +129,7 @@ components:
                 type: string
     Role:
       type: string
-      enum: [analyst, viewer]
+      enum: [marketer, analyst, admin, jury]
     User:
       type: object
       required: [id, login, role]
