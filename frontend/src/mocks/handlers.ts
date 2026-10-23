@@ -118,7 +118,6 @@ export const handlers = [
         services: services.filter((s) => s.ownerId === id),
         features: [],
         actions: [],
-        version: 1,
       };
     },
     () => getCurrent() !== null,
