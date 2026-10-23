@@ -1,7 +1,7 @@
 import { Text } from '@mantine/core';
-import type { MouseEvent, ReactNode } from 'react';
+import { useMemo, type MouseEvent, type ReactNode } from 'react';
 import type { CustomerOrder, CustomerRow, CustomerSort } from '@entities/customer';
-import { formatMoney } from '@shared/lib';
+import { formatMoney, useChangedRows } from '@shared/lib';
 import {
   IconArrowDown,
   IconArrowUp,
@@ -84,12 +84,27 @@ function ActionCell({ row }: { row: CustomerRow }) {
   );
 }
 
+/** Всё, что видно в строке: изменилось любое поле — строка подсветится. */
+const signature = (row: CustomerRow) =>
+  JSON.stringify([
+    row.balance,
+    row.totalReplenished,
+    row.score ?? null,
+    row.level,
+    row.expectedLossCents,
+    row.topReason ?? null,
+    row.topAction?.id ?? null,
+    row.topAction?.effectCents ?? null,
+    row.billing ?? false,
+  ]);
+
 /**
  * Рейтинг клиентов. Порядок строк даёт сервер: клик по заголовку только меняет `sort`/`order`.
  * На планшете и телефоне строки становятся карточками (CSS), разметка одна.
  */
 export function QueueTable({
   rows,
+  version,
   asOf,
   sort,
   order,
@@ -97,12 +112,16 @@ export function QueueTable({
   onOpen,
 }: {
   rows: CustomerRow[];
+  /** Версия пересчёта, по которому построена страница: подсветка только при её смене. */
+  version: number | null;
   asOf: string | null;
   sort: CustomerSort;
   order: CustomerOrder;
   onSort: (column: CustomerSort) => void;
   onOpen: (id: number) => void;
 }) {
+  const items = useMemo(() => rows.map((r) => ({ id: r.id, signature: signature(r) })), [rows]);
+  const changed = useChangedRows(items, version);
   const ariaSort = (c: Column) =>
     c.sort && c.sort === sort ? (order === 'asc' ? 'ascending' : 'descending') : undefined;
   return (
@@ -142,7 +161,13 @@ export function QueueTable({
             </td>
           );
           return (
-            <tr key={row.id} className={classes.row} data-dim={dim} onClick={open}>
+            <tr
+              key={row.id}
+              className={classes.row}
+              data-dim={dim}
+              data-changed={changed.has(row.id)}
+              onClick={open}
+            >
               {cell(0, row.id)}
               {cell(
                 1,
