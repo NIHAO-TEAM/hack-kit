@@ -1,0 +1,134 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  padding: 12px 8px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.table th {
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right !important;
+}
+
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  min-height: 24px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.sort:hover,
+.sort[data-active='true'] {
+  color: var(--text-strong);
+}
+
+.sort:focus-visible,
+.row a:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.row {
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
+.row[data-dim='true'] {
+  color: var(--text-muted);
+}
+
+.email {
+  color: inherit;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.reason {
+  max-width: 280px;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.action {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.billing {
+  font-size: var(--mantine-font-size-sm);
+  color: var(--text-muted);
+}
+
+/* Планшет и телефон: строка становится карточкой, подписи полей — из data-label. */
+@media (width <= 64em) {
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+  }
+
+  .row {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--mantine-radius-lg);
+  }
+
+  .table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 6px 0;
+    border-bottom: 0;
+    min-height: 32px;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    flex: none;
+    color: var(--text-muted);
+    font-size: var(--mantine-font-size-xs);
+  }
+
+  .num {
+    text-align: left !important;
+  }
+
+  .reason {
+    max-width: none;
+    text-align: right;
+  }
+}
