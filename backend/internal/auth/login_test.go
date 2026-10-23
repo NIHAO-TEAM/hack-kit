@@ -15,8 +15,21 @@ import (
 
 func login(t *testing.T, s *apitest.Stand, user, password string) *http.Response {
 	t.Helper()
+	return loginWith(t, s, user, password, nil)
+}
+
+func loginWith(t *testing.T, s *apitest.Stand, user, password string, mod func(*http.Request)) *http.Response {
+	t.Helper()
 	body, _ := json.Marshal(map[string]string{"login": user, "password": password})
-	resp, err := http.Post(s.URL+"/api/v1/auth/login", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, s.URL+"/api/v1/auth/login", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if mod != nil {
+		mod(req)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
