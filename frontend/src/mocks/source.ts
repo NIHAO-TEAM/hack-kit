@@ -1,0 +1,63 @@
+import { HttpResponse, http } from 'msw';
+
+const base = {
+  version: 1,
+  source: 'seed',
+  asOf: '2026-10-19T15:00:00Z',
+  loadedAt: '2026-10-19T15:00:00Z',
+  ageSeconds: 60,
+  checks: [],
+};
+
+let state = { ...base };
+
+/** Сброс состояния между тестами. */
+export function resetSourceMock(): void {
+  state = { ...base };
+}
+
+function problem(status: number, title: string, errors?: { field: string; message: string }[]) {
+  return HttpResponse.json(
+    { type: 'about:blank', title, status, errors },
+    { status, headers: { 'Content-Type': 'application/problem+json' } },
+  );
+}
+
+const bump = () => {
+  state = { ...state, version: state.version + 1 };
+  return HttpResponse.json({
+    version: state.version,
+    asOf: state.asOf,
+    accounts: 10,
+    services: 30,
+    transactions: 100,
+  });
+};
+
+export const sourceHandlers = [
+  http.get('/api/v1/source/status', () => HttpResponse.json(state)),
+  http.patch('/api/v1/source/accounts/:id', async ({ params }) => {
+    if (Number(params.id) > 10) return problem(404, 'счёт не найден');
+    bump();
+    return HttpResponse.json({
+      id: Number(params.id),
+      email: 'user@example.test',
+      balance: 0,
+      withdrawBalance: 0,
+      totalReplenished: 0,
+      bonusBalance: 0,
+      bonusState: 'locked',
+    });
+  }),
+  http.post('/api/v1/source/emulator/tick', () => bump()),
+  http.post('/api/v1/source/emulator/actions', () => bump()),
+  http.put('/api/v1/source/snapshot', async ({ request }) => {
+    const body = (await request.json()) as { services?: { ownerId: number }[] };
+    if (body.services?.some((s) => s.ownerId === 999)) {
+      return problem(422, 'снимок не прошёл проверку', [
+        { field: 'services[3].ownerId', message: 'владелец 999 не найден среди счетов' },
+      ]);
+    }
+    return bump();
+  }),
+];

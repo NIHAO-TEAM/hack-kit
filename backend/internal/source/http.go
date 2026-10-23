@@ -99,16 +99,6 @@ func writeJSON(w http.ResponseWriter, v any) {
 	}
 }
 
-// PatchService — PATCH /api/v1/source/services/{id}.
-func (*SourceAPI) PatchService(w http.ResponseWriter, r *http.Request, _ gen.ServiceId) {
-	httpx.NotImplemented(w, r)
-}
-
-// PatchAccount — PATCH /api/v1/source/accounts/{id}.
-func (*SourceAPI) PatchAccount(w http.ResponseWriter, r *http.Request, _ gen.AccountId) {
-	httpx.NotImplemented(w, r)
-}
-
 // maxTickHours — предел одного сдвига времени: год.
 const maxTickHours = 365 * 24
 
@@ -174,9 +164,25 @@ func (a *SourceAPI) EmulatorActions(w http.ResponseWriter, r *http.Request) {
 
 type badRequest struct{ error }
 
+type notFound struct{ error }
+
 // emulate читает снимок, применяет шаг и пишет результат тем же путём, что PUT /source/snapshot:
 // событие source.changed запускает пересчёт и обновление экранов.
 func (a *SourceAPI) emulate(w http.ResponseWriter, r *http.Request, step func(*Snapshot) (*Snapshot, string, error)) {
+	acc, _, ok := a.commit(w, r, step)
+	if !ok {
+		return
+	}
+	w.Header().Set("X-Billing-Emulator", "simulated") // «имитация биллинга»
+	writeJSON(w, gen.SnapshotAccepted{
+		Version: acc.Version, AsOf: acc.AsOf,
+		Accounts: acc.Accounts, Services: acc.Services, Transactions: acc.Transactions,
+	})
+}
+
+// commit выполняет шаг над текущим снимком и записывает результат. При ошибке сам отвечает
+// problem+json и возвращает ok=false.
+func (a *SourceAPI) commit(w http.ResponseWriter, r *http.Request, step func(*Snapshot) (*Snapshot, string, error)) (acc Accepted, next *Snapshot, ok bool) {
 	emulatorMu.Lock()
 	defer emulatorMu.Unlock()
 
@@ -199,8 +205,13 @@ func (a *SourceAPI) emulate(w http.ResponseWriter, r *http.Request, step func(*S
 	}
 	next, origin, err := step(&cur)
 	var br badRequest
+	var nf notFound
 	if errors.As(err, &br) {
 		httpx.WriteProblem(w, r, http.StatusBadRequest, br.Error())
+		return
+	}
+	if errors.As(err, &nf) {
+		httpx.WriteProblem(w, r, http.StatusNotFound, nf.Error())
 		return
 	}
 	if err != nil {
@@ -209,16 +220,66 @@ func (a *SourceAPI) emulate(w http.ResponseWriter, r *http.Request, step func(*S
 		return
 	}
 	now := a.clk.Now()
-	acc, err := replace(r.Context(), a.pool, next, ModelTime(next, now), now, origin)
+	acc, err = replace(r.Context(), a.pool, next, ModelTime(next, now), now, origin)
 	if err != nil {
 		log.Printf("source: эмулятор, запись: %v", err)
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не записан, прежние данные сохранены")
 		return
 	}
 	a.bus.Publish(TopicChanged, acc.Version)
-	w.Header().Set("X-Billing-Emulator", "simulated") // «имитация биллинга»
-	writeJSON(w, gen.SnapshotAccepted{
-		Version: acc.Version, AsOf: acc.AsOf,
-		Accounts: acc.Accounts, Services: acc.Services, Transactions: acc.Transactions,
+	return acc, next, true
+}
+
+// PatchService — PATCH /api/v1/source/services/{id}. Меняет одну услугу и пишет новый снимок
+// тем же путём, что PUT: одна транзакция, событие source.changed.
+func (a *SourceAPI) PatchService(w http.ResponseWriter, r *http.Request, id gen.ServiceId) {
+	var req gen.ServicePatch
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	var out Service
+	_, _, ok := a.commit(w, r, func(s *Snapshot) (*Snapshot, string, error) {
+		v, err := patchService(s, int64(id), req)
+		out = v
+		return s, OriginAPI, err
 	})
+	if !ok {
+		return
+	}
+	writeJSON(w, gen.Service{
+		Id: out.ID, Name: out.Name, OwnerId: out.OwnerID, PaymentTerm: gen.PaymentTerm(out.PaymentTerm),
+		AutoProlong: out.AutoProlong, CreatedAt: out.CreatedAt, ExpiresAt: out.ExpiresAt,
+		Status: gen.ServiceStatus(out.Status), Price: out.Price,
+	})
+}
+
+// PatchAccount — PATCH /api/v1/source/accounts/{id}.
+func (a *SourceAPI) PatchAccount(w http.ResponseWriter, r *http.Request, id gen.AccountId) {
+	var req gen.AccountPatch
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	var out Account
+	_, _, ok := a.commit(w, r, func(s *Snapshot) (*Snapshot, string, error) {
+		v, err := patchAccount(s, int64(id), req)
+		out = v
+		return s, OriginAPI, err
+	})
+	if !ok {
+		return
+	}
+	writeJSON(w, gen.Account{
+		Id: out.ID, Email: out.Email, Balance: out.Balance, WithdrawBalance: out.WithdrawBalance,
+		TotalReplenished: out.TotalReplenished, BonusBalance: out.BonusBalance,
+		BonusState: gen.AccountBonusState(out.BonusState),
+	})
+}
+
+// decodeBody разбирает JSON-тело правки; при ошибке отвечает 400 и возвращает false.
+func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(v); err != nil {
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "тело не разобрано: "+err.Error())
+		return false
+	}
+	return true
 }
