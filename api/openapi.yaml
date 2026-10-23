@@ -404,6 +404,18 @@ components:
         expectedLossCents:
           type: integer
           format: int64
+        topReason:
+          type: string
+          description: Главная причина риска простыми словами; нет — когда оценки нет.
+        topAction:
+          $ref: "#/components/schemas/Action"
+        rescueExpiresAt:
+          type: string
+          format: date-time
+          description: Срок ближайшей услуги, с него идут 5 дней ожидания (окно спасения). Нет — окна нет.
+        toBilling:
+          type: boolean
+          description: Решает биллинг, действия маркетолога нет («к биллингу»).
     CustomerPage:
       type: object
       required: [items, total]

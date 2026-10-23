@@ -606,6 +606,16 @@ export interface components {
             level: components["schemas"]["RiskLevel"];
             /** Format: int64 */
             expectedLossCents: number;
+            /** @description Главная причина риска простыми словами; нет — когда оценки нет. */
+            topReason?: string;
+            topAction?: components["schemas"]["Action"];
+            /**
+             * Format: date-time
+             * @description Срок ближайшей услуги, с него идут 5 дней ожидания (окно спасения). Нет — окна нет.
+             */
+            rescueExpiresAt?: string;
+            /** @description Решает биллинг, действия маркетолога нет («к биллингу»). */
+            toBilling?: boolean;
         };
         CustomerPage: {
             items: components["schemas"]["CustomerRow"][];

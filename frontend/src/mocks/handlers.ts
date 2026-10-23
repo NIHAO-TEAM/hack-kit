@@ -1,6 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import type { components } from '@shared/api';
 import data from './data.json';
+import { queueHandlers } from './queue';
 
 type User = components['schemas']['User'];
 type CustomerRow = components['schemas']['CustomerRow'];
@@ -63,6 +64,7 @@ function rows(): CustomerRow[] {
 }
 
 export const handlers = [
+  ...queueHandlers,
   http.post(`${API}/auth/login`, async ({ request }) => {
     const body = (await request.json()) as { login: string; password: string };
     if (body.login === 'toomany') {
