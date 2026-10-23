@@ -81,9 +81,13 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	if pool != nil {
 		settings = model.NewStore(pool, bus, ValidateSettings)
 	}
+	sourceAPI := source.New(pool, bus, clk)
+	if c, ok := feed.(qualityChecker); ok {
+		sourceAPI.WithChecks(c.QualityChecks)
+	}
 	gen.HandlerWithOptions(server{
 		AuthAPI:      authAPI,
-		SourceAPI:    source.New(pool, bus, clk),
+		SourceAPI:    sourceAPI,
 		AnalyticsAPI: newAnalytics(pool, bus, clk, feed),
 		ModelAPI:     model.New(settings, modelPorts(pool), clk),
 		DocsAPI:      docs.New(),
@@ -112,6 +116,11 @@ func WithRequestID(next http.Handler) http.Handler {
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed) http.Handler {
 	mux := Routes(pool, bus, clk, authAPI, feed)
 	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, mux)))
+}
+
+// qualityChecker — источник проверок качества данных для /source/status; его реализует воркер пересчёта.
+type qualityChecker interface {
+	QualityChecks(version int64) []gen.QualityCheck
 }
 
 // overviewer — источник сводки; воркер пересчёта и тестовый стенд его реализуют.

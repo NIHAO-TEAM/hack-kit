@@ -133,6 +133,10 @@ jobs:
           printf '%s\n' "$labels" | grep -qx needs-human && exit 0
           id=$(printf '%s\n' "$labels" | sed -n 's/^go://p' | head -n1)
           [ -n "$id" ] || exit 0
+          # Будим только сессию без подписки (её последний ответ — «[wait] … нет подписки»): подписанная
+          # сессия жива и получит итог сама, вторая сессия на том же PR (24.10 #82, exec-4) только мешает.
+          last=$(gh pr view "$PR" --json comments --jq '[.comments[] | select(.body | test("^\\[(start|fix|merge|wait|needs-human)\\]"))] | last | .body // ""')
+          case "$last" in "[wait]"*"нет подписки"*) ;; *) exit 0 ;; esac
           sid=$(printf '%s' "$id" | tr 'a-z-' 'A-Z_')
           url_var="FIRE_${sid}_URL"; token_var="FIRE_${sid}_TOKEN"
           gh pr comment "$PR" --body "[guard] перезапуск исполнителя $id (итог ревью): пришёл итог, подписки у сессии нет. Прошлая сессия считается завершённой, новая перехватывает PR."

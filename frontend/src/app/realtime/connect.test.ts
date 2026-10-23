@@ -36,11 +36,11 @@ const roots = (spy: ReturnType<typeof setup>['spy']) =>
   spy.mock.calls.map((c) => (c[0]?.queryKey as string[])[0]);
 
 describe('connectEvents', () => {
-  it('на recalculated сбрасывает ключи очереди, карточки, сводки и настроек', () => {
+  it('на recalculated сбрасывает ключи очереди, карточки, сводки, настроек и источника', () => {
     const { spy, sources, states } = setup();
     sources[0]!.onopen?.(new Event('open'));
     sources[0]!.emit('recalculated', '{"type":"recalculated","version":5}');
-    expect(roots(spy)).toEqual(['customers', 'customer', 'summary', 'model-settings']);
+    expect(roots(spy)).toEqual(['customers', 'customer', 'summary', 'model-settings', 'source']);
     expect(states.at(-1)).toEqual({ status: 'online', version: 5 });
   });
 
@@ -52,9 +52,9 @@ describe('connectEvents', () => {
     expect(spy).not.toHaveBeenCalled();
     sources[0]!.onopen?.(new Event('open'));
     expect(states.at(-1)).toMatchObject({ status: 'online' });
-    expect(spy).toHaveBeenCalledTimes(4);
+    expect(spy).toHaveBeenCalledTimes(5);
     sources[0]!.onopen?.(new Event('open'));
-    expect(spy).toHaveBeenCalledTimes(4);
+    expect(spy).toHaveBeenCalledTimes(5);
   });
 
   it('закрытый поток поднимается заново через паузу', () => {

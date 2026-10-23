@@ -39,12 +39,15 @@ type ServiceResult struct {
 	LossCents int64
 	Features  []FeatureHit
 	Quality   []string
+	// QualityIDs — идентификаторы сработавших проверок, в порядке Quality.
+	QualityIDs []string
 }
 
 // ServiceQuality — флаги качества неживой услуги (заблокированной, удалённой): в скор не входит.
 type ServiceQuality struct {
 	ServiceID int64
 	Flags     []string
+	IDs       []string // идентификаторы проверок, в порядке Flags
 }
 
 // ActionResult — действие с ценой: эффект = ожидаемая потеря после − до (отрицательный — выгода).
@@ -80,11 +83,30 @@ type Summary struct {
 	QualityCounts     map[string]int
 }
 
+// CheckItem — услуга, на которой сработала проверка.
+type CheckItem struct {
+	ServiceID int64
+	AccountID int64
+}
+
+// maxCheckItems — сколько услуг проверки отдаём списком; Count всегда полный.
+const maxCheckItems = 10
+
+// CheckResult — итог одной проверки качества данных по снимку.
+type CheckResult struct {
+	ID      string
+	OK      bool
+	Message string
+	Count   int
+	Items   []CheckItem
+}
+
 // Result — результат расчёта по снимку.
 type Result struct {
 	AsOf      time.Time
 	Customers []Customer
 	Summary   Summary
+	Checks    []CheckResult // по одной записи на каждую зарегистрированную проверку, по ID
 }
 
 // Score считает модель по правилам docs/model-rules.md. Чистая функция: часов не читает, ввода-вывода нет.
@@ -109,10 +131,14 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 		Levels:        map[string]int{LevelHigh: 0, LevelMedium: 0, LevelLow: 0, StateLost: 0, StateUnscored: 0},
 		QualityCounts: map[string]int{},
 	}}
+	hits := map[string]*CheckResult{}
+	for _, c := range cs {
+		hits[c.ID()] = &CheckResult{ID: c.ID(), OK: true}
+	}
 	for _, a := range accounts {
 		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs)
 		if c.State == StateScored {
-			c.Actions = actionResults(s, st, asOf, a, c, funds, fs, cs, as)
+			c.Actions = actionResults(s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
 		}
 		res.Customers = append(res.Customers, c)
 
@@ -133,25 +159,49 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 			for _, q := range sr.Quality {
 				res.Summary.QualityCounts[q]++
 			}
+			for _, id := range sr.QualityIDs {
+				h := hits[id]
+				h.OK = false
+				h.Count++
+				if len(h.Items) < maxCheckItems {
+					h.Items = append(h.Items, CheckItem{ServiceID: sr.ID, AccountID: a.ID})
+				}
+			}
 		}
 		for _, sq := range c.Quality {
 			for _, q := range sq.Flags {
 				res.Summary.QualityCounts[q]++
 			}
+			for _, id := range sq.IDs {
+				h := hits[id]
+				h.OK = false
+				h.Count++
+				if len(h.Items) < maxCheckItems {
+					h.Items = append(h.Items, CheckItem{ServiceID: sq.ServiceID, AccountID: a.ID})
+				}
+			}
 		}
+	}
+	for _, c := range cs {
+		h := hits[c.ID()]
+		h.Message = checkMessage(c, h.Count)
+		res.Checks = append(res.Checks, *h)
 	}
 	return res
 }
 
 // actionResults применяет каждое подходящее действие к копии снимка, где изменён только этот клиент.
-func actionResults(s Snapshot, st Settings, asOf time.Time, a Account, c Customer, funds FundsCtx,
-	fs []Feature, cs []Check, as []Action) []ActionResult {
+// Копия содержит только данные клиента (аккаунт, его услуги и их платежи): действия и пересчёт
+// клиента от остальных не зависят, а копировать весь снимок на каждое действие — квадратичная
+// работа (на 10 000 аккаунтов пересчёт шёл минуту с лишним).
+func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]Transaction, st Settings, asOf time.Time,
+	a Account, c Customer, funds FundsCtx, fs []Feature, cs []Check, as []Action) []ActionResult {
 	out := []ActionResult{}
 	ctx := CustomerCtx{Account: a, Customer: c, Funds: funds}
+	ctx.Services = append(ctx.Services, svcs...)
+	s := Snapshot{AsOf: snapAsOf, Accounts: []Account{a}, Services: ctx.Services}
 	for _, sv := range s.Services {
-		if sv.OwnerID == a.ID {
-			ctx.Services = append(ctx.Services, sv)
-		}
+		s.Transactions = append(s.Transactions, txByService[sv.ID]...)
 	}
 	for _, act := range as {
 		if !act.Applies(ctx) {
@@ -216,8 +266,9 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 			continue
 		}
 		// проверки качества идут и по неживым услугам; признаков и скора у них нет
-		if flags := qualityFlags(ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID]}, cs); len(flags) > 0 {
-			c.Quality = append(c.Quality, ServiceQuality{ServiceID: sv.ID, Flags: flags})
+		h := qualityFlags(ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID]}, cs)
+		if len(h.Messages) > 0 {
+			c.Quality = append(c.Quality, ServiceQuality{ServiceID: sv.ID, Flags: h.Messages, IDs: h.IDs})
 		}
 		asActive := sv
 		asActive.Status = StatusActive
@@ -272,15 +323,23 @@ func scoreService(ctx ServiceCtx, st Settings, fs []Feature, cs []Check) Service
 		}
 		return sr.Features[i].ID < sr.Features[j].ID
 	})
-	sr.Quality = qualityFlags(ctx, cs)
+	h := qualityFlags(ctx, cs)
+	sr.Quality, sr.QualityIDs = h.Messages, h.IDs
 	return sr
 }
 
-func qualityFlags(ctx ServiceCtx, cs []Check) []string {
-	var out []string
+// qualityHits — сработавшие проверки услуги: тексты и id в одном порядке.
+type qualityHits struct {
+	Messages []string
+	IDs      []string
+}
+
+func qualityFlags(ctx ServiceCtx, cs []Check) qualityHits {
+	var out qualityHits
 	for _, c := range cs {
 		if msg, hit := c.Eval(ctx); hit {
-			out = append(out, msg)
+			out.Messages = append(out.Messages, msg)
+			out.IDs = append(out.IDs, c.ID())
 		}
 	}
 	return out
