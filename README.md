@@ -41,7 +41,7 @@ docker compose up -d
 
 Функции сверх обязательных:
 
-- пока нет
+- Образец «как добавить признак модели»: PR с `backend/internal/risk/feature_bonus_locked.go` (один файл признака + тест + строка оракула), см. `changes/archive/2026-10-23-feature-bonus-locked/`.
 
 ## Разработка
 

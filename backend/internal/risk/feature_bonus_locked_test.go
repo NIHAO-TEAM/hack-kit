@@ -24,3 +24,30 @@ func TestBonusLocked(t *testing.T) {
 		t.Error("вес по умолчанию должен быть 0")
 	}
 }
+
+// Вес 0 не меняет скор, вес 0,3 поднимает его у клиента с заблокированным бонусом и нехваткой средств.
+func TestBonusLockedWeight(t *testing.T) {
+	var snap Snapshot
+	readJSON(t, "../../../cases/analizator/data.json", &snap)
+	asOf := ts("2026-10-19T15:00:00Z")
+	base := Score(snap, Defaults(), asOf)
+	st := Defaults()
+	st.Weights["bonus_locked"] = 0.3
+	on := Score(snap, st, asOf)
+	raised := 0
+	for i, c := range base.Customers {
+		o := on.Customers[i]
+		if c.Score == nil {
+			continue
+		}
+		if *o.Score < *c.Score {
+			t.Errorf("клиент %d: скор упал %v → %v", c.ID, *c.Score, *o.Score)
+		}
+		if *o.Score > *c.Score {
+			raised++
+		}
+	}
+	if raised == 0 {
+		t.Error("вес 0,3 никому не поднял скор")
+	}
+}
