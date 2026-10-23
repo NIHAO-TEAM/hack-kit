@@ -4,7 +4,7 @@
 
 ## 1. Контракт и данные
 
-- [ ] 1.1 Запросы `sqlc`: последняя версия `model_settings`, вставка; чтение снимка — проверка: `make generate && git diff --exit-code`
+- [x] 1.1 (прямой pgx, см. design.md) Запросы `sqlc`: последняя версия `model_settings`, вставка; чтение снимка — проверка: `make generate && git diff --exit-code`
 
 ## 2. Логика
 
