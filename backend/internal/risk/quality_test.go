@@ -32,7 +32,7 @@ func TestQualityOrganizers(t *testing.T) {
 	var snap Snapshot
 	readJSON(t, "../../../cases/analizator/data.json", &snap)
 	res := Score(snap, Defaults(), ts("2026-10-19T15:00:00Z"))
-	if got := res.Summary.QualityCounts["статус устарел"]; got != 6 {
-		t.Errorf("статус устарел: %d, ждали 6 (%v)", got, res.Summary.QualityCounts)
+	if got := res.Summary.QualityCounts["ошибка данных: в ожидании оплаты дольше 5 дней"]; got != 6 {
+		t.Errorf("ошибка данных: в ожидании оплаты дольше 5 дней: %d, ждали 6 (%v)", got, res.Summary.QualityCounts)
 	}
 }
