@@ -24,6 +24,13 @@
 ## Решения по ходу
 
 - Задача 1.1 («запросы sqlc»): модуль `source` пишет снимок прямым `pgx` (`service.go`), без sqlc. Выбрал тот же способ для `model/store.go` и `source/reader.go`: SQL — константы рядом с кодом, `make generate` не затрагивается. Причина — единообразие с влитым кодом и меньше риск для параллельных PR (правило 3, пункт 4).
+- **Границы модулей (расхождение с «Подходом»).** `backend/.golangci.yml` (depguard) запрещает `model`, `source` и `analytics` импортировать `risk` и друг друга, а файлы пакета, кроме `service.go`, — `pgx`. Гейт не ослабляю (правило 3, пункт 3), поэтому:
+  - `Store` живёт в `model/service.go`, `Reader` — в `source/service.go`;
+  - `Store` хранит настройки как JSON (`json.RawMessage`) и принимает проверку (`Validator`) от сборки сервера; пустая таблица — `nil` и версия 0;
+  - `Reader.Load` отдаёт `source.Snapshot` (`AsOf` — из `snapshots.as_of`, если пусто — `loaded_at`);
+  - `analytics.Engine[R]` обобщён по типу результата и получает функцию расчёта и темы шины в конструкторе, на `risk`, `model` и `source` не завязан;
+  - склейку (`source.Snapshot` → `risk.Snapshot`, JSON → `risk.Settings` с `risk.Defaults()`, вызов `risk.Score`) делает `internal/app` — ему импорты разрешены.
+  Следствие для этапа 4: обработчикам `analytics`, которым нужны поля `risk.Result`, придётся либо получать готовые DTO через `app`, либо менять правила depguard человеком (см. «Найдено по ходу»).
 
 ## Риски
 

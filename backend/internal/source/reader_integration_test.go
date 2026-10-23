@@ -32,7 +32,7 @@ func TestReaderLoadsSeed(t *testing.T) {
 	if len(snap.Accounts) != 10 || len(snap.Services) != 30 || len(snap.Transactions) != 100 {
 		t.Errorf("счётчики %d/%d/%d", len(snap.Accounts), len(snap.Services), len(snap.Transactions))
 	}
-	if want := time.Date(2026, 10, 19, 15, 0, 0, 0, time.UTC); !snap.AsOf.Equal(want) {
+	if want := time.Date(2026, 10, 19, 15, 0, 0, 0, time.UTC); snap.AsOf == nil || !snap.AsOf.Equal(want) {
 		t.Errorf("asOf = %v, ждали %v", snap.AsOf, want)
 	}
 	if version != 1 {

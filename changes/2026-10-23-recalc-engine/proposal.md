@@ -32,3 +32,4 @@
 
 ## Найдено по ходу
 
+- Правила `backend/.golangci.yml` не дают `analytics` и `model` видеть `risk` и друг друга. Для этого изменения обошёл их обобщённым `Engine[R]` и склейкой в `internal/app`. `customers-api` / `summary-metrics` этапа 4 упрутся в то же: решать человеку — разрешить `analytics` читать типы `risk` или отдавать DTO через `app`.
