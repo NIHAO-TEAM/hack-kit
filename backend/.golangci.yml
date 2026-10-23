@@ -1,5 +1,5 @@
 # Границы модулей — правилами, а не договорённостью (по образцу Goden, UMIRHack 2026).
-# Заменить example.com/app на модуль из go.mod и дополнять при появлении нового модуля.
+# Модуль проекта — example.com/app; новый модуль добавляется в списки правил ниже.
 version: "2"
 
 linters:
@@ -16,14 +16,87 @@ linters:
         platform-no-domain:
           files: ["**/internal/platform/**"]
           deny:
-            - pkg: example.com/app/internal/orders
+            - pkg: example.com/app/internal/auth
               desc: platform не импортирует доменные модули
-            - pkg: example.com/app/internal/inventory
+            - pkg: example.com/app/internal/source
               desc: platform не импортирует доменные модули
+            - pkg: example.com/app/internal/risk
+              desc: platform не импортирует доменные модули
+            - pkg: example.com/app/internal/analytics
+              desc: platform не импортирует доменные модули
+            - pkg: example.com/app/internal/model
+              desc: platform не импортирует доменные модули
+            - pkg: example.com/app/internal/app
+              desc: platform не импортирует сборку сервера
+        module-auth-isolated:
+          files: ["**/internal/auth/**"]
+          deny:
+            - pkg: example.com/app/internal/source
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/risk
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/analytics
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/model
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/app
+              desc: модуль не знает о сборке сервера
+        module-source-isolated:
+          files: ["**/internal/source/**"]
+          deny:
+            - pkg: example.com/app/internal/auth
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/risk
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/analytics
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/model
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/app
+              desc: модуль не знает о сборке сервера
+        module-risk-isolated:
+          files: ["**/internal/risk/**"]
+          deny:
+            - pkg: example.com/app/internal/auth
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/source
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/analytics
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/model
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/app
+              desc: модуль не знает о сборке сервера
+        module-analytics-isolated:
+          files: ["**/internal/analytics/**"]
+          deny:
+            - pkg: example.com/app/internal/auth
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/source
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/risk
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/model
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/app
+              desc: модуль не знает о сборке сервера
+        module-model-isolated:
+          files: ["**/internal/model/**"]
+          deny:
+            - pkg: example.com/app/internal/auth
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/source
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/risk
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/analytics
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/app
+              desc: модуль не знает о сборке сервера
         db-only-own-module:
           files: ["**/internal/*/db/**"]
           deny:
-            - pkg: example.com/app/internal/api
+            - pkg: example.com/app/internal/app
               desc: сгенерированный SQL-код модуля не знает об HTTP
         domain-no-io:
           files:
@@ -31,6 +104,8 @@ linters:
             - "!**/internal/*/service.go"
             - "!**/internal/*/http.go"
             - "!**/internal/*/projection.go"
+            - "!**/internal/app/*.go"
+            - "!**/internal/apitest/*.go"
             - "!$test"
           deny:
             - pkg: net/http
