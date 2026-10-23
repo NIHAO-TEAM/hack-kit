@@ -23,6 +23,7 @@
 - frontend: `pages/customer`, маршрут `app/routes/_app.queue.$id.tsx`, `entities/customer-detail`
 - контракт `api/openapi.yaml`: нет
 - защищённые пути: нет
+- зависит от: `design-tokens`
 
 ## Связанные решения
 
