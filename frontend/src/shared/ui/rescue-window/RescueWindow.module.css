@@ -1,0 +1,79 @@
+.root {
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+}
+
+.track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 2.5fr;
+  height: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.lead {
+  background: var(--surface-hover);
+}
+
+.wait {
+  border-left: 1px solid var(--border-strong);
+  background: var(--warn-tint);
+}
+
+.wait[data-tone='critical'] {
+  background: var(--critical-tint);
+}
+
+.closed .wait,
+.closed .lead {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--lost-tint) 0,
+    var(--lost-tint) 4px,
+    var(--border-strong) 4px,
+    var(--border-strong) 5px
+  );
+}
+
+.marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--text-strong);
+}
+
+.scale {
+  display: grid;
+  grid-template-columns: 1fr 2.5fr;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.scale span:last-child {
+  display: flex;
+  justify-content: space-between;
+}
+
+.caption {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text);
+}
+
+.caption[data-tone='warn'] {
+  color: var(--warn-fg);
+}
+
+.caption[data-tone='critical'] {
+  color: var(--critical-fg);
+}
+
+.caption[data-tone='lost'] {
+  color: var(--lost-fg);
+}

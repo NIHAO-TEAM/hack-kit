@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+!.env.example
+**/node_modules
+frontend/dist
+frontend/shots
+e2e
+docs
+changes
