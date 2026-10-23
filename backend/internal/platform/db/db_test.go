@@ -2,7 +2,10 @@ package db_test
 
 import (
 	"context"
+	"os"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 
 	"example.com/app/internal/platform/db"
 	"example.com/app/internal/platform/dbtest"
@@ -43,5 +46,34 @@ func TestMigrationsUpDownUp(t *testing.T) {
 	}
 	if err := db.Up(ctx, dsn); err != nil {
 		t.Fatalf("повторный up: %v", err)
+	}
+}
+
+func TestOrganizerSeedLoadsIntoSchema(t *testing.T) {
+	dsn := dbtest.New(t)
+	ctx := context.Background()
+	if err := db.Up(ctx, dsn); err != nil {
+		t.Fatal(err)
+	}
+	seed, err := os.ReadFile("../../../../cases/analizator/002_seed.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pgx.Connect(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	if _, err := conn.Exec(ctx, string(seed)); err != nil {
+		t.Fatalf("сид не лёг в схему: %v", err)
+	}
+	for table, want := range map[string]int{"accounts": 10, "services": 30, "transactions": 100} {
+		var n int
+		if err := conn.QueryRow(ctx, "SELECT count(*) FROM public."+table).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != want {
+			t.Errorf("%s: %d строк, ждали %d", table, n, want)
+		}
 	}
 }
