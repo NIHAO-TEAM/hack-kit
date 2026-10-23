@@ -15,7 +15,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.66.1
 	golang.org/x/crypto v0.41.0
-	golang.org/x/oauth2 v0.27.0
+	golang.org/x/oauth2 v0.30.0
 )
 
 require (
