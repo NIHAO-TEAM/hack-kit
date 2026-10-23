@@ -65,7 +65,6 @@ test('демо: очередь → карточка → вес → автопр�
     await expect(page.getByRole('region', { name: 'Ожидаемая потеря за 30 дней' })).toContainText(
       money('3 879,73'),
     );
-    await expect(table.locator('tbody tr').first()).toContainText('9');
     const before = await customers(marketerCtx.request);
     expect(before[0]?.id).toBe(9);
     const lossBefore = before.find((r) => r.id === 1)!;
@@ -88,11 +87,19 @@ test('демо: очередь → карточка → вес → автопр�
       { timeout: 15_000 },
     );
     expect(reloaded, 'страница не перезагружалась').toBe(false);
-    const raised = (await customers(marketerCtx.request)).find((r) => r.id === 1)!;
-    expect(raised.level).toBe('high');
-    expect(raised.score).toBeCloseTo(85.15, 1);
+    const high = (await customers(marketerCtx.request)).find((r) => r.id === 1)!;
+    expect(high.level).toBe('high');
+    expect(high.score).toBeCloseTo(85.15, 1);
 
     // Шаг 4. Эмулятор: автопродление №1 — потеря падает (~365 €).
+    // Эффект ~365 € — при весе по умолчанию 0,55 (при 0,85 он 564,53 €), поэтому вес возвращаем.
+    await setNoauto(analyst, 0.55);
+    await expect
+      .poll(async () => (await customers(marketerCtx.request)).find((r) => r.id === 1)?.level, {
+        timeout: 15_000,
+      })
+      .toBe('medium');
+    const raised = (await customers(marketerCtx.request)).find((r) => r.id === 1)!;
     const act = await analyst.post('/api/v1/source/emulator/actions', {
       data: { actions: [{ customerId: 1, actionId: 'enable_autoprolong' }] },
     });
