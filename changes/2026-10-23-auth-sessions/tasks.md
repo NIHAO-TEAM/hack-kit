@@ -15,7 +15,7 @@
 - [x] 2.5 Матрица прав `can(role, operation)` и проверка на каждой операции — проверка: табличный тест по всем `operationId` спеки × 4 роли
 - [x] 2.6 Лимит попыток входа — проверка: тест «6-я неудача за 5 минут → 429 с `Retry-After`»
 - [x] 2.7 Токены `SOURCE_TOKEN` и `METRICS_TOKEN` — проверка: тест «токен сборщика не открывает `/customers`»
-- [ ] 2.8 Путь жюри: `login(jury) → PATCH /model/settings → PUT /source/snapshot → GET /analytics/summary` проходит авторизацию (тела пока 501) — проверка: тест `TestJuryPath`
+- [x] 2.8 Путь жюри: `login(jury) → PATCH /model/settings → PUT /source/snapshot → GET /analytics/summary` проходит авторизацию (тела пока 501) — проверка: тест `TestJuryPath`
 
 ## 3. Экран
 
