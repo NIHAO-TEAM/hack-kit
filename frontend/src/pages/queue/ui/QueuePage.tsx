@@ -111,6 +111,7 @@ export function QueuePage({
     body = (
       <QueueTable
         rows={customers.data.items}
+        version={customers.data.version}
         asOf={asOf}
         sort={params.sort}
         order={params.order}
