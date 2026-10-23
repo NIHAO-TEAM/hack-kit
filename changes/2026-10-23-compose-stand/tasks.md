@@ -10,8 +10,8 @@
 
 - [x] 2.1 `internal/platform/webui`: `embed` + откат на `index.html` для SPA — проверка: unit-тест «`/queue` → `index.html`; `/api/v1/x` не перехватывается; `/assets/a.js` отдаётся»
 - [x] 2.2 `Dockerfile` (три ступени, distroless nonroot, условная сборка фронта) — проверка: `docker build .` проходит без фронта; `docker run --rm <образ> id` недоступен (нет shell) и образ запускается от `nonroot`
-- [ ] 2.3 `docker-compose.yml` (postgres без порта, healthcheck, app ждёт базу) — проверка: `docker compose up -d && curl -fsS localhost:8080/healthz`
-- [ ] 2.4 `.env.example` без секретов, `.env` в `.gitignore`, понятная ошибка при пустом `ADMIN_PASSWORD` — проверка: `git check-ignore .env`; старт без пароля → лог с именем переменной
+- [x] 2.3 `docker-compose.yml` (postgres без порта, healthcheck, app ждёт базу) — проверка: `docker compose up -d && curl -fsS localhost:8080/healthz`
+- [x] 2.4 `.env.example` без секретов, `.env` в `.gitignore`, понятная ошибка при пустом `ADMIN_PASSWORD` — проверка: `git check-ignore .env`; старт без пароля → лог с именем переменной
 
 ## 3. Экран
 
