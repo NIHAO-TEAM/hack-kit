@@ -1,0 +1,43 @@
+{{- if .Values.networkPolicy.enabled }}
+# База принимает соединения только от приложения.
+{{- if .Values.postgres.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-postgres
+  labels: {{- include "churn.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "churn.dbSelector" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {{- include "churn.appSelector" . | nindent 14 }}
+      ports:
+        - {port: 5432, protocol: TCP}
+---
+{{- end }}
+# Приложение принимает только от Ingress-контроллера (и Prometheus из monitoring).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-app
+  labels: {{- include "churn.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "churn.appSelector" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+        {{- if .Values.serviceMonitor.enabled }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+        {{- end }}
+      ports:
+        - {port: 8080, protocol: TCP}
+{{- end }}

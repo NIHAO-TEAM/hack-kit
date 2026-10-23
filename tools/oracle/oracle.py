@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 GOLDEN_DIR = os.path.join(ROOT, 'testdata', 'golden')
 LIVE = ('active', 'suspended', 'prolong_wait')
 DEFAULTS = {
-    'weights': {'pwait': 0.80, 'funds': 0.70, 'noauto': 0.55, 'fail': 0.40, 'susp': 0.35, 'flight': 0.15},
+    'weights': {'pwait': 0.80, 'funds': 0.70, 'noauto': 0.55, 'fail': 0.40, 'susp': 0.35, 'flight': 0.15, 'bonus_locked': 0.0},
     'high': 70,
     'medium': 50,
     'horizonHours': 720,
@@ -101,6 +101,7 @@ def score_customer(a, svc, tx, as_of, st):
     need, have = customer_funds(a, live, as_of, st)
     ffunds = max(0.0, (need - have) / need) if need else 0.0
     fflight = a['withdrawBalance'] / a['balance'] if a['balance'] else 0.0
+    bonus_locked = a['bonusBalance'] > 0 and a['bonusState'] == 'locked' and have < need
     best, loss, expo, feats = 0.0, 0, 0, {}
     for s in sorted(live, key=lambda x: x['id']):
         exp = parse(s['expiresAt'])
@@ -117,6 +118,8 @@ def score_customer(a, svc, tx, as_of, st):
         if s['status'] == 'suspended':
             f['susp'] = 1.0
         f['flight'] = fflight
+        if bonus_locked:
+            f['bonus_locked'] = 1.0
         q = 1.0
         for k, v in f.items():
             q *= 1 - st['weights'][k] * v
