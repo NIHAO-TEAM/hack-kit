@@ -579,11 +579,19 @@ export interface components {
         EmulatorTickRequest: {
             /** @default 1 */
             days: number;
+            /** @description Сдвиг в часах; если задан, days игнорируется */
+            hours?: number;
         };
         EmulatorAction: {
             /** Format: int64 */
             customerId: number;
+            /** @description top_up (нужен cents), enable_autoprolong, reset (customerId игнорируется) */
             actionId: string;
+            /**
+             * Format: int64
+             * @description Сумма пополнения в евроцентах, только для top_up
+             */
+            cents?: number;
         };
         EmulatorActionsRequest: {
             actions: components["schemas"]["EmulatorAction"][];
