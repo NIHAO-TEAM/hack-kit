@@ -9,8 +9,10 @@ import {
   Title,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { loginErrorText } from '@entities/session';
+
+const SSO_LOGIN_URL = '/api/v1/auth/oidc/login';
 
 export function LoginPage({
   onSubmit,
@@ -19,6 +21,16 @@ export function LoginPage({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [ssoOff, setSsoOff] = useState(false);
+
+  // 501 — SSO не настроен на сервере: кнопка не нужна. Другие ответы и сбои сети кнопку оставляют.
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetch(SSO_LOGIN_URL, { redirect: 'manual', signal: ctrl.signal })
+      .then((res) => setSsoOff(res.status === 501))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, []);
   const form = useForm({
     initialValues: { login: '', password: '' },
     validate: {
@@ -67,9 +79,11 @@ export function LoginPage({
             <Button type="submit" loading={pending}>
               Войти
             </Button>
-            <Button component="a" href="/api/v1/auth/oidc/login" variant="default">
-              Войти через SSO
-            </Button>
+            {ssoOff ? null : (
+              <Button component="a" href={SSO_LOGIN_URL} variant="default">
+                Войти через SSO
+              </Button>
+            )}
           </Stack>
         </form>
       </Paper>

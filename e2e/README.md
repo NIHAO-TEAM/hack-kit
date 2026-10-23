@@ -32,6 +32,7 @@ E2E_BASE_URL=https://<домен> npx playwright test smoke
   - `E2E_BASE_URL` — адрес стенда;
   - `E2E_DEMO_TOKEN` — токен демо-доступа;
   - `E2E_MARKETER_PASSWORD`, `E2E_ANALYST_PASSWORD` — пароли демо-учёток `marketer` и `analyst` (`demo.spec.ts`).
+  - `E2E_SSO_PASSWORD`, `E2E_SSO_TOTP_SECRET` — пароль и секрет TOTP пользователя Keycloak `secure` (`KC_SECURE_PASSWORD`, `KC_SECURE_TOTP_SECRET` из `.env` стенда), `sso.spec.ts`; без них тест пропускается. Стенд — Compose с `--profile sso` или прод с Keycloak.
 - Перед каждым прогоном сбрось стенд к начальному состоянию, иначе сценарий может упасть на данных прошлого прогона.
 - Чужие стенды — только чтение.
 
