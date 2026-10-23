@@ -1,0 +1,68 @@
+# Прод: Postgres + приложение + Caddy (TLS). Запуск делает .github/workflows/deploy.yml:
+#   docker compose -f deploy/docker-compose.prod.yml --env-file ~/churn/.env up -d --build
+# Наружу публикуются только 80 и 443 (Caddy); база и приложение доступны внутри сети Compose.
+name: churn
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_DB: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?нет POSTGRES_PASSWORD в .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: ..
+    image: churn-app:${APP_TAG:-latest}
+    restart: unless-stopped
+    env_file: ${ENV_FILE:?задайте ENV_FILE (путь к .env прода)}
+    environment:
+      DATABASE_URL: postgres://app:${POSTGRES_PASSWORD}@postgres:5432/app?sslmode=disable
+      HTTP_ADDR: ":8080"
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # В образе distroless нет shell и curl: проверка запускает сам бинарь.
+    healthcheck:
+      test: ["CMD", "/api", "-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      PROD_DOMAIN: ${PROD_DOMAIN:?нет PROD_DOMAIN в .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  pgdata:
+  # Не пересоздавать caddy_data: там сертификат (лимит Let's Encrypt — 5 в неделю на домен).
+  caddy_data:
+  caddy_config:
