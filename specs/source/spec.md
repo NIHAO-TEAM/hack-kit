@@ -58,6 +58,17 @@
 - THEN снимок и его версия не меняются
 - Тест: `TestSeed`
 
+### Requirement: происхождение снимка «эмулятор»
+
+Система SHALL помечать снимок, записанный эмулятором, происхождением `emulator`.
+
+#### Scenario: жюри включает эмулятор
+
+- WHEN выполнен `POST /api/v1/source/emulator/tick`
+- THEN `GET /api/v1/source/status` отдаёт `source: emulator`, а после `PUT /api/v1/source/snapshot` — снова `api`
+- AND экран «Источник» показывает в шапке «Эмулятор» с пояснением
+- Тест: `TestEmulatorOrigin`, `source-screen.test.tsx` («источник «%s»…»)
+
 ### Requirement: данные из REST
 
 Система SHALL при заданном `BILLING_URL` раз в `BILLING_POLL_SECONDS` забирать снимок той же формы, что `data.json`, с `Authorization: Bearer BILLING_TOKEN`, и писать его с `source = api`, если тело изменилось.
