@@ -351,7 +351,7 @@
     },
     {
       "id": 12,
-      "title": "Отменённые пересчёты (нет данных до слияния)",
+      "title": "Отменённые пересчёты",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -380,7 +380,7 @@
         },
         "overrides": []
       },
-      "description": "нет данных до слияния recalc-concurrency: метрики отмен ещё нет на main."
+      "description": "Счётчик churn_recalc_cancelled_total: пересчёты, отменённые новым запросом."
     },
     {
       "id": 13,
@@ -584,7 +584,7 @@
     },
     {
       "id": 21,
-      "title": "Потери шины событий (нет данных до слияния)",
+      "title": "Потери шины событий",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -613,7 +613,7 @@
         },
         "overrides": []
       },
-      "description": "нет данных до слияния events-bus-fanout: метрики потерь ещё нет на main."
+      "description": "Счётчик churn_events_dropped_total: события, не доставленные медленным подписчикам."
     }
   ]
 }

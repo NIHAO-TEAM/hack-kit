@@ -34,6 +34,9 @@
       },
       "id": 1,
       "level": "medium",
+      "lossByFeature": {
+        "noauto": 37508
+      },
       "lostCents": 0,
       "score": 54.84,
       "state": "scored"
@@ -45,6 +48,7 @@
       "features": {},
       "id": 2,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 1840,
       "score": null,
       "state": "lost"
@@ -56,6 +60,7 @@
       "features": {},
       "id": 3,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 53153,
       "score": null,
       "state": "lost"
@@ -87,6 +92,9 @@
       },
       "id": 4,
       "level": "medium",
+      "lossByFeature": {
+        "susp": 699
+      },
       "lostCents": 0,
       "score": 61.0,
       "state": "scored"
@@ -126,6 +134,11 @@
       },
       "id": 5,
       "level": "high",
+      "lossByFeature": {
+        "fail": 86,
+        "noauto": 277,
+        "pwait": 1100
+      },
       "lostCents": 0,
       "score": 91.0,
       "state": "scored"
@@ -163,6 +176,9 @@
       },
       "id": 6,
       "level": "low",
+      "lossByFeature": {
+        "noauto": 4
+      },
       "lostCents": 0,
       "score": 40.0,
       "state": "scored"
@@ -174,6 +190,7 @@
       "features": {},
       "id": 7,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 680874,
       "score": null,
       "state": "lost"
@@ -185,6 +202,7 @@
       "features": {},
       "id": 8,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 967,
       "score": null,
       "state": "lost"
@@ -235,6 +253,12 @@
       },
       "id": 9,
       "level": "high",
+      "lossByFeature": {
+        "fail": 189,
+        "funds": 134738,
+        "noauto": 263,
+        "susp": 183720
+      },
       "lostCents": 0,
       "score": 86.95,
       "state": "scored"
@@ -275,6 +299,11 @@
       },
       "id": 10,
       "level": "high",
+      "lossByFeature": {
+        "fail": 151,
+        "noauto": 269,
+        "pwait": 903
+      },
       "lostCents": 0,
       "score": 94.6,
       "state": "scored"
@@ -307,6 +336,33 @@
       "medium": 2,
       "unscored": 0
     },
+    "lossByFeature": [
+      {
+        "customers": 2,
+        "id": "susp",
+        "lossCents": 184419
+      },
+      {
+        "customers": 1,
+        "id": "funds",
+        "lossCents": 134738
+      },
+      {
+        "customers": 5,
+        "id": "noauto",
+        "lossCents": 38321
+      },
+      {
+        "customers": 2,
+        "id": "pwait",
+        "lossCents": 2003
+      },
+      {
+        "customers": 3,
+        "id": "fail",
+        "lossCents": 426
+      }
+    ],
     "lostCents": 736834
   }
 }

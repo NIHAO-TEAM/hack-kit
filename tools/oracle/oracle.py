@@ -2,6 +2,7 @@
 
 Только стандартная библиотека, Python 3.10+. Запуск: python3 -I tools/oracle/oracle.py ...
   oracle.py <snapshot.json> --as-of <ISO> [--settings <settings.json>]   JSON в stdout
+  oracle.py <snapshot.json> --as-of <ISO> --per-customer                по строке JSON на клиента (сверка с Go)
   oracle.py --check                                                     сверить все golden
   oracle.py --regen                                                     пересчитать golden
 """
@@ -11,6 +12,7 @@ import collections
 import copy
 import glob
 import json
+import math
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -91,6 +93,20 @@ def customer_funds(a, live, as_of, st):
     return need, have
 
 
+def allocate(loss, f, w):
+    """Потеря услуги по признакам пропорционально w·f; округление вниз, остаток — самому большому вкладу."""
+    contrib = {k: w[k] * v for k, v in sorted(f.items())}
+    total = 0.0
+    for v in contrib.values():
+        total += v
+    if loss <= 0 or total <= 0:
+        return {}
+    out = {k: int(math.floor(loss * c / total)) for k, c in contrib.items()}
+    top = min(contrib, key=lambda k: (-contrib[k], k))
+    out[top] += loss - sum(out.values())
+    return {k: v for k, v in out.items() if v}
+
+
 def score_customer(a, svc, tx, as_of, st):
     live = [s for s in svc if s['status'] in LIVE]
     if not svc:
@@ -102,7 +118,7 @@ def score_customer(a, svc, tx, as_of, st):
     ffunds = max(0.0, (need - have) / need) if need else 0.0
     fflight = a['withdrawBalance'] / a['balance'] if a['balance'] else 0.0
     bonus_locked = a['bonusBalance'] > 0 and a['bonusState'] == 'locked' and have < need
-    best, loss, expo, feats = 0.0, 0, 0, {}
+    best, loss, expo, feats, lbf = 0.0, 0, 0, {}, {}
     for s in sorted(live, key=lambda x: x['id']):
         exp = parse(s['expiresAt'])
         f = {}
@@ -125,14 +141,17 @@ def score_customer(a, svc, tx, as_of, st):
             q *= 1 - st['weights'][k] * v
         P = 1 - q
         R = amount(s, as_of, st['horizonHours'], st)
-        loss += round(P * R)
+        sl = round(P * R)
+        loss += sl
+        for k, v in allocate(sl, f, st['weights']).items():
+            lbf[k] = lbf.get(k, 0) + v
         expo += R
         best = max(best, P)
         feats[str(s['id'])] = {k: round(v, 6) for k, v in f.items()}
     sc = round(100 * best, 2)
     level = 'high' if sc >= st['high'] else 'medium' if sc >= st['medium'] else 'low'
     return {'state': 'scored', 'score': sc, 'level': level, 'expectedLossCents': loss, 'exposureCents': expo, 'lostCents': lost,
-            'features': feats, '_need': need, '_have': have}
+            'features': feats, 'lossByFeature': lbf, '_need': need, '_have': have}
 
 
 def prepare(snap):
@@ -191,10 +210,17 @@ def compute(snap, as_of, settings=None):
         r = res[aid]
         c = {'id': aid, 'state': r['state'], 'score': r['score'], 'level': r['level'],
              'expectedLossCents': r['expectedLossCents'], 'exposureCents': r['exposureCents'], 'lostCents': r['lostCents'],
-             'features': r['features'], 'actions': acts[aid]}
+             'features': r['features'], 'lossByFeature': r.get('lossByFeature', {}), 'actions': acts[aid]}
         customers.append(c)
     lv = collections.Counter(c['level'] or c['state'] for c in customers)
+    by_feature = {}
+    for c in customers:
+        for k, v in c['lossByFeature'].items():
+            e = by_feature.setdefault(k, {'id': k, 'lossCents': 0, 'customers': 0})
+            e['lossCents'] += v
+            e['customers'] += 1
     summary = {
+        'lossByFeature': sorted(by_feature.values(), key=lambda e: (-e['lossCents'], e['id'])),
         'levels': {k: lv.get(k, 0) for k in ('high', 'medium', 'low', 'lost', 'unscored')},
         'expectedLossCents': sum(c['expectedLossCents'] for c in customers),
         'exposureCents': sum(c['exposureCents'] for c in customers if c['level'] in ('high', 'medium')),
@@ -223,6 +249,7 @@ def main():
     ap.add_argument('snapshot', nargs='?')
     ap.add_argument('--as-of')
     ap.add_argument('--settings')
+    ap.add_argument('--per-customer', action='store_true')
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--regen', action='store_true')
     args = ap.parse_args()
@@ -243,7 +270,17 @@ def main():
         ap.error('нужны snapshot и --as-of')
     snap = json.load(open(args.snapshot, encoding='utf-8'))
     st = json.load(open(args.settings, encoding='utf-8')) if args.settings else None
-    sys.stdout.write(dump(compute(snap, parse(args.as_of), st)))
+    out = compute(snap, parse(args.as_of), st)
+    if args.per_customer:
+        for c in out['customers']:
+            acts = {a['type']: a['lossDeltaCents'] for a in c['actions']}
+            best = min(acts, key=lambda t: (acts[t], t)) if acts else None
+            sys.stdout.write(json.dumps({
+                'id': c['id'], 'state': c['state'], 'level': c['level'], 'score': c['score'],
+                'expectedLossCents': c['expectedLossCents'], 'exposureCents': c['exposureCents'],
+                'lostCents': c['lostCents'], 'actions': acts, 'best': best}, sort_keys=True) + '\n')
+        return 0
+    sys.stdout.write(dump(out))
     return 0
 
 

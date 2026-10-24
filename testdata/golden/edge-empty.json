@@ -28,6 +28,7 @@
       "medium": 0,
       "unscored": 0
     },
+    "lossByFeature": [],
     "lostCents": 0
   }
 }
