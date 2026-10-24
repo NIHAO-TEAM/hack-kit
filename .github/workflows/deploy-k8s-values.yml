@@ -1,0 +1,35 @@
+# Проверка примера встраивания в контур aéza: helm template + kubeconform.
+name: deploy-k8s-values
+
+on:
+  pull_request:
+    paths:
+      - deploy/helm/**
+      - .github/workflows/deploy-k8s-values.yml
+
+permissions:
+  contents: read
+
+jobs:
+  values-aeza:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+      - name: Установить kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin kubeconform
+      - name: helm template с примером aéza
+        run: |
+          helm lint deploy/helm/churn -f deploy/helm/churn/values-aeza.example.yaml
+          helm template churn deploy/helm/churn -n churn -f deploy/helm/churn/values-aeza.example.yaml > /tmp/rendered.yaml
+          grep -q 'BILLING_URL' /tmp/rendered.yaml
+          grep -q 'OIDC_ISSUER_URL' /tmp/rendered.yaml
+          grep -q 'kind: ServiceMonitor' /tmp/rendered.yaml
+          if grep -q 'kind: StatefulSet' /tmp/rendered.yaml; then echo 'свой Postgres не нужен'; exit 1; fi
+      - name: kubeconform
+        run: kubeconform -strict -ignore-missing-schemas -summary /tmp/rendered.yaml
