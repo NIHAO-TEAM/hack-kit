@@ -1,5 +1,6 @@
 // Скриншоты по матрице для frontend-design-review.
-// Запуск: pnpm shots -- --base http://localhost:5173 --routes /points/demo/stock,/points/demo/orders
+// Запуск: pnpm shots -- --base http://localhost:8080 --routes /queue,/queue/9,/summary
+// Вход — переменные окружения E2E_LOGIN (по умолчанию jury) и E2E_JURY_PASSWORD; без пароля экраны за входом не откроются.
 // Нужен @playwright/test (Firefox) и, для проверки доступности, @axe-core/playwright.
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -12,7 +13,9 @@ const arg = (name, fallback) => {
 };
 
 const base = arg('base', 'http://localhost:5173');
-const routes = arg('routes', '/').split(',');
+const routes = arg('routes', '/login,/queue,/queue/9,/summary,/model,/source,/about').split(',');
+const login = process.env.E2E_LOGIN ?? 'jury';
+const password = process.env.E2E_JURY_PASSWORD ?? '';
 const out = arg('out', 'shots');
 
 // ширина, высота, касание, темы, состояния
@@ -36,12 +39,18 @@ for (const route of routes) {
         hasTouch: m.touch,
         colorScheme: theme,
       });
+      // Тему читает theme-init.js из localStorage до загрузки приложения.
+      await context.addInitScript((t) => localStorage.setItem('mantine-color-scheme-value', t), theme);
+      if (password) {
+        const res = await context.request.post(new URL('/api/v1/auth/login', base).href, { data: { login, password } });
+        if (!res.ok()) throw new Error(`вход ${login}: ${res.status()}`);
+      }
       const page = await context.newPage();
 
       for (const state of m.states) {
         const url = new URL(route, base);
         if (state !== 'data') url.searchParams.set('mock', state);
-        await page.goto(url.href, { waitUntil: 'networkidle' });
+        await page.goto(url.href, { waitUntil: 'load' });
         await page.screenshot({ path: join(dir, `${m.w}-${theme}-${state}.png`), fullPage: true });
 
         if (state === 'data') {
