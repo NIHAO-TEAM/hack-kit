@@ -58,3 +58,24 @@ func TestObserve(t *testing.T) {
 		})
 	}
 }
+
+// BenchmarkObserve100 — сравнение для 100 открытых задач: добавка ко времени одного пересчёта.
+func BenchmarkObserve100(b *testing.B) {
+	exp := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	base := gen.TaskBaseline{Level: gen.High, Balance: 1000, Services: []gen.TaskServiceBaseline{
+		{Id: 1, Status: gen.ProlongWait, ExpiresAt: exp}, {Id: 2, Status: gen.Active, ExpiresAt: exp},
+	}}
+	c := analytics.Customer{
+		Row: gen.CustomerRow{Level: gen.Low, Balance: 61000},
+		Services: []gen.Service{
+			{Id: 1, Name: "VPS-1", Status: gen.Active, AutoProlong: true, ExpiresAt: exp.AddDate(0, 1, 0)},
+			{Id: 2, Name: "VPS-2", Status: gen.Blocked, ExpiresAt: exp},
+		},
+	}
+	b.ResetTimer()
+	for range b.N {
+		for range 100 {
+			_ = observe(base, 1000, c)
+		}
+	}
+}
