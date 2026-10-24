@@ -1,4 +1,5 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { renderApp } from './render-app';
 import { server } from '../mocks/server';
@@ -84,4 +85,13 @@ describe('сводка', () => {
     expect(reasons[1]).toHaveTextContent('Не хватает средств на продление');
     expect(screen.getByText(/Это не доказанная причинность/)).toBeInTheDocument();
   });
+
+  it('причина в блоке «Где теряем деньги» ведёт в очередь с фильтром', async () => {
+    server.use(marketer(), summaryWith(null));
+    const { router } = renderApp('/summary');
+    const link = (await screen.findAllByRole('link', { name: /показать клиентов в очереди/ }))[0]!;
+    expect(link).toHaveAttribute('href', '/queue?reason=susp');
+    await userEvent.setup().click(link);
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ reason: 'susp' }));
+  }, 15_000);
 });

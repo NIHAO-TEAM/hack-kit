@@ -44,7 +44,8 @@ function SortHeader({
   onSort: (column: CustomerSort) => void;
 }) {
   if (!column.sort) return <>{column.label}</>;
-  const active = sort === column.sort;
+  // «Потеря по причине» — та же колонка «Потеря» с другим основанием сортировки.
+  const active = sort === column.sort || (column.sort === 'expectedLoss' && sort === 'reasonLoss');
   const Icon = !active ? IconArrowsSort : order === 'asc' ? IconArrowUp : IconArrowDown;
   const target = column.sort;
   return (
@@ -92,6 +93,7 @@ const signature = (row: CustomerRow) =>
     row.score ?? null,
     row.level,
     row.expectedLossCents,
+    row.reasonLossCents ?? null,
     row.topReason ?? null,
     row.topAction?.id ?? null,
     row.topAction?.effectCents ?? null,
@@ -123,7 +125,11 @@ export function QueueTable({
   const items = useMemo(() => rows.map((r) => ({ id: r.id, signature: signature(r) })), [rows]);
   const changed = useChangedRows(items, version);
   const ariaSort = (c: Column) =>
-    c.sort && c.sort === sort ? (order === 'asc' ? 'ascending' : 'descending') : undefined;
+    c.sort && (c.sort === sort || (c.sort === 'expectedLoss' && sort === 'reasonLoss'))
+      ? order === 'asc'
+        ? 'ascending'
+        : 'descending'
+      : undefined;
   return (
     <table className={classes.table} aria-label="Клиенты под риском оттока">
       <thead>
@@ -178,7 +184,21 @@ export function QueueTable({
               {cell(2, formatMoney(row.balance))}
               {cell(3, formatMoney(row.totalReplenished))}
               {cell(4, <Score row={row} />)}
-              {cell(5, dim ? '—' : <Money cents={row.expectedLossCents} />)}
+              {cell(
+                5,
+                dim ? (
+                  '—'
+                ) : (
+                  <>
+                    <Money cents={row.expectedLossCents} />
+                    {row.reasonLossCents != null ? (
+                      <span className={classes.sub}>
+                        по причине: <Money cents={row.reasonLossCents} />
+                      </span>
+                    ) : null}
+                  </>
+                ),
+              )}
               {cell(6, <span className={classes.reason}>{row.topReason ?? '—'}</span>)}
               {cell(
                 7,

@@ -178,3 +178,28 @@ func TestStreamMetrics(t *testing.T) {
 		}
 	}
 }
+
+// Две реплики: прогон ведёт другая (держит блокировку базы), память этой реплики пуста — запуск всё равно 409.
+func TestStreamBusyOnOtherReplica(t *testing.T) {
+	s := apitest.New(t)
+	s.StartRecalc(t)
+	c := s.As(t, "analyst")
+	conn, err := s.Pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(context.Background(), "SELECT pg_advisory_lock($1)", int64(7_405_120_001)); err != nil {
+		t.Fatal(err)
+	}
+	if res := startStream(t, c, 100, 0, 1); res.StatusCode() != http.StatusConflict {
+		t.Fatalf("запуск при чужом прогоне: %d, ждали 409", res.StatusCode())
+	}
+	if _, err := conn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", int64(7_405_120_001)); err != nil {
+		t.Fatal(err)
+	}
+	if res := startStream(t, c, 100, 0, 1); res.JSON202 == nil {
+		t.Fatalf("после снятия блокировки: %d %s", res.StatusCode(), res.Body)
+	}
+	waitStream(t, c)
+}

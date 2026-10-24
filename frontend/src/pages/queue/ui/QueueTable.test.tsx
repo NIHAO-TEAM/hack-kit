@@ -72,3 +72,26 @@ describe('QueueTable: выборка', () => {
     expect(changedIds()).toEqual([]);
   });
 });
+
+describe('QueueTable: потеря по причине', () => {
+  it('в строке есть потеря по причине, колонка «Потеря» помечена сортировкой', () => {
+    render(
+      <MantineProvider>
+        <QueueTable
+          rows={[{ ...row(1, 500_00), reasonLossCents: 120_00 }]}
+          version={1}
+          asOf="2026-10-20T00:00:00Z"
+          sort="reasonLoss"
+          order="desc"
+          onSort={() => {}}
+          onOpen={() => {}}
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByText(/по причине:/)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Потеря/ })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+  });
+});

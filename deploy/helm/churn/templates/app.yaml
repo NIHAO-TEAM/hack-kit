@@ -13,6 +13,15 @@ spec:
       labels: {{- include "churn.appSelector" . | nindent 8 }}
     spec:
       automountServiceAccountToken: false
+      {{- if gt (int .Values.replicaCount) 1 }}
+      # Две реплики и больше: по возможности на разные узлы; на одном узле (k3s) мягко — под всё равно встанет.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {{- include "churn.appSelector" . | nindent 14 }}
+      {{- end }}
       # Больше SHUTDOWN_DRAIN (5 с) + SHUTDOWN_TIMEOUT (20 с) из cmd/api: иначе kubelet убьёт под раньше остановки.
       terminationGracePeriodSeconds: 40
       securityContext:
@@ -72,3 +81,16 @@ spec:
     - name: http
       port: 80
       targetPort: http
+{{- if gt (int .Values.replicaCount) 1 }}
+---
+# Добровольные остановки (drain, выкат узла) не снимают последнюю реплику.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-app
+  labels: {{- include "churn.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {{- include "churn.appSelector" . | nindent 6 }}
+{{- end }}
