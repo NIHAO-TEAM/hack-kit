@@ -1,4 +1,4 @@
-Статус: черновик
+Статус: в работе
 
 # Дашборд «Внутри сервиса»: рантайм Go, пересчёт, приём снимка, поток событий
 
@@ -31,3 +31,10 @@
 
 - ADR-0004: п. 1 (без CRM), п. 6 (бэкенд и нагрузка).
 - Гейт не ослабляется.
+
+## Найдено по ходу
+
+Метрики `/metrics` на `main` (по коду регистраций; сервер в среде не поднимался, свериться на стенде):
+
+- Есть: стандартные `go_*` и `process_*` (`NewGoCollector`, `NewProcessCollector`); `churn_customers`, `churn_expected_loss_cents`, `churn_at_risk_cents`, `churn_lost_cents`, `churn_data_quality_issues`, `churn_snapshot_age_seconds`, `churn_model_version`; `churn_recalc_duration_seconds` и `churn_recalc_stage_seconds` — **gauge последнего пересчёта**, не гистограмма; `churn_snapshot_ingest_stage_seconds` (гистограмма по этапам); `churn_retention_*`; `churn_billing_polls_total`, `churn_billing_poll_errors_total`.
+- Нет: гистограммы HTTP (добавлена здесь, `churn_http_request_duration_seconds`), счётчика пересчётов (число пересчётов — `changes(churn_model_version[…])`), отмен пересчёта (`recalc-concurrency`), событий/с и потерь шины (`events-bus-fanout`).
