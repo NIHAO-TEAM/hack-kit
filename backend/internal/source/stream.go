@@ -82,7 +82,7 @@ var (
 
 // StreamCollectors — метрики потока событий для /metrics.
 func StreamCollectors() []prometheus.Collector {
-	return []prometheus.Collector{streamEvents, streamApply, ingestBatchSize, ingestBatchSeconds, ingestQueueDepth}
+	return []prometheus.Collector{streamEvents, streamApply, ingestBatchSize, ingestBatchSeconds, ingestQueueDepth, ingestAPIEvents, ingestAPIShed}
 }
 
 // streamRun — состояние прогона; один на SourceAPI.

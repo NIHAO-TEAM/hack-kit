@@ -543,6 +543,9 @@ type eventWriter struct {
 	in   chan ingestItem
 	done chan struct{}
 
+	// offerMu — один запрос приёма ставит свои события за раз (offerAll).
+	offerMu sync.Mutex
+
 	mu   sync.Mutex
 	seen map[int]struct{} // номера, которые уже были приняты в обработку
 	dups int

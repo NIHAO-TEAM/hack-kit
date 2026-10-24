@@ -38,6 +38,9 @@ type SourceAPI struct {
 	checks      func(version int64) []gen.QualityCheck
 	observer    StreamObserver
 	stream      *streamRun
+	// intake — приём событий извне; создаётся при первом запросе (eventsIntake), в тестах подменяется.
+	intake     *eventIntake
+	intakeOnce sync.Once
 }
 
 // WithAudit подключает журнал действий: загрузка снимка, правки и шаги эмулятора.
@@ -185,6 +188,11 @@ func (a *SourceAPI) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	writeJSONBody(w, v)
+}
+
+// writeJSONBody пишет тело ответа, когда статус и заголовки уже выставлены.
+func writeJSONBody(w http.ResponseWriter, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		log.Printf("source: ответ: %v", err)
 	}
