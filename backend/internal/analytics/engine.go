@@ -66,6 +66,7 @@ type Engine[R any] struct {
 	latest  atomic.Pointer[Calculation[R]]
 	version int64 // меняет только воркер
 	errors  atomic.Int64
+	lastErr atomic.Pointer[error] // ошибка последнего завершённого прогона; nil — прогон удался
 
 	cancelled atomic.Int64
 
@@ -145,6 +146,14 @@ func (e *Engine[R]) Latest() *Calculation[R] { return e.latest.Load() }
 
 // Errors — сколько расчётов закончилось ошибкой (для метрик).
 func (e *Engine[R]) Errors() int64 { return e.errors.Load() }
+
+// LastError — ошибка последнего завершённого (не отменённого) прогона; nil, если он удался или прогонов ещё не было.
+func (e *Engine[R]) LastError() error {
+	if p := e.lastErr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
 
 // Cancelled — сколько пересчётов отменено новым событием (для метрик).
 func (e *Engine[R]) Cancelled() int64 { return e.cancelled.Load() }
@@ -266,9 +275,11 @@ func (e *Engine[R]) recalc(ctx context.Context) {
 	}
 	if err != nil {
 		e.errors.Add(1)
+		e.lastErr.Store(&err)
 		log.Printf("analytics: пересчёт: %v", err)
 		return
 	}
+	e.lastErr.Store(nil)
 	e.version++
 	if !c.Partial {
 		e.lastFull = started

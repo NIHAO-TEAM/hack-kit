@@ -55,3 +55,13 @@
 - WHEN идёт запрос на 300 мс и открыт SSE-поток, приходит SIGTERM
 - THEN `/readyz` сразу `503`, запрос получает `200`, SSE закрыт, процесс завершился до `SHUTDOWN_TIMEOUT`
 - Тест: `TestServeGracefulShutdown`
+
+### Requirement: готовность на пустой базе
+
+Сервер SHALL считать себя готовым (`/readyz` — `200`), если снимок ещё не загружали: на чистой установке считать нечего.
+
+#### Scenario: чистая установка
+
+- WHEN сервер стартует на пустой базе без снимка
+- THEN `/readyz` отвечает `200`
+- Тест: `TestReadyOnEmptyDatabase` (`cmd/api/ready_test.go`)
