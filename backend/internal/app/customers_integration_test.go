@@ -53,7 +53,7 @@ func TestCustomersAPI(t *testing.T) {
 	}
 }
 
-// Правка баланса №9 на 529,84 € через PATCH: потеря падает на 1 067,48 €, очередь пересчитана.
+// Правка баланса №9 на 529,84 € через PATCH: потеря падает на 1 027,49 €, очередь пересчитана.
 func TestPatchAccountRecalculatesLoss(t *testing.T) {
 	r := newRig(t, true)
 	r.StartRecalc(t)
