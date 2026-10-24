@@ -948,6 +948,11 @@ export interface components {
             deleteAt?: string;
             /** @description Тег «к биллингу» — сбой автосписания, а не отток. */
             billing?: boolean;
+            /**
+             * Format: int64
+             * @description Потеря клиента по причине из параметра `reason`; есть только в ответе с этим параметром.
+             */
+            reasonLossCents?: number;
             task?: components["schemas"]["TaskBrief"];
         };
         ActionBrief: {
@@ -1786,6 +1791,8 @@ export interface operations {
                 offset?: number;
                 /** @description Строки «к биллингу» (сбой автосписания): `exclude` — без них, `only` — только они, не задан — все. `total` считается после фильтра. */
                 billing?: "exclude" | "only";
+                /** @description Причина риска — идентификатор признака модели (`featureId` из «Сводки»): клиенты с ненулевой потерей по этой причине. Без `sort` порядок — по потере по причине (по убыванию), в строках есть `reasonLossCents`. Неизвестная причина — 400 с перечнем допустимых. Курсор действует только с тем же `reason`. */
+                reason?: string;
                 /** @description Курсор следующей страницы из `nextCursor` предыдущего ответа. Заменяет `offset` (вместе с ним — 400); сортировка и порядок должны быть те же, что у страницы, из которой он получен. Курсор привязан к версии пересчёта: после нового пересчёта — 409, начните с первой страницы. */
                 cursor?: string;
             };
@@ -1830,6 +1837,8 @@ export interface operations {
                 order?: string;
                 /** @description `exclude` — без строк «к биллингу», `only` — только они, не задан — все. Другое значение — 400. */
                 billing?: string;
+                /** @description Причина риска, как у списка клиентов: только клиенты с ненулевой потерей по ней. Неизвестная причина — 400. */
+                reason?: string;
             };
             header?: never;
             path?: never;
