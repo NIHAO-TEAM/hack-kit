@@ -54,56 +54,77 @@ type Accepted struct {
 // replace заменяет данные целиком в одной транзакции и заводит строку snapshots.
 // Любая ошибка откатывает всё: прежние данные и версия остаются.
 func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedAt time.Time, source string) (Accepted, error) {
+	var st stages
+	defer st.log()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return Accepted{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockKey); err != nil {
+	if err := st.run(stageLock, func() error {
+		_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockKey)
+		return err
+	}); err != nil {
 		return Accepted{}, err
 	}
-	if _, err := tx.Exec(ctx, "TRUNCATE transactions, services, accounts"); err != nil {
+	// Порядок таблиц как у Reader.Load (accounts, services, transactions): иначе TRUNCATE и читатель
+	// пересчёта берут блокировки навстречу друг другу и PostgreSQL рвёт одного как deadlock.
+	if err := st.run(stageTruncate, func() error {
+		_, err := tx.Exec(ctx, "TRUNCATE accounts, services, transactions")
+		return err
+	}); err != nil {
 		return Accepted{}, fmt.Errorf("очистка: %w", err)
 	}
 
-	accRows := make([][]any, len(s.Accounts))
-	for i, a := range s.Accounts {
-		accRows[i] = []any{a.ID, a.Email, a.Balance, a.WithdrawBalance, a.TotalReplenished, a.BonusBalance, a.BonusState}
-	}
-	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"accounts"},
-		[]string{"id", "email", "balance", "withdrawBalance", "totalReplenished", "bonusBalance", "bonusState"},
-		pgx.CopyFromRows(accRows)); err != nil {
+	if err := st.run(stageCopyAccounts, func() error {
+		_, err := tx.CopyFrom(ctx, pgx.Identifier{"accounts"},
+			[]string{"id", "email", "balance", "withdrawBalance", "totalReplenished", "bonusBalance", "bonusState"},
+			pgx.CopyFromSlice(len(s.Accounts), func(i int) ([]any, error) {
+				a := s.Accounts[i]
+				return []any{a.ID, a.Email, a.Balance, a.WithdrawBalance, a.TotalReplenished, a.BonusBalance, a.BonusState}, nil
+			}))
+		return err
+	}); err != nil {
 		return Accepted{}, fmt.Errorf("accounts: %w", err)
 	}
 
-	svcRows := make([][]any, len(s.Services))
-	for i, v := range s.Services {
-		svcRows[i] = []any{v.ID, v.Name, v.OwnerID, v.PaymentTerm, v.AutoProlong, v.CreatedAt, v.ExpiresAt, v.Status, v.Price}
-	}
-	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"services"},
-		[]string{"id", "name", "ownerId", "paymentTerm", "autoProlong", "createdAt", "expiresAt", "status", "price"},
-		pgx.CopyFromRows(svcRows)); err != nil {
+	if err := st.run(stageCopyServices, func() error {
+		_, err := tx.CopyFrom(ctx, pgx.Identifier{"services"},
+			[]string{"id", "name", "ownerId", "paymentTerm", "autoProlong", "createdAt", "expiresAt", "status", "price"},
+			pgx.CopyFromSlice(len(s.Services), func(i int) ([]any, error) {
+				v := s.Services[i]
+				return []any{v.ID, v.Name, v.OwnerID, v.PaymentTerm, v.AutoProlong, v.CreatedAt, v.ExpiresAt, v.Status, v.Price}, nil
+			}))
+		return err
+	}); err != nil {
 		return Accepted{}, fmt.Errorf("services: %w", err)
 	}
 
-	txRows := make([][]any, len(s.Transactions))
-	for i, t := range s.Transactions {
-		txRows[i] = []any{t.ID, t.Amount, t.Status, t.PerformedAt, t.CreatedAt, t.Type, t.ServiceID}
-	}
-	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"transactions"},
-		[]string{"id", "amount", "status", "performedAt", "createdAt", "type", "serviceId"},
-		pgx.CopyFromRows(txRows)); err != nil {
+	if err := st.run(stageCopyTransactions, func() error {
+		_, err := tx.CopyFrom(ctx, pgx.Identifier{"transactions"},
+			[]string{"id", "amount", "status", "performedAt", "createdAt", "type", "serviceId"},
+			pgx.CopyFromSlice(len(s.Transactions), func(i int) ([]any, error) {
+				x := s.Transactions[i]
+				return []any{x.ID, x.Amount, x.Status, x.PerformedAt, x.CreatedAt, x.Type, x.ServiceID}, nil
+			}))
+		return err
+	}); err != nil {
 		return Accepted{}, fmt.Errorf("transactions: %w", err)
 	}
 
 	// Идентификаторы заданы снимком; последовательности подтягиваем, чтобы последующие
 	// вставки (правки, эмулятор) не упёрлись в занятые id.
-	for _, t := range []string{"accounts", "services", "transactions"} {
-		q := fmt.Sprintf(`SELECT setval(pg_get_serial_sequence('%[1]s', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM %[1]s`, t)
-		if _, err := tx.Exec(ctx, q); err != nil {
-			return Accepted{}, fmt.Errorf("sequence %s: %w", t, err)
+	if err := st.run(stageSequences, func() error {
+		for _, t := range []string{"accounts", "services", "transactions"} {
+			q := fmt.Sprintf(`SELECT setval(pg_get_serial_sequence('%[1]s', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM %[1]s`, t)
+			if _, err := tx.Exec(ctx, q); err != nil {
+				return fmt.Errorf("sequence %s: %w", t, err)
+			}
 		}
+		return nil
+	}); err != nil {
+		return Accepted{}, err
 	}
 
 	var version int64
@@ -112,7 +133,7 @@ func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedA
 		asOf, loadedAt, source).Scan(&version); err != nil {
 		return Accepted{}, fmt.Errorf("snapshots: %w", err)
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := st.run(stageCommit, func() error { return tx.Commit(ctx) }); err != nil {
 		return Accepted{}, err
 	}
 	return Accepted{Version: version, AsOf: asOf, Accounts: len(s.Accounts), Services: len(s.Services), Transactions: len(s.Transactions)}, nil

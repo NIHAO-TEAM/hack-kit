@@ -74,12 +74,26 @@ func (a *SourceAPI) WithAdapter(ad *Adapter) *SourceAPI {
 // PutSnapshot — PUT /api/v1/source/snapshot. Права проверяет auth.Middleware.
 func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, a.maxBytes)
-	s, errs, err := ParseSnapshot(r.Body)
+	// Тело читается потоком внутри разбора, поэтому этапы read и parse слиты в parse.
+	var st stages
+	defer st.log()
+	var (
+		s    *Snapshot
+		errs []FieldError
+		err  error
+	)
+	_ = st.run(stageParse, func() error {
+		s, errs, err = ParseSnapshot(r.Body)
+		return err
+	})
 	if err != nil {
 		httpx.WriteProblem(w, r, http.StatusBadRequest, "тело не разобрано: "+err.Error())
 		return
 	}
-	errs = append(errs, Validate(s)...)
+	_ = st.run(stageValidate, func() error {
+		errs = append(errs, Validate(s)...)
+		return nil
+	})
 	if len(errs) > 0 {
 		if len(errs) > maxErrors {
 			errs = errs[:maxErrors]

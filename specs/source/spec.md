@@ -134,3 +134,23 @@
 - WHEN загружен снимок на 10 000 аккаунтов
 - THEN стенд принимает его и пересчитывает за порядка секунды; время и память — в `docs/load/2026-10-23-large-snapshot.md`
 - Тест: `TestLargeSnapshotLoad` (теги `integration load`), `TestScoreScalesWithAccounts`
+
+### Requirement: этапы загрузки снимка измеряются
+
+Сервер SHALL записывать длительность каждого этапа загрузки снимка в лог и в метрику.
+
+#### Scenario: загрузка снимка
+
+- WHEN принят снимок
+- THEN `/metrics` содержит `churn_snapshot_ingest_stage_seconds` по этапам `parse`, `validate`, `lock`, `truncate`, `copy_accounts`, `copy_services`, `copy_transactions`, `sequences`, `commit`
+- Тест: `TestSnapshotIngestStagesAndSecondLoad` (метрики на стенде), `TestStagesObserveAndLint` (формат метрики)
+
+### Requirement: загрузка во время пересчёта
+
+Загрузка нового снимка SHALL завершаться, не дожидаясь окончания пересчёта по предыдущему снимку, и не оставлять результат старой версии.
+
+#### Scenario: две загрузки подряд
+
+- WHEN второй снимок загружается, пока идёт пересчёт по первому
+- THEN вторая загрузка принята, итоговая версия модели соответствует второму снимку
+- Тест: `TestSnapshotIngestStagesAndSecondLoad` (две загрузки подряд, версия сводки равна версии второго ответа); замер времени — `TestLargeSnapshotLoad` с `LOAD_REPEAT=1`

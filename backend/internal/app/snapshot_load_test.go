@@ -61,6 +61,16 @@ func TestLargeSnapshotLoad(t *testing.T) {
 	}
 	putTook := time.Since(start)
 
+	// LOAD_REPEAT=1: вторая загрузка сразу после первой, пока идёт пересчёт (как три PUT подряд в k6).
+	var secondTook time.Duration
+	if os.Getenv("LOAD_REPEAT") == "1" {
+		s2 := time.Now()
+		if p2, err := loader.PutSnapshotWithBodyWithResponse(ctx, "application/json", bytes.NewReader(body)); err != nil || p2.JSON200 == nil {
+			t.Fatalf("второй PUT: %v %d %s", err, p2.StatusCode(), p2.Body)
+		}
+		secondTook = time.Since(s2)
+	}
+
 	for {
 		res, err := marketer.GetSummaryWithResponse(ctx)
 		if err != nil {
@@ -76,6 +86,9 @@ func TestLargeSnapshotLoad(t *testing.T) {
 	}
 	total := time.Since(start)
 
+	if secondTook > 0 {
+		t.Logf("второй PUT во время пересчёта: %v", secondTook.Round(time.Millisecond))
+	}
 	var after runtime.MemStats
 	runtime.ReadMemStats(&after)
 	t.Logf("аккаунтов %d, услуг %d, платежей %d; тело %.1f МБ", put.JSON200.Accounts, put.JSON200.Services, put.JSON200.Transactions, float64(len(body))/(1<<20))
