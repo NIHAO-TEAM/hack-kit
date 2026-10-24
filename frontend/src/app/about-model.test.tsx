@@ -40,6 +40,13 @@ describe('экран «О модели»', () => {
     expect(formula).toHaveAttribute('tabindex', '0');
   });
 
+  it('у строчного кода нет собственной прокрутки', async () => {
+    signedInAs('marketer');
+    renderApp('/about');
+    const inline = await screen.findByText('tools/oracle');
+    expect(inline).toHaveStyle({ overflow: 'visible' });
+  });
+
   it('берёт веса из настроек сервера', async () => {
     signedInAs('analyst');
     server.use(
