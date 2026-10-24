@@ -100,6 +100,11 @@ test('демо: очередь → карточка → потеря по при
     await test.step('Сводка: где теряем деньги', async () => {
       await gotoStable(page, '/summary', (p) => p.getByRole('heading', { name: 'Где теряем деньги' }));
       await expect(page.getByText('Это не доказанная причинность.')).toBeVisible();
+      // Клик по причине открывает очередь только с её клиентами (на наборе организаторов susp — двое).
+      await page.getByRole('link', { name: /Услуга приостановлена: показать клиентов/ }).click();
+      await expect(page).toHaveURL(/\/queue\?reason=susp$/);
+      await expect(queueTable(page).locator('tbody tr')).toHaveCount(2);
+      await expect(queueTable(page).getByText(/по причине:/)).toHaveCount(2);
       await gotoStable(page, '/queue', queueTable);
     });
 

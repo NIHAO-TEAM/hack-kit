@@ -18,3 +18,15 @@
   border-radius: 4px;
   background: var(--primary);
 }
+
+.link {
+  font-weight: 500;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}
+
+.link:hover {
+  color: var(--primary);
+}
