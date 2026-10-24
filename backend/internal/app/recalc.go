@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,9 +28,14 @@ type Recalc struct {
 	Settings *model.Store
 	snaps    *snapshots
 	cache    cacheHolder
+	buildMu  sync.Mutex                                                   // одна сборка портфеля за раз (Portfolio)
+	build    func(risk.Result, risk.Snapshot, int64) *analytics.Portfolio // nil — buildPortfolio; подмена в тесте
 	observer *retention.Service
+	bus      *events.Bus
 	reads    *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
 	metrics  *analytics.RecalcMetrics
+	reader   *source.Reader
+	clk      clock.Clock
 }
 
 // NewRecalc собирает воркер: настройки из model_settings, снимок из таблиц организаторов.
@@ -77,15 +84,21 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 			DataVersion:     dataVersion,
 			SettingsVersion: settingsVersion,
 			Stages:          stages,
+			Customers:       len(res.Customers),
 		}, nil
 	}
 	r := &Recalc{
 		Engine:   analytics.NewEngine(compute, bus, clk, source.TopicChanged, model.TopicChanged),
 		Settings: store,
 		snaps:    snaps,
+		bus:      bus,
 		reads:    reads,
 		metrics:  metrics,
+		reader:   reader,
+		clk:      clk,
 	}
+	r.WithFullEvery(fullEveryFromEnv())
+	r.Engine.WithObserver(func(c *analytics.Calculation[risk.Result]) { metrics.ObserveRecalc(c.Partial, c.Duration) })
 	metrics.Cancelled = r.Engine.Cancelled
 	r.observer = retention.New(pool, bus, clk, r)
 	return r
@@ -99,6 +112,15 @@ func scoreSnapshot(ctx context.Context, rs risk.Snapshot, st risk.Settings, m *a
 // Collectors — метрики пересчёта для /metrics: воркеры, отменённые прогоны, длительность пачек.
 func (r *Recalc) Collectors() []prometheus.Collector { return []prometheus.Collector{r.metrics} }
 
+// CalculatedAt — когда готов последний расчёт; нулевое время, пока расчёта нет.
+// По нему читающие ответы получают X-Data-Age.
+func (r *Recalc) CalculatedAt() time.Time {
+	if c := r.Engine.Latest(); c != nil {
+		return c.CalculatedAt
+	}
+	return time.Time{}
+}
+
 // TableReads — сколько раз пересчёт читал таблицы снимка целиком; смена настроек их не читает.
 func (r *Recalc) TableReads() int64 { return r.reads.Load() }
 
@@ -107,14 +129,38 @@ func (r *Recalc) TableReads() int64 { return r.reads.Load() }
 // Канал закрывается, когда остановились оба.
 func (r *Recalc) Start(ctx context.Context) <-chan struct{} {
 	observed := r.observer.StartObserver(ctx) // подписка до первого расчёта, иначе его событие потеряется
+	warmed := r.warmReadModel(ctx)
 	engine := r.Engine.Start(ctx)
 	stopped := make(chan struct{})
 	go func() {
 		<-engine
 		<-observed
+		<-warmed
 		close(stopped)
 	}()
 	return stopped
+}
+
+// warmReadModel после каждого пересчёта собирает портфель и модель чтения заранее, в фоне:
+// первый запрос списка не ждёт сортировок. Подписка оформляется до возврата.
+func (r *Recalc) warmReadModel(ctx context.Context) <-chan struct{} {
+	ch, cancel := r.bus.Subscribe(analytics.TopicRecalculated)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer cancel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ch:
+				if pf := r.Portfolio(); pf != nil {
+					pf.BuildIndex()
+				}
+			}
+		}
+	}()
+	return done
 }
 
 // ValidateSettings проверяет тело настроек модели.
@@ -187,6 +233,8 @@ func (r *Recalc) Overview() *analytics.Overview {
 		LostCents:         s.LostCents,
 		QualityCounts:     s.QualityCounts,
 		LossByFeature:     lossByFeature(s.LossByFeature),
+		RecalcCustomers:   c.Customers,
+		Partial:           c.Partial,
 	}
 }
 

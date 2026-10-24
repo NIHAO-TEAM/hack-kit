@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -128,6 +129,8 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	}
 	analyticsAPI := newAnalytics(pool, bus, clk, feed)
 	analyticsAPI.WithCollectors(source.IngestCollectors()...)
+	analyticsAPI.WithCollectors(httpx.Collectors()...)
+	analyticsAPI.WithCollectors(httpx.LimitCollectors()...)
 	analyticsAPI.WithCollectors(bus.Collector())
 	analyticsAPI.WithCollectors(o.collectors...)
 	if c, ok := feed.(collectorsProvider); ok {
@@ -159,6 +162,12 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 		AuditAPI:     audit.NewAPI(journal),
 		TasksAPI:     retention.NewAPI(tasks),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
+	// Неизвестный путь или метод под /api/ — problem+json, а не текст mux.
+	for _, method := range []string{"POST", "PUT", "PATCH", "DELETE", "OPTIONS"} {
+		mux.HandleFunc(method+" /api/", func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteProblem(w, r, http.StatusNotFound, "путь не найден")
+		})
+	}
 	mux.Handle("GET /debug/pprof/", pprofHandler())
 	mux.Handle("GET /api/v1/docs/assets/", docs.Assets())
 	mux.Handle("GET /", webui.Handler())
@@ -183,7 +192,12 @@ func WithRequestID(next http.Handler) http.Handler {
 // New собирает полный обработчик: защитные заголовки, идентификатор запроса, проверка сессии, маршруты.
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed, opts ...Option) http.Handler {
 	mux := Routes(pool, bus, clk, authAPI, feed, opts...)
-	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, mux)))
+	// Предел запросов в работе стоит до проверки сессии: перегрузка не доходит до базы сессий.
+	h := httpx.Instrument(mux)
+	if c, ok := feed.(interface{ CalculatedAt() time.Time }); ok {
+		h = httpx.DataAge(c.CalculatedAt, clk.Now, h)
+	}
+	return httpx.SecurityHeaders(WithRequestID(httpx.Limit(httpx.LimitConfigFromEnv(), authAPI.Middleware(mux, h))))
 }
 
 // qualityChecker — источник проверок качества данных для /source/status; его реализует воркер пересчёта.

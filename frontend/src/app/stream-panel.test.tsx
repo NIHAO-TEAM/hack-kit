@@ -44,7 +44,7 @@ describe('панель «Поток событий»', () => {
     const panel = await screen.findByRole('region', { name: 'Поток событий' });
     const button = within(panel).getByRole('button', { name: /Прогнать 2\s500 событий/ });
     await userEvent.click(button);
-    await waitFor(() => expect(body).toEqual({ events: 2500, ratePerSecond: 100, seed: 1 }));
+    await waitFor(() => expect(body).toEqual({ events: 2500, ratePerSecond: 0, seed: 1 }));
   });
 
   it('идёт прогон: полоса хода и «Применено N из M», выбор заблокирован', async () => {
@@ -128,5 +128,95 @@ describe('панель «Поток событий»', () => {
     renderApp('/source');
     expect(await screen.findByRole('heading', { name: 'Недостаточно прав' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Поток событий' })).not.toBeInTheDocument();
+  });
+
+  it('выбор залпа: 2 500 / 10 000 / 50 000 / 100 000, скорость по умолчанию «как можно быстрее»', async () => {
+    signedInAs('analyst');
+    let body: unknown;
+    server.use(
+      http.post('/api/v1/source/emulator/stream', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ runId: 'r1' }, { status: 202 });
+      }),
+    );
+    renderApp('/source');
+    const panel = await screen.findByRole('region', { name: 'Поток событий' });
+    expect(within(panel).getByLabelText('Скорость')).toHaveValue('Как можно быстрее');
+    await userEvent.click(within(panel).getByLabelText('Залп, событий'));
+    await screen.findByRole('option', { name: /^100\s000$/, hidden: true });
+    const options = ['2500', '10000', '50000', '100000'].map(
+      (v) =>
+        screen
+          .queryAllByRole('option', { hidden: true })
+          .filter((o) => o.textContent?.replace(/\s/g, '') === v).length,
+    );
+    expect(options).toEqual([1, 1, 1, 1]);
+    await userEvent.click(screen.getByRole('option', { name: /^100\s000$/, hidden: true }));
+    await userEvent.click(within(panel).getByRole('button', { name: /Прогнать 100\s000 событий/ }));
+    await waitFor(() => expect(body).toEqual({ events: 100000, ratePerSecond: 0, seed: 1 }));
+  }, 20000);
+
+  it('идёт залп: шесть живых графиков из окна прогона', async () => {
+    signedInAs('analyst');
+    const window = [
+      {
+        t: 1,
+        accepted: 900,
+        applied: 880,
+        failed: 0,
+        queueDepth: 300,
+        batchSize: 120,
+        lagP95Ms: 9.5,
+        recalcs: 3,
+      },
+      {
+        t: 2,
+        accepted: 950,
+        applied: 940,
+        failed: 0,
+        queueDepth: 120,
+        batchSize: 150,
+        lagP95Ms: 11,
+        recalcs: 4,
+      },
+    ];
+    server.use(
+      http.get('/api/v1/source/emulator/stream', () =>
+        HttpResponse.json({ state: 'running', runId: 'r1', events: 10000, applied: 1820, window }),
+      ),
+    );
+    renderApp('/source');
+    const charts = await screen.findByRole('region', { name: 'Живые графики потока' });
+    for (const title of [
+      'События в секунду',
+      'Очередь приёма',
+      'Размер пачки',
+      'Задержка до очереди',
+      'Пересчётов в секунду',
+      'Ошибки',
+    ]) {
+      expect(
+        within(charts).getByRole('img', { name: new RegExp(`^${title} за последние 60 секунд`) }),
+      ).toBeInTheDocument();
+    }
+    expect(
+      within(charts).getByRole('img', { name: /События в секунду.*принято 950, применено 940/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(charts).getByRole('img', { name: /Очередь приёма.*ждут записи 120/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('готово: строка «Ошибок 0 · потерянных 0 · согласованность 0 центов»', async () => {
+    signedInAs('jury');
+    server.use(
+      http.get('/api/v1/source/emulator/stream', () =>
+        HttpResponse.json({ state: 'done', runId: 'r1', events: 2500, applied: 2500, report }),
+      ),
+    );
+    renderApp('/source');
+    expect(
+      await screen.findByText('Ошибок 0 · потерянных 0 · согласованность 0 центов'),
+    ).toBeInTheDocument();
   });
 });

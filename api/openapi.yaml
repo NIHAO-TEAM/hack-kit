@@ -35,7 +35,7 @@ components:
     serviceToken:
       type: http
       scheme: bearer
-      description: Сервисный токен источника данных (PUT /source/snapshot).
+      description: Сервисный токен источника данных (PUT /source/snapshot, POST /source/events).
     metricsToken:
       type: http
       scheme: bearer
@@ -467,19 +467,82 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EmulatorAction"
+    IngestEvent:
+      type: object
+      required: [eventId, kind]
+      properties:
+        eventId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Уникальный номер события; повтор принятого не применяется
+        kind:
+          type: string
+          description: >-
+            Вид события: top_up, autoprolong_on, autoprolong_off, service_stop, service_resume,
+            renewal_failed, prolong_wait. Строкой, а не перечислением: значения совпали бы с
+            константами статусов услуги в сгенерированном коде.
+        accountId:
+          type: integer
+          format: int64
+          description: Счёт; обязателен, если задан balance
+        balance:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Новый баланс счёта в евроцентах
+        serviceId:
+          type: integer
+          format: int64
+          description: Услуга; обязательна, если задан status, autoProlong или expiresAt
+        status:
+          type: string
+          description: Новый статус услуги (как в PATCH /source/services/{id})
+        autoProlong:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+    IngestRejected:
+      type: object
+      required: [line, error]
+      properties:
+        line:
+          type: integer
+          description: Номер события в запросе, с 1
+        error:
+          type: string
+    IngestAccepted:
+      type: object
+      required: [accepted, duplicate, rejected, version]
+      properties:
+        accepted:
+          type: integer
+          description: Сколько событий поставлено в очередь записи
+        duplicate:
+          type: integer
+          description: Сколько событий уже были приняты раньше (по eventId) и не применены
+        rejected:
+          type: array
+          items:
+            $ref: "#/components/schemas/IngestRejected"
+        version:
+          type: integer
+          format: int64
+          description: Версия данных на момент ответа; применённое событие войдёт в более позднюю
     StreamRequest:
       type: object
       properties:
         events:
           type: integer
           minimum: 100
-          maximum: 5000
+          maximum: 100000
           default: 2500
           description: Сколько событий применить
         ratePerSecond:
           type: integer
           minimum: 0
-          maximum: 2000
+          maximum: 20000
           default: 100
           description: Скорость, событий в секунду; 0 — без пауз между событиями
         seed:
@@ -552,6 +615,9 @@ components:
           type: number
         applyP95Ms:
           type: number
+        applyP99Ms:
+          type: number
+          description: p99 длительности применения одного события
         applyMaxMs:
           type: number
         recalcs:
@@ -601,6 +667,42 @@ components:
           type: string
         report:
           $ref: "#/components/schemas/StreamReport"
+        window:
+          type: array
+          maxItems: 60
+          description: Секундные отсчёты за последние 60 с прогона, старые первыми; нет у прогона, который ещё не набрал первую секунду.
+          items:
+            $ref: "#/components/schemas/StreamWindowPoint"
+    StreamWindowPoint:
+      type: object
+      required: [t, accepted, applied, failed, queueDepth, batchSize, lagP95Ms, recalcs]
+      properties:
+        t:
+          type: integer
+          description: Секунда прогона, с которой отсчёт закончился (1 — первая).
+        accepted:
+          type: integer
+          description: Событий принято в очередь приёма за секунду.
+        applied:
+          type: integer
+          description: Событий записано в базу за секунду.
+        failed:
+          type: integer
+          description: Событий не применено за секунду.
+        queueDepth:
+          type: integer
+          description: Событий ждало в очереди приёма в конце секунды.
+        batchSize:
+          type: number
+          format: float
+          description: Средний размер записанной пачки за секунду; 0, если пачек не было.
+        lagP95Ms:
+          type: number
+          format: float
+          description: Задержка «событие → очередь маркетолога», p95 по событиям, учтённым за секунду, мс; 0, если таких не было.
+        recalcs:
+          type: integer
+          description: Пересчётов движка за секунду.
     RiskLevel:
       type: string
       enum: [high, medium, low, unscored, lost]
@@ -649,6 +751,10 @@ components:
         billing:
           type: boolean
           description: Тег «к биллингу» — сбой автосписания, а не отток.
+        reasonLossCents:
+          type: integer
+          format: int64
+          description: Потеря клиента по причине из параметра `reason`; есть только в ответе с этим параметром.
         task:
           $ref: "#/components/schemas/TaskBrief"
     ActionBrief:
@@ -676,6 +782,9 @@ components:
           type: integer
           format: int64
           description: Версия пересчёта, по которому построена страница.
+        nextCursor:
+          type: string
+          description: Курсор следующей страницы; нет, если страница последняя.
     TaskStatus:
       type: string
       description: "В работе, связались, отложено, закрыто."
@@ -994,6 +1103,14 @@ components:
           description: Риск после действия, 0..100.
         newLevel:
           $ref: "#/components/schemas/RiskLevel"
+        costCents:
+          type: integer
+          format: int64
+          description: Что действие стоит клиенту, центы (пополнение — сумма, остальные — 0).
+        returnPerEuro:
+          type: number
+          format: double
+          description: Снятая ожидаемая потеря на каждый евро цены, 2 знака. Нет при цене 0. Оценка сценария «клиент выполнил действие полностью», не ROI.
     ServiceRisk:
       type: object
       required: [serviceId, probability, rCents, lossCents, features, quality]
@@ -1050,6 +1167,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Action"
+        actionCombo:
+          type: integer
+          format: int64
+          description: Эффект от совместного применения всех применимых действий (потеря после − до), центы. Нет, если применимо меньше двух действий.
         explanation:
           type: string
     Summary:
@@ -1622,6 +1743,24 @@ paths:
           schema:
             type: string
             enum: [exclude, only]
+        - name: reason
+          in: query
+          description: >-
+            Причина риска — идентификатор признака модели (`featureId` из «Сводки»): клиенты с
+            ненулевой потерей по этой причине. Без `sort` порядок — по потере по причине (по убыванию),
+            в строках есть `reasonLossCents`. Неизвестная причина — 400 с перечнем допустимых.
+            Курсор действует только с тем же `reason`.
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          description: >-
+            Курсор следующей страницы из `nextCursor` предыдущего ответа. Заменяет `offset`
+            (вместе с ним — 400); сортировка и порядок должны быть те же, что у страницы, из которой
+            он получен. Курсор привязан к версии пересчёта: после нового пересчёта — 409,
+            начните с первой страницы.
+          schema:
+            type: string
       responses:
         "200":
           description: Страница клиентов
@@ -1631,6 +1770,12 @@ paths:
                 $ref: "#/components/schemas/CustomerPage"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Курсор построен по другой версии пересчёта
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "501":
@@ -1669,6 +1814,11 @@ paths:
         - name: billing
           in: query
           description: "`exclude` — без строк «к биллингу», `only` — только они, не задан — все. Другое значение — 400."
+          schema:
+            type: string
+        - name: reason
+          in: query
+          description: "Причина риска, как у списка клиентов: только клиенты с ненулевой потерей по ней. Неизвестная причина — 400."
           schema:
             type: string
       responses:
@@ -2077,6 +2227,67 @@ paths:
           $ref: "#/components/responses/UnprocessableEntity"
         "501":
           $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/events:
+    post:
+      operationId: postSourceEvents
+      tags: [source]
+      summary: Пачка событий биллинга извне (аналитик, jury или сервисный токен источника)
+      description: >-
+        Тело — NDJSON (application/x-ndjson, событие на строку) или JSON-массив (application/json);
+        не больше 5 000 событий и 2 МБ на запрос, больше — 413. Виды событий те же, что у эмулятора
+        потока: top_up, autoprolong_on, autoprolong_off, service_stop, service_resume, renewal_failed,
+        prolong_wait. У события обязателен eventId: повтор уже принятого eventId не применяется и
+        считается в duplicate. Строка с ошибкой формата или значений попадает в rejected, остальные
+        принимаются. События идут в тот же писатель пачек, что и у эмулятора; применение асинхронное,
+        version — версия данных, с которой событие входит в пересчёт. Очередь писателя полна дольше
+        секунды — 503 с Retry-After, из запроса не применено ничего (всё или ничего).
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - serviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              description: Событие IngestEvent в виде JSON на каждой строке
+          application/json:
+            schema:
+              type: array
+              maxItems: 5000
+              items:
+                $ref: "#/components/schemas/IngestEvent"
+      responses:
+        "202":
+          description: Пачка принята в очередь записи
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: Больше 5 000 событий или 2 МБ в запросе
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: Очередь записи полна дольше секунды; ничего из запроса не применено, повторить через Retry-After секунд
+          headers:
+            Retry-After:
+              description: Через сколько секунд повторить запрос.
+              schema:
+                type: integer
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
   /api/v1/source/status:
     get:
       operationId: getSourceStatus

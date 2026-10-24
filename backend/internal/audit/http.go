@@ -38,8 +38,7 @@ func (a *AuditAPI) ListAudit(w http.ResponseWriter, r *http.Request, params gen.
 	}
 	items, total, err := a.svc.List(r.Context(), limit, offset)
 	if err != nil {
-		log.Printf("%v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "журнал недоступен")
+		httpx.WriteFailure(w, r, err, "журнал недоступен")
 		return
 	}
 	out := gen.AuditPage{Items: make([]gen.AuditEntry, len(items)), Total: total}

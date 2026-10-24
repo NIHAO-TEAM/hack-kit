@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/singleflight"
 
 	"example.com/app/internal/auth/db"
 	"example.com/app/internal/platform/clock"
@@ -22,6 +23,8 @@ const (
 	sessionTTL    = 12 * time.Hour
 	maxFailures   = 5
 	failureWindow = 5 * time.Minute
+	// dbWait — сколько запрос ждёт базу: зависшая база даёт DeadlineExceeded, то есть 503, а не вечное ожидание.
+	dbWait = 2 * time.Second
 )
 
 // Ошибки входа. Наружу не говорят, что именно неверно.
@@ -52,6 +55,12 @@ type service struct {
 	clk  clock.Clock
 	cfg  Config
 
+	// cache и flight: проверка сессии без похода в БД; cache == nil, если кэш выключен.
+	cache  *sessionCache
+	flight singleflight.Group
+	// load читает живую сессию из БД; в тестах подменяется.
+	load func(ctx context.Context, tokenHash string) (sessionRecord, error)
+
 	mu       sync.Mutex
 	failures map[string][]time.Time
 	// dummyHash выравнивает время ответа для несуществующего логина.
@@ -62,6 +71,10 @@ func newService(pool *pgxpool.Pool, clk clock.Clock, cfg Config) *service {
 	s := &service{pool: pool, clk: clk, cfg: cfg, failures: map[string][]time.Time{}}
 	if pool != nil {
 		s.q = db.New(pool)
+	}
+	s.cache = newSessionCache(clk, cfg.SessionCacheTTL, sessionCacheMaxSize)
+	if pool != nil {
+		s.load = s.loadSession
 	}
 	s.dummyHash, _ = HashPassword("dummy-password")
 	return s
@@ -144,7 +157,9 @@ func (s *service) login(ctx context.Context, login, password string) (Session, e
 	if s.q == nil {
 		return Session{}, ErrBadCredentials
 	}
-	user, err := s.q.GetUserByLogin(ctx, login)
+	qctx, cancel := context.WithTimeout(ctx, dbWait)
+	defer cancel()
+	user, err := s.q.GetUserByLogin(qctx, login)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		VerifyPassword(password, s.dummyHash)
@@ -170,6 +185,8 @@ func (s *service) issueSession(ctx context.Context, userID int64, login, role st
 	}
 	now := s.clk.Now()
 	expires := now.Add(sessionTTL)
+	ctx, cancel := context.WithTimeout(ctx, dbWait)
+	defer cancel()
 	if err := s.q.DeleteExpiredSessions(ctx, now); err != nil {
 		return Session{}, fmt.Errorf("auth: очистка сессий: %w", err)
 	}
@@ -185,26 +202,61 @@ func (s *service) issueSession(ctx context.Context, userID int64, login, role st
 	}, nil
 }
 
-// authenticate находит живую сессию по токену.
-func (s *service) authenticate(ctx context.Context, token string) (Identity, error) {
-	if s.q == nil || token == "" {
-		return Identity{}, ErrNoSession
-	}
-	row, err := s.q.GetSession(ctx, db.GetSessionParams{TokenHash: hashToken(token), ExpiresAt: s.clk.Now()})
+// sessionRecord — живая сессия из БД вместе с её сроком.
+type sessionRecord struct {
+	Identity
+	ExpiresAt time.Time
+}
+
+func (s *service) loadSession(ctx context.Context, tokenHash string) (sessionRecord, error) {
+	row, err := s.q.GetSession(ctx, db.GetSessionParams{TokenHash: tokenHash, ExpiresAt: s.clk.Now()})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Identity{}, ErrNoSession
+		return sessionRecord{}, ErrNoSession
 	}
 	if err != nil {
-		return Identity{}, fmt.Errorf("auth: сессия: %w", err)
+		return sessionRecord{}, fmt.Errorf("auth: сессия: %w", err)
 	}
-	return Identity{UserID: row.UserID, Login: row.Login, Role: row.Role, CSRFToken: row.CsrfToken, TokenHash: row.TokenHash}, nil
+	return sessionRecord{
+		Identity:  Identity{UserID: row.UserID, Login: row.Login, Role: row.Role, CSRFToken: row.CsrfToken, TokenHash: row.TokenHash},
+		ExpiresAt: row.ExpiresAt,
+	}, nil
+}
+
+// authenticate находит живую сессию по токену: сначала в кэше процесса, при промахе в БД.
+// Одновременные промахи по одному токену делят один запрос.
+func (s *service) authenticate(ctx context.Context, token string) (Identity, error) {
+	if s.load == nil || token == "" {
+		return Identity{}, ErrNoSession
+	}
+	hash := hashToken(token)
+	if id, ok := s.cache.get(hash); ok {
+		return id, nil
+	}
+	v, err, _ := s.flight.Do(hash, func() (any, error) {
+		gen := s.cache.generation()
+		// Запрос общий для всех ожидающих: отмена одного клиента не должна ронять остальных.
+		lctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dbWait)
+		defer cancel()
+		rec, err := s.load(lctx, hash)
+		if err != nil {
+			return nil, err // «нет сессии» не кэшируем
+		}
+		s.cache.put(hash, rec.Identity, rec.ExpiresAt, gen)
+		return rec.Identity, nil
+	})
+	if err != nil {
+		return Identity{}, err
+	}
+	return v.(Identity), nil
 }
 
 func (s *service) logout(ctx context.Context, tokenHash string) error {
 	if s.q == nil {
 		return nil
 	}
-	return s.q.DeleteSession(ctx, tokenHash)
+	err := s.q.DeleteSession(ctx, tokenHash)
+	s.cache.delete(tokenHash)
+	return err
 }
 
 // ssoLogin находит или заводит SSO-учётку с ролью из провайдера и открывает сессию.
@@ -212,9 +264,13 @@ func (s *service) ssoLogin(ctx context.Context, login, role string) (Session, er
 	if s.q == nil {
 		return Session{}, ErrNoSession
 	}
-	u, err := s.q.UpsertSSOUser(ctx, db.UpsertSSOUserParams{Login: login, Role: role})
+	qctx, cancel := context.WithTimeout(ctx, dbWait)
+	defer cancel()
+	u, err := s.q.UpsertSSOUser(qctx, db.UpsertSSOUserParams{Login: login, Role: role})
 	if err != nil {
 		return Session{}, fmt.Errorf("auth: SSO-учётка %s: %w", login, err)
 	}
+	// Роль могла измениться: старая не должна жить в кэше других сессий пользователя.
+	s.cache.deleteUser(u.ID)
 	return s.issueSession(ctx, u.ID, u.Login, u.Role)
 }

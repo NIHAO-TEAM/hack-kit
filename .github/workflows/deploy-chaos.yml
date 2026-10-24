@@ -1,0 +1,108 @@
+# .github/workflows/deploy-chaos.yml
+#
+# Под убит под залпом (изменение pod-kill-under-load): k3d на раннере, тот же Helm-чарт, две реплики API,
+# снимок 100 000 клиентов, залп 10 000 событий, читатели очереди и SSE. Во время залпа удаляется реплика,
+# которая не ведёт поток; затем rollout restart под чтением. Проверки и отчёт — docs/load/chaos.sh.
+# Ручной запуск, не гейт слияния. На проде реплики не убиваем.
+
+name: Deploy chaos
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-chaos
+  cancel-in-progress: false
+
+jobs:
+  chaos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HOST: churn.chaos.test
+      NS: churn
+      RELEASE: churn
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: '0.54.0'
+
+      - name: k3d
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/v5.7.4/install.sh | TAG=v5.7.4 bash
+          k3d cluster create chaos --wait -p "8443:443@loadbalancer"
+          echo "127.0.0.1 $HOST" | sudo tee -a /etc/hosts
+
+      # Значения одноразовые, живут только в этом job; в лог не попадают (add-mask).
+      - name: Секреты и сертификат
+        run: |
+          for v in POSTGRES_PASSWORD ADMIN_PASSWORD METRICS_TOKEN SOURCE_TOKEN; do
+            val=$(openssl rand -hex 16)
+            echo "::add-mask::$val"
+            echo "$v=$val" >> "$GITHUB_ENV"
+          done
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$HOST" -addext "subjectAltName=DNS:$HOST" \
+            -keyout "$RUNNER_TEMP/tls.key" -out "$RUNNER_TEMP/tls.crt"
+          # curl и k6 доверяют этому сертификату, проверка TLS не отключается.
+          echo "SSL_CERT_FILE=$RUNNER_TEMP/tls.crt" >> "$GITHUB_ENV"
+          echo "CURL_CA_BUNDLE=$RUNNER_TEMP/tls.crt" >> "$GITHUB_ENV"
+
+      - name: Образ и чарт (две реплики)
+        run: |
+          docker build -q -t churn-app:chaos .
+          k3d image import churn-app:chaos -c chaos
+          kubectl create namespace "$NS"
+          kubectl -n "$NS" create secret tls chaos-tls --cert="$RUNNER_TEMP/tls.crt" --key="$RUNNER_TEMP/tls.key"
+          helm upgrade --install "$RELEASE" deploy/helm/churn -n "$NS" --atomic --timeout 10m \
+            --set domain="$HOST" --set image.repository=churn-app --set image.tag=chaos --set image.pullPolicy=Never \
+            --set replicaCount=2 --set companions.enabled=false \
+            --set ingress.certResolver="" --set ingress.tlsSecret=chaos-tls \
+            --set postgres.password="$POSTGRES_PASSWORD" \
+            --set secretEnv.ADMIN_PASSWORD="$ADMIN_PASSWORD" --set secretEnv.METRICS_TOKEN="$METRICS_TOKEN" \
+            --set secretEnv.SOURCE_TOKEN="$SOURCE_TOKEN"
+          kubectl -n "$NS" get pods,pdb -o wide
+
+      - name: Данные 100k
+        run: |
+          python3 cases/analizator/generate.py --accounts 100000 --services 300000 --transactions 1000000 --out "$RUNNER_TEMP/load"
+          ls -l "$RUNNER_TEMP/load/data.json"
+
+      - name: Железо
+        run: |
+          {
+            echo "## Железо раннера"
+            echo '```'
+            echo "vCPU: $(nproc)"
+            grep MemTotal /proc/meminfo
+            k6 version
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Убийство пода под залпом и выкат
+        run: |
+          export BASE_URL="https://$HOST:8443"
+          export SNAPSHOT="$RUNNER_TEMP/load/data.json"
+          export OUT="$RUNNER_TEMP/chaos-out"
+          export PG_USER=app PG_DB=app
+          docs/load/chaos.sh
+
+      - name: Состояние кластера
+        if: always()
+        run: |
+          kubectl -n "$NS" get pods,pdb,events -o wide || true
+          kubectl -n "$NS" logs -l app.kubernetes.io/component=app --tail=50 --prefix || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chaos-out
+          path: ${{ runner.temp }}/chaos-out

@@ -3,7 +3,6 @@ import {
   Badge,
   Button,
   Group,
-  NumberInput,
   Paper,
   Progress,
   Select,
@@ -13,7 +12,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 import {
   formatCount,
   formatDuration,
@@ -28,15 +27,22 @@ import { ApiError } from '@shared/api';
 import { formatMoney } from '@shared/lib';
 import { LevelBadge } from '@shared/ui';
 import { emulatorActions } from '../api/source';
+import { totalsLine } from '../model/window';
+import { LiveCharts } from './LiveCharts';
 import { useAfterWrite } from './useAfterWrite';
 
-const DEFAULT_EVENTS = 2500;
+const DEFAULT_EVENTS = '2500';
+const VOLLEYS = ['2500', '10000', '50000', '100000'].map((v) => ({
+  value: v,
+  label: formatCount(Number(v)),
+}));
+const DEFAULT_RATE = '0';
 const RATES = [
+  { value: '0', label: 'Как можно быстрее' },
   { value: '50', label: '50 в секунду' },
   { value: '100', label: '100 в секунду' },
   { value: '500', label: '500 в секунду' },
   { value: '2000', label: '2 000 в секунду' },
-  { value: '0', label: 'Без пауз' },
 ];
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -65,6 +71,9 @@ function Report({ report }: { report: StreamReport }) {
           (снимок {c.version})
         </Alert>
       )}
+      <Text size="sm" fw={500} role="status">
+        {totalsLine(report)}
+      </Text>
       <Table withRowBorders aria-label="Результаты потока событий">
         <Table.Tbody>
           <Row label="Применено событий">
@@ -126,11 +135,12 @@ function Report({ report }: { report: StreamReport }) {
 export function StreamPanel() {
   const after = useAfterWrite();
   const stream = useQuery(streamQuery);
-  const [events, setEvents] = useState<string | number>(DEFAULT_EVENTS);
-  const [rate, setRate] = useState('100');
+  const [events, setEvents] = useState(DEFAULT_EVENTS);
+  const [rate, setRate] = useState(DEFAULT_RATE);
 
-  const count = typeof events === 'number' ? events : DEFAULT_EVENTS;
+  const count = Number(events);
   const state = stream.data;
+  const liveWindow = useDeferredValue(state?.window);
   const running = state?.state === 'running';
 
   const start = useMutation({
@@ -155,33 +165,26 @@ export function StreamPanel() {
           те же правки, что и вручную. Данные стенда меняются — после показа нажмите «Сбросить».
         </Text>
         <Group align="flex-end" wrap="wrap">
-          <NumberInput
-            label="Событий"
-            min={100}
-            max={5000}
-            step={100}
-            allowDecimal={false}
-            thousandSeparator=" "
+          <Select
+            label="Залп, событий"
+            data={VOLLEYS}
             value={events}
-            onChange={setEvents}
+            onChange={(v) => setEvents(v ?? DEFAULT_EVENTS)}
+            allowDeselect={false}
             disabled={running}
-            w={140}
+            w={170}
           />
           <Select
             label="Скорость"
             data={RATES}
             value={rate}
-            onChange={(v) => setRate(v ?? '100')}
+            onChange={(v) => setRate(v ?? DEFAULT_RATE)}
             allowDeselect={false}
             disabled={running}
-            w={170}
+            w={200}
           />
         </Group>
-        <Button
-          loading={start.isPending || running}
-          disabled={count < 100 || count > 5000}
-          onClick={() => start.mutate()}
-        >
+        <Button loading={start.isPending || running} onClick={() => start.mutate()}>
           Прогнать {formatCount(count)} событий
         </Button>
 
@@ -200,6 +203,10 @@ export function StreamPanel() {
               Применено {formatCount(state.applied)} из {formatCount(state.events)}
             </Text>
           </Stack>
+        ) : null}
+
+        {liveWindow && (running || state?.state === 'done') ? (
+          <LiveCharts window={liveWindow} />
         ) : null}
 
         {state?.state === 'failed' ? (

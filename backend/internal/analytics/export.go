@@ -37,7 +37,7 @@ func (a *AnalyticsAPI) ExportCustomers(w responseWriter, r *request, p gen.Expor
 		httpx.WriteProblem(w, r, 503, "расчёт ещё не готов")
 		return
 	}
-	f := customerFilter{Level: p.Level, Q: p.Q}
+	f := customerFilter{Level: p.Level, Q: p.Q, Reason: p.Reason}
 	if p.Sort != nil {
 		s := gen.ListCustomersParamsSort(*p.Sort)
 		f.Sort = &s
@@ -155,6 +155,9 @@ func (a *AnalyticsAPI) recordExport(r *request, f customerFilter, n int) {
 	}
 	if f.Billing != nil {
 		changes = append(changes, audit.Change{Field: "billing", From: "", To: string(*f.Billing)})
+	}
+	if f.Reason != nil {
+		changes = append(changes, audit.Change{Field: "reason", From: "", To: *f.Reason})
 	}
 	if f.Q != nil && *f.Q != "" {
 		changes = append(changes, audit.Change{Field: "q", From: "", To: "задан"})

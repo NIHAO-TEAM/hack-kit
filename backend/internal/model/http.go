@@ -79,8 +79,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 func fail(w http.ResponseWriter, r *http.Request, err error) {
-	log.Printf("model: %v", err)
-	httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка работы с настройками модели")
+	httpx.WriteFailure(w, r, err, "ошибка работы с настройками модели")
 }
 
 // GetModelSettings — GET /api/v1/model/settings.

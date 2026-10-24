@@ -441,6 +441,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/source/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Пачка событий биллинга извне (аналитик, jury или сервисный токен источника)
+         * @description Тело — NDJSON (application/x-ndjson, событие на строку) или JSON-массив (application/json); не больше 5 000 событий и 2 МБ на запрос, больше — 413. Виды событий те же, что у эмулятора потока: top_up, autoprolong_on, autoprolong_off, service_stop, service_resume, renewal_failed, prolong_wait. У события обязателен eventId: повтор уже принятого eventId не применяется и считается в duplicate. Строка с ошибкой формата или значений попадает в rejected, остальные принимаются. События идут в тот же писатель пачек, что и у эмулятора; применение асинхронное, version — версия данных, с которой событие входит в пересчёт. Очередь писателя полна дольше секунды — 503 с Retry-After, из запроса не применено ничего (всё или ничего).
+         */
+        post: operations["postSourceEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/source/status": {
         parameters: {
             query?: never;
@@ -825,6 +845,49 @@ export interface components {
         EmulatorActionsRequest: {
             actions: components["schemas"]["EmulatorAction"][];
         };
+        IngestEvent: {
+            /** @description Уникальный номер события; повтор принятого не применяется */
+            eventId: string;
+            /** @description Вид события: top_up, autoprolong_on, autoprolong_off, service_stop, service_resume, renewal_failed, prolong_wait. Строкой, а не перечислением: значения совпали бы с константами статусов услуги в сгенерированном коде. */
+            kind: string;
+            /**
+             * Format: int64
+             * @description Счёт; обязателен, если задан balance
+             */
+            accountId?: number;
+            /**
+             * Format: int64
+             * @description Новый баланс счёта в евроцентах
+             */
+            balance?: number;
+            /**
+             * Format: int64
+             * @description Услуга; обязательна, если задан status, autoProlong или expiresAt
+             */
+            serviceId?: number;
+            /** @description Новый статус услуги (как в PATCH /source/services/{id}) */
+            status?: string;
+            autoProlong?: boolean;
+            /** Format: date-time */
+            expiresAt?: string;
+        };
+        IngestRejected: {
+            /** @description Номер события в запросе, с 1 */
+            line: number;
+            error: string;
+        };
+        IngestAccepted: {
+            /** @description Сколько событий поставлено в очередь записи */
+            accepted: number;
+            /** @description Сколько событий уже были приняты раньше (по eventId) и не применены */
+            duplicate: number;
+            rejected: components["schemas"]["IngestRejected"][];
+            /**
+             * Format: int64
+             * @description Версия данных на момент ответа; применённое событие войдёт в более позднюю
+             */
+            version: number;
+        };
         StreamRequest: {
             /**
              * @description Сколько событий применить
@@ -882,6 +945,8 @@ export interface components {
             eventsPerSecond: number;
             applyP50Ms: number;
             applyP95Ms: number;
+            /** @description p99 длительности применения одного события */
+            applyP99Ms?: number;
             applyMaxMs: number;
             /** @description Сколько пересчётов выполнил движок за прогон (пересчёт склеивает пачки событий) */
             recalcs: number;
@@ -909,6 +974,32 @@ export interface components {
             startedAt?: string;
             error?: string;
             report?: components["schemas"]["StreamReport"];
+            /** @description Секундные отсчёты за последние 60 с прогона, старые первыми; нет у прогона, который ещё не набрал первую секунду. */
+            window?: components["schemas"]["StreamWindowPoint"][];
+        };
+        StreamWindowPoint: {
+            /** @description Секунда прогона, с которой отсчёт закончился (1 — первая). */
+            t: number;
+            /** @description Событий принято в очередь приёма за секунду. */
+            accepted: number;
+            /** @description Событий записано в базу за секунду. */
+            applied: number;
+            /** @description Событий не применено за секунду. */
+            failed: number;
+            /** @description Событий ждало в очереди приёма в конце секунды. */
+            queueDepth: number;
+            /**
+             * Format: float
+             * @description Средний размер записанной пачки за секунду; 0, если пачек не было.
+             */
+            batchSize: number;
+            /**
+             * Format: float
+             * @description Задержка «событие → очередь маркетолога», p95 по событиям, учтённым за секунду, мс; 0, если таких не было.
+             */
+            lagP95Ms: number;
+            /** @description Пересчётов движка за секунду. */
+            recalcs: number;
         };
         /** @enum {string} */
         RiskLevel: "high" | "medium" | "low" | "unscored" | "lost";
@@ -948,6 +1039,11 @@ export interface components {
             deleteAt?: string;
             /** @description Тег «к биллингу» — сбой автосписания, а не отток. */
             billing?: boolean;
+            /**
+             * Format: int64
+             * @description Потеря клиента по причине из параметра `reason`; есть только в ответе с этим параметром.
+             */
+            reasonLossCents?: number;
             task?: components["schemas"]["TaskBrief"];
         };
         ActionBrief: {
@@ -964,6 +1060,8 @@ export interface components {
              * @description Версия пересчёта, по которому построена страница.
              */
             version: number;
+            /** @description Курсор следующей страницы; нет, если страница последняя. */
+            nextCursor?: string;
         };
         /**
          * @description В работе, связались, отложено, закрыто.
@@ -1161,6 +1259,16 @@ export interface components {
              */
             newScore: number;
             newLevel: components["schemas"]["RiskLevel"];
+            /**
+             * Format: int64
+             * @description Что действие стоит клиенту, центы (пополнение — сумма, остальные — 0).
+             */
+            costCents?: number;
+            /**
+             * Format: double
+             * @description Снятая ожидаемая потеря на каждый евро цены, 2 знака. Нет при цене 0. Оценка сценария «клиент выполнил действие полностью», не ROI.
+             */
+            returnPerEuro?: number;
         };
         ServiceRisk: {
             /** Format: int64 */
@@ -1194,6 +1302,11 @@ export interface components {
             services: components["schemas"]["Service"][];
             features: components["schemas"]["Feature"][];
             actions: components["schemas"]["Action"][];
+            /**
+             * Format: int64
+             * @description Эффект от совместного применения всех применимых действий (потеря после − до), центы. Нет, если применимо меньше двух действий.
+             */
+            actionCombo?: number;
             explanation?: string;
         };
         Summary: {
@@ -1769,6 +1882,10 @@ export interface operations {
                 offset?: number;
                 /** @description Строки «к биллингу» (сбой автосписания): `exclude` — без них, `only` — только они, не задан — все. `total` считается после фильтра. */
                 billing?: "exclude" | "only";
+                /** @description Причина риска — идентификатор признака модели (`featureId` из «Сводки»): клиенты с ненулевой потерей по этой причине. Без `sort` порядок — по потере по причине (по убыванию), в строках есть `reasonLossCents`. Неизвестная причина — 400 с перечнем допустимых. Курсор действует только с тем же `reason`. */
+                reason?: string;
+                /** @description Курсор следующей страницы из `nextCursor` предыдущего ответа. Заменяет `offset` (вместе с ним — 400); сортировка и порядок должны быть те же, что у страницы, из которой он получен. Курсор привязан к версии пересчёта: после нового пересчёта — 409, начните с первой страницы. */
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -1787,6 +1904,15 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            /** @description Курсор построен по другой версии пересчёта */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             501: components["responses"]["NotImplemented"];
         };
     };
@@ -1802,6 +1928,8 @@ export interface operations {
                 order?: string;
                 /** @description `exclude` — без строк «к биллингу», `only` — только они, не задан — все. Другое значение — 400. */
                 billing?: string;
+                /** @description Причина риска, как у списка клиентов: только клиенты с ненулевой потерей по ней. Неизвестная причина — 400. */
+                reason?: string;
             };
             header?: never;
             path?: never;
@@ -2196,6 +2324,54 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             422: components["responses"]["UnprocessableEntity"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    postSourceEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-ndjson": string;
+                "application/json": components["schemas"]["IngestEvent"][];
+            };
+        };
+        responses: {
+            /** @description Пачка принята в очередь записи */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestAccepted"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Больше 5 000 событий или 2 МБ в запросе */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Очередь записи полна дольше секунды; ничего из запроса не применено, повторить через Retry-After секунд */
+            503: {
+                headers: {
+                    /** @description Через сколько секунд повторить запрос. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     getSourceStatus: {

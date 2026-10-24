@@ -70,6 +70,9 @@ func TestStreamRunsAndReportsConsistency(t *testing.T) {
 	if r.ApplyP50Ms <= 0 || r.ApplyP95Ms < r.ApplyP50Ms || r.ApplyMaxMs < r.ApplyP95Ms {
 		t.Errorf("задержки применения p50 %v p95 %v max %v", r.ApplyP50Ms, r.ApplyP95Ms, r.ApplyMaxMs)
 	}
+	if r.ApplyP99Ms == nil || *r.ApplyP99Ms < r.ApplyP95Ms || *r.ApplyP99Ms > r.ApplyMaxMs {
+		t.Errorf("p99 применения %v при p95 %v и max %v", r.ApplyP99Ms, r.ApplyP95Ms, r.ApplyMaxMs)
+	}
 	if r.QueueLagP95Ms == nil || *r.QueueLagP95Ms <= 0 {
 		t.Errorf("задержка до очереди %v", r.QueueLagP95Ms)
 	}
@@ -116,7 +119,7 @@ func TestStreamPermissionsAndLimits(t *testing.T) {
 		t.Errorf("без сессии: %d", res.StatusCode())
 	}
 	c := s.As(t, "jury")
-	for _, tc := range []struct{ events, rate int }{{99, 0}, {5001, 0}, {100, -1}, {100, 2001}} {
+	for _, tc := range []struct{ events, rate int }{{99, 0}, {100001, 0}, {100, -1}, {100, 20001}} {
 		if res := startStream(t, c, tc.events, tc.rate, 1); res.StatusCode() != http.StatusBadRequest {
 			t.Errorf("events %d rate %d: %d, ждали 400", tc.events, tc.rate, res.StatusCode())
 		}
@@ -166,9 +169,37 @@ func TestStreamMetrics(t *testing.T) {
 		`churn_emulator_stream_events_total{result="applied"}`,
 		"churn_emulator_stream_apply_seconds_bucket",
 		"churn_emulator_stream_apply_seconds_count",
+		"churn_ingest_batch_size_count",
+		"churn_ingest_batch_seconds_count",
+		"churn_ingest_queue_depth",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("в /metrics нет %s", want)
 		}
 	}
+}
+
+// Две реплики: прогон ведёт другая (держит блокировку базы), память этой реплики пуста — запуск всё равно 409.
+func TestStreamBusyOnOtherReplica(t *testing.T) {
+	s := apitest.New(t)
+	s.StartRecalc(t)
+	c := s.As(t, "analyst")
+	conn, err := s.Pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(context.Background(), "SELECT pg_advisory_lock($1)", int64(7_405_120_001)); err != nil {
+		t.Fatal(err)
+	}
+	if res := startStream(t, c, 100, 0, 1); res.StatusCode() != http.StatusConflict {
+		t.Fatalf("запуск при чужом прогоне: %d, ждали 409", res.StatusCode())
+	}
+	if _, err := conn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", int64(7_405_120_001)); err != nil {
+		t.Fatal(err)
+	}
+	if res := startStream(t, c, 100, 0, 1); res.JSON202 == nil {
+		t.Fatalf("после снятия блокировки: %d %s", res.StatusCode(), res.Body)
+	}
+	waitStream(t, c)
 }

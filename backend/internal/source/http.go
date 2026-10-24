@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -29,11 +30,17 @@ type SourceAPI struct {
 	bus      *events.Bus
 	clk      clock.Clock
 	maxBytes int64
-	adapter  *Adapter
-	audit    audit.Recorder
-	checks   func(version int64) []gen.QualityCheck
-	observer StreamObserver
-	stream   *streamRun
+	// bodyTimeout — сколько времени у клиента на отдачу тела снимка: пока тело идёт, приём держит
+	// транзакцию с очищенными таблицами, и читатели пересчёта ждут.
+	bodyTimeout time.Duration
+	adapter     *Adapter
+	audit       audit.Recorder
+	checks      func(version int64) []gen.QualityCheck
+	observer    StreamObserver
+	stream      *streamRun
+	// intake — приём событий извне; создаётся при первом запросе (eventsIntake), в тестах подменяется.
+	intake     *eventIntake
+	intakeOnce sync.Once
 }
 
 // WithAudit подключает журнал действий: загрузка снимка, правки и шаги эмулятора.
@@ -59,13 +66,21 @@ func (a *SourceAPI) WithChecks(f func(version int64) []gen.QualityCheck) *Source
 // defaultMaxBytes — лимит тела снимка по умолчанию (SNAPSHOT_MAX_BYTES), 512 МБ.
 const defaultMaxBytes = 512 << 20
 
+// defaultBodyTimeout — срок на приём тела снимка по умолчанию (SNAPSHOT_BODY_TIMEOUT_SEC).
+// 327 МБ (300k аккаунтов) укладываются при канале от ≈ 22 Мбит/с.
+const defaultBodyTimeout = 2 * time.Minute
+
 // New создаёт обработчик модуля; пул, шину и часы создаёт cmd/api.
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *SourceAPI {
 	max := int64(defaultMaxBytes)
 	if v, err := strconv.ParseInt(os.Getenv("SNAPSHOT_MAX_BYTES"), 10, 64); err == nil && v > 0 {
 		max = v
 	}
-	return &SourceAPI{pool: pool, bus: bus, clk: clk, maxBytes: max, stream: newStreamRun()}
+	timeout := defaultBodyTimeout
+	if v, err := strconv.Atoi(os.Getenv("SNAPSHOT_BODY_TIMEOUT_SEC")); err == nil && v > 0 {
+		timeout = time.Duration(v) * time.Second
+	}
+	return &SourceAPI{pool: pool, bus: bus, clk: clk, maxBytes: max, bodyTimeout: timeout, stream: newStreamRun()}
 }
 
 // WithAdapter подключает опрос REST-биллинга: ручная загрузка ставит его на паузу, статус его показывает.
@@ -75,53 +90,38 @@ func (a *SourceAPI) WithAdapter(ad *Adapter) *SourceAPI {
 }
 
 // PutSnapshot — PUT /api/v1/source/snapshot. Права проверяет auth.Middleware.
+// Тело разбирается потоком и сразу пишется в базу конвейером (ingest); при любой ошибке прежние данные остаются.
 func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, a.maxBytes)
-	// Тело читается потоком внутри разбора, поэтому этапы read и parse слиты в parse.
-	var st stages
-	defer st.log()
-	var (
-		s    *Snapshot
-		errs []FieldError
-		err  error
-	)
-	_ = st.run(stageParse, func() error {
-		s, errs, err = ParseSnapshot(r.Body)
-		return err
-	})
-	if err != nil {
-		httpx.WriteProblem(w, r, http.StatusBadRequest, "тело не разобрано: "+err.Error())
-		return
+	// Срок на чтение тела: медленный клиент не держит таблицы заблокированными дольше. Сервер без
+	// поддержки дедлайнов (тестовый рекордер) ошибку вернёт, срок тогда не действует.
+	if a.bodyTimeout > 0 {
+		_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(a.bodyTimeout))
 	}
-	_ = st.run(stageValidate, func() error {
-		errs = append(errs, Validate(s)...)
-		return nil
-	})
-	if len(errs) > 0 {
-		if len(errs) > maxErrors {
-			errs = errs[:maxErrors]
+	now := a.clk.Now()
+	// Запись и пауза под одним замком с опросом: опрос не затрёт ручной снимок.
+	acc, errs, err := ingest(r.Context(), a.pool, r.Body, now, OriginAPI, &emulatorMu, func(acc Accepted) {
+		if a.adapter != nil {
+			a.adapter.Pause() // ручной снимок главнее опроса, пока его не включат на экране «Источник»
 		}
+		a.bus.Publish(TopicChanged, Change{Version: acc.Version})
+	})
+	var bodyErr *BodyError
+	switch {
+	case errors.As(err, &bodyErr):
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "тело не разобрано: "+bodyErr.Error())
+		return
+	case len(errs) > 0:
 		fe := make([]httpx.FieldError, len(errs))
 		for i, e := range errs {
 			fe[i] = httpx.FieldError{Field: e.Field, Message: e.Message}
 		}
 		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "снимок не прошёл проверку", fe...)
 		return
-	}
-	// Запись и пауза под одним замком с опросом: опрос не затрёт ручной снимок.
-	emulatorMu.Lock()
-	defer emulatorMu.Unlock()
-	now := a.clk.Now()
-	acc, err := replace(r.Context(), a.pool, s, ModelTime(s, now), now, OriginAPI)
-	if err != nil {
-		log.Printf("source: запись снимка: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не записан, прежние данные сохранены")
+	case err != nil:
+		httpx.WriteFailure(w, r, err, "снимок не записан, прежние данные сохранены")
 		return
 	}
-	if a.adapter != nil {
-		a.adapter.Pause() // ручной снимок главнее опроса, пока его не включат на экране «Источник»
-	}
-	a.bus.Publish(TopicChanged, acc.Version)
 	a.record(r, audit.ActionSnapshotLoaded,
 		fmt.Sprintf("Загружен снимок данных, версия %d: счетов %d, услуг %d, операций %d", acc.Version, acc.Accounts, acc.Services, acc.Transactions), nil)
 	writeJSON(w, gen.SnapshotAccepted{
@@ -163,8 +163,7 @@ func pollingBody(st PollStatus) *gen.SourcePolling {
 func (a *SourceAPI) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
 	st, ok, err := currentStatus(r.Context(), a.pool)
 	if err != nil {
-		log.Printf("source: статус: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "статус недоступен")
+		httpx.WriteFailure(w, r, err, "статус недоступен")
 		return
 	}
 	now := a.clk.Now()
@@ -187,6 +186,11 @@ func (a *SourceAPI) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	writeJSONBody(w, v)
+}
+
+// writeJSONBody пишет тело ответа, когда статус и заголовки уже выставлены.
+func writeJSONBody(w http.ResponseWriter, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		log.Printf("source: ответ: %v", err)
 	}
@@ -388,7 +392,7 @@ func (a *SourceAPI) commitStep(ctx context.Context, step func(*Snapshot) (*Snaps
 		log.Printf("source: эмулятор, запись: %v", err)
 		return Accepted{}, nil, httpError{"снимок не записан, прежние данные сохранены"}
 	}
-	a.bus.Publish(TopicChanged, acc.Version)
+	a.bus.Publish(TopicChanged, Change{Version: acc.Version})
 	return acc, next, nil
 }
 
@@ -448,4 +452,55 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 		return false
 	}
 	return true
+}
+
+// eventsIntake создаёт приём при первом запросе: писатель стартует один раз за жизнь процесса.
+func (a *SourceAPI) eventsIntake() *eventIntake {
+	a.intakeOnce.Do(func() {
+		if a.intake == nil {
+			a.intake = newEventIntake(a.pool, a.clk.Now, func(ch Change) { a.bus.Publish(TopicChanged, ch) })
+		}
+	})
+	return a.intake
+}
+
+// PostSourceEvents — POST /api/v1/source/events. Права проверяет auth.Middleware.
+// Тело — NDJSON или JSON-массив; события идут тому же писателю пачек, что у эмулятора. Применение
+// асинхронное: ответ 202 говорит, что события приняты в очередь, а не что они уже записаны.
+func (a *SourceAPI) PostSourceEvents(w http.ResponseWriter, r *http.Request) {
+	if a.pool == nil && a.intake == nil {
+		httpx.WriteProblem(w, r, http.StatusNotImplemented, "база не подключена: приём событий недоступен")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, eventsMaxBytes)
+	out, err := a.eventsIntake().process(r.Context(), r.Body)
+	var tooBig *http.MaxBytesError
+	var bodyErr eventsBodyError
+	switch {
+	case errors.As(err, &tooBig):
+		httpx.WriteProblem(w, r, http.StatusRequestEntityTooLarge, "тело больше 2 МБ")
+		return
+	case errors.Is(err, errEventsTooMany):
+		httpx.WriteProblem(w, r, http.StatusRequestEntityTooLarge, err.Error())
+		return
+	case errors.As(err, &bodyErr):
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "тело не разобрано: "+bodyErr.Error())
+		return
+	case errors.Is(err, errNoSnapshot):
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "снимка данных ещё нет: сначала загрузите снимок (PUT /source/snapshot)")
+		return
+	case errors.Is(err, errEventsBusy):
+		w.Header().Set("Retry-After", strconv.Itoa(1))
+		httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "очередь записи событий полна, ничего не принято: повторите запрос")
+		return
+	case err != nil:
+		log.Printf("source: приём событий: %v", err)
+		httpx.WriteProblem(w, r, http.StatusInternalServerError, "события не приняты")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	writeJSONBody(w, gen.IngestAccepted{
+		Accepted: out.accepted, Duplicate: out.duplicate, Rejected: out.rejected, Version: out.version,
+	})
 }

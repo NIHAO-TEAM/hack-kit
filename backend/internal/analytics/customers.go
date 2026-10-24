@@ -2,6 +2,8 @@ package analytics
 
 import (
 	"cmp"
+	"encoding/json"
+	"log"
 	"slices"
 	"strconv"
 	"strings"
@@ -33,7 +35,28 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 		httpx.WriteProblem(w, r, 400, "limit должен быть 1..200, offset — не меньше 0")
 		return
 	}
-	f := customerFilter{Level: p.Level, Q: p.Q, Sort: p.Sort, Order: p.Order, Billing: p.Billing, Task: p.Task}
+	after := -1
+	if p.Cursor != nil && *p.Cursor != "" {
+		if offset != 0 {
+			httpx.WriteProblem(w, r, 400, "cursor и offset вместе не задаются")
+			return
+		}
+		c, err := decodeCursor(*p.Cursor)
+		if err != nil {
+			httpx.WriteProblem(w, r, 400, "cursor не распознан")
+			return
+		}
+		if c.Version != pf.Version {
+			httpx.WriteProblem(w, r, 409, "курсор устарел: данные пересчитаны, начните с первой страницы")
+			return
+		}
+		if !c.matches(p.Sort, p.Order, p.Reason) {
+			httpx.WriteProblem(w, r, 400, "cursor выдан для другой сортировки")
+			return
+		}
+		after = c.Pos
+	}
+	f := customerFilter{Level: p.Level, Q: p.Q, Sort: p.Sort, Order: p.Order, Billing: p.Billing, Task: p.Task, Reason: p.Reason}
 	var err error
 	if f.Tasks, err = a.openTasks(r.Context()); err != nil && p.Task != nil {
 		httpx.WriteProblem(w, r, 500, "задачи недоступны")
@@ -42,16 +65,50 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 	if a.login != nil {
 		f.Me = a.login(r.Context())
 	}
-	rows, bad := selectRows(pf, f)
+	res, bad := selectPage(pf, f, window{Offset: offset, Limit: limit, After: after})
 	if bad != "" {
 		httpx.WriteProblem(w, r, 400, bad)
 		return
 	}
+	var next *string
+	if res.More {
+		cur := encodeCursor(cursor{Version: pf.Version, Sort: res.Sort, Desc: res.Desc, Pos: res.Last})
+		next = &cur
+	}
+	writePage(w, res.Items, next, res.Total, pf.Version)
+}
 
-	total := len(rows)
-	rows = rows[min(offset, total):]
-	rows = rows[:min(limit, len(rows))]
-	writeJSON(w, r, gen.CustomerPage{Items: rows, Total: total, Version: pf.Version})
+// writePage собирает ответ {items,nextCursor,total,version} из готовых байтов строк; байты те же,
+// что дал бы json.Encoder для gen.CustomerPage.
+func writePage(w responseWriter, items [][]byte, next *string, total int, version int64) {
+	n := 64
+	for _, it := range items {
+		n += len(it) + 1
+	}
+	buf := make([]byte, 0, n)
+	buf = append(buf, `{"items":[`...)
+	for i, it := range items {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		buf = append(buf, it...)
+	}
+	buf = append(buf, ']')
+	if next != nil {
+		c, _ := json.Marshal(*next)
+		buf = append(buf, `,"nextCursor":`...)
+		buf = append(buf, c...)
+	}
+	buf = append(buf, `,"total":`...)
+	buf = strconv.AppendInt(buf, int64(total), 10)
+	buf = append(buf, `,"version":`...)
+	buf = strconv.AppendInt(buf, version, 10)
+	buf = append(buf, "}\n"...)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if _, err := w.Write(buf); err != nil {
+		log.Printf("analytics: ответ: %v", err)
+	}
 }
 
 // customerFilter — общие параметры списка и выгрузки: фильтры и сортировка без страниц.
@@ -61,6 +118,8 @@ type customerFilter struct {
 	Sort    *gen.ListCustomersParamsSort
 	Order   *gen.ListCustomersParamsOrder
 	Billing *gen.ListCustomersParamsBilling
+	// Reason — причина риска (признак модели): только клиенты с ненулевой потерей по ней.
+	Reason *string
 	// Task, Tasks и Me — фильтр по задачам удержания: открытые задачи по ID клиента и логин
 	// текущего пользователя для «mine». Выгрузка их не задаёт, строки идут без task.
 	Task  *gen.ListCustomersParamsTask
@@ -68,8 +127,20 @@ type customerFilter struct {
 	Me    string
 }
 
-// selectRows отбирает и сортирует строки портфеля; при неверном параметре вернёт текст для 400.
-func selectRows(pf *Portfolio, f customerFilter) (rows []gen.CustomerRow, bad string) {
+// selector — разобранные параметры списка: порядок из модели чтения и проверка строки на фильтры.
+type selector struct {
+	pf    *Portfolio
+	f     customerFilter
+	order []int32
+	sort  gen.ListCustomersParamsSort
+	desc  bool
+	q     string
+	// reason — причина из фильтра, "" если не задан.
+	reason string
+}
+
+// newSelector проверяет параметры; при неверном вернёт текст для 400.
+func newSelector(pf *Portfolio, f customerFilter) (*selector, string) {
 	if f.Level != nil && !validLevel(*f.Level) {
 		return nil, "неизвестный уровень"
 	}
@@ -83,77 +154,140 @@ func selectRows(pf *Portfolio, f customerFilter) (rows []gen.CustomerRow, bad st
 	if f.Billing != nil && *f.Billing != gen.Exclude && *f.Billing != gen.Only {
 		return nil, "billing: exclude или only"
 	}
-	cmpFn, ok := comparator(sortBy)
-	if !ok {
-		return nil, "неизвестное поле сортировки"
+	reason := ""
+	if f.Reason != nil {
+		reason = *f.Reason
+		if !slices.Contains(pf.Reasons, reason) {
+			return nil, "reason: неизвестная причина, допустимые: " + strings.Join(pf.Reasons, ", ")
+		}
 	}
-
+	var order []int32
+	if reason != "" && f.Sort == nil {
+		// без явной сортировки причина упорядочивает очередь по своей потере
+		sortBy = reasonSort(reason)
+		order = pf.index().reasonOrder(reason, desc)
+	} else {
+		var ok bool
+		if order, ok = pf.index().order(sortBy, desc); !ok {
+			return nil, "неизвестное поле сортировки"
+		}
+	}
 	if f.Task != nil && !validTaskFilter(*f.Task) {
 		return nil, "task: none, open или mine"
 	}
-
-	pinUnscored := sortBy == "score" || sortBy == "expectedLoss"
-
-	rows = make([]gen.CustomerRow, 0, len(pf.Customers))
-	q := ""
+	s := &selector{pf: pf, f: f, order: order, sort: sortBy, desc: desc, reason: reason}
 	if f.Q != nil {
-		q = strings.ToLower(strings.TrimSpace(*f.Q))
+		s.q = strings.ToLower(strings.TrimSpace(*f.Q))
 	}
-	for _, c := range pf.Customers {
-		if f.Level != nil && c.Row.Level != *f.Level {
-			continue
-		}
-		if f.Billing != nil && isBilling(c.Row) != (*f.Billing == gen.Only) {
-			continue
-		}
-		if q != "" && !strings.Contains(strings.ToLower(c.Row.Email), q) &&
-			!strings.Contains(strconv.FormatInt(c.Row.Id, 10), q) {
-			continue
-		}
-		row := c.Row
-		row.Task = briefFor(f.Tasks, row)
-		if f.Task != nil {
-			switch *f.Task {
-			case "none":
-				if row.Task != nil {
-					continue
-				}
-			case "open":
-				if row.Task == nil {
-					continue
-				}
-			case "mine":
-				if row.Task == nil || row.Task.Assignee != f.Me {
-					continue
-				}
-			}
-		}
-		rows = append(rows, row)
-	}
-	slices.SortStableFunc(rows, func(x, y gen.CustomerRow) int {
-		if pinUnscored { // только по скору и потере: «нет оценки» и «потерян» внизу
-			xs, ys := isScored(x), isScored(y)
-			switch {
-			case xs != ys:
-				if xs {
-					return -1
-				}
-				return 1
-			case !xs:
-				return cmp.Compare(x.Id, y.Id)
-			}
-		}
-		c := cmpFn(x, y)
-		if desc {
-			c = -c
-		}
-		if c != 0 {
-			return c
-		}
-		return cmp.Compare(x.Id, y.Id)
-	})
+	return s, ""
+}
 
+// match — проходит ли клиент на позиции pos фильтры; строку не копирует.
+func (s *selector) match(pos int32) bool {
+	f := s.f
+	row := &s.pf.Customers[pos].Row
+	if f.Level != nil && row.Level != *f.Level {
+		return false
+	}
+	if s.reason != "" && s.pf.Customers[pos].Loss[s.reason] <= 0 {
+		return false
+	}
+	if f.Billing != nil && isBilling(*row) != (*f.Billing == gen.Only) {
+		return false
+	}
+	if s.q != "" && !strings.Contains(strings.ToLower(row.Email), s.q) &&
+		!strings.Contains(strconv.FormatInt(row.Id, 10), s.q) {
+		return false
+	}
+	if f.Task != nil {
+		task := briefFor(f.Tasks, *row)
+		switch *f.Task {
+		case "none":
+			return task == nil
+		case "open":
+			return task != nil
+		case "mine":
+			return task != nil && task.Assignee == f.Me
+		}
+	}
+	return true
+}
+
+func (s *selector) row(pos int32) gen.CustomerRow {
+	c := &s.pf.Customers[pos]
+	row := c.Row
+	row.Task = briefFor(s.f.Tasks, row)
+	if s.reason != "" {
+		loss := c.Loss[s.reason]
+		row.ReasonLossCents = &loss
+	}
+	return row
+}
+
+// rowJSON — JSON строки: из модели чтения, если у клиента нет открытой задачи, иначе собирается с task.
+func (s *selector) rowJSON(pos int32) []byte {
+	if s.reason == "" && briefFor(s.f.Tasks, s.pf.Customers[pos].Row) == nil {
+		return s.pf.index().raw[pos]
+	}
+	b, _ := json.Marshal(s.row(pos))
+	return b
+}
+
+// selectRows отбирает и сортирует все строки портфеля (для выгрузки); при неверном параметре вернёт текст для 400.
+func selectRows(pf *Portfolio, f customerFilter) (rows []gen.CustomerRow, bad string) {
+	s, bad := newSelector(pf, f)
+	if bad != "" {
+		return nil, bad
+	}
+	rows = make([]gen.CustomerRow, 0, len(s.order))
+	for _, pos := range s.order {
+		if s.match(pos) {
+			rows = append(rows, s.row(pos))
+		}
+	}
 	return rows, ""
+}
+
+// window — какую часть выборки отдать: либо Offset строк пропустить, либо идти после позиции After
+// в порядке модели чтения (−1 — с начала).
+type window struct{ Offset, Limit, After int }
+
+type pageResult struct {
+	// Items — JSON строк страницы: готовые из модели чтения, а строки с задачей собираются заново.
+	Items [][]byte
+	Total int
+	// Last — позиция последней отданной строки в порядке модели чтения; More — есть ли строки дальше.
+	Last int
+	More bool
+	Sort gen.ListCustomersParamsSort
+	Desc bool
+}
+
+// selectPage идёт по готовому порядку: считает total по всей выборке, а строки копирует только страницы.
+func selectPage(pf *Portfolio, f customerFilter, win window) (pageResult, string) {
+	s, bad := newSelector(pf, f)
+	if bad != "" {
+		return pageResult{}, bad
+	}
+	res := pageResult{Items: make([][]byte, 0, win.Limit), Sort: s.sort, Desc: s.desc, Last: -1}
+	skipped := 0
+	for k, pos := range s.order {
+		if !s.match(pos) {
+			continue
+		}
+		res.Total++
+		switch {
+		case k <= win.After:
+		case skipped < win.Offset:
+			skipped++
+		case len(res.Items) < win.Limit:
+			res.Items = append(res.Items, s.rowJSON(pos))
+			res.Last = k
+		default:
+			res.More = true
+		}
+	}
+	return res, ""
 }
 
 // GetCustomer — GET /api/v1/customers/{id}.
@@ -183,6 +317,7 @@ func (a *AnalyticsAPI) GetCustomer(w responseWriter, r *request, id gen.Customer
 		ServiceRisks: &c.Risks,
 		Features:     orEmpty(c.Features),
 		Actions:      orEmpty(c.Actions),
+		ActionCombo:  c.ActionCombo,
 		Explanation:  c.Row.TopReason,
 	}
 	writeJSON(w, r, d)
@@ -207,24 +342,6 @@ func validLevel(l gen.RiskLevel) bool {
 		return true
 	}
 	return false
-}
-
-func comparator(s gen.ListCustomersParamsSort) (func(x, y gen.CustomerRow) int, bool) {
-	switch s {
-	case "id":
-		return func(x, y gen.CustomerRow) int { return cmp.Compare(x.Id, y.Id) }, true
-	case "email":
-		return func(x, y gen.CustomerRow) int { return cmp.Compare(strings.ToLower(x.Email), strings.ToLower(y.Email)) }, true
-	case "balance":
-		return func(x, y gen.CustomerRow) int { return cmp.Compare(x.Balance, y.Balance) }, true
-	case "totalReplenished":
-		return func(x, y gen.CustomerRow) int { return cmp.Compare(x.TotalReplenished, y.TotalReplenished) }, true
-	case "score":
-		return func(x, y gen.CustomerRow) int { return cmp.Compare(deref(x.Score), deref(y.Score)) }, true
-	case "expectedLoss":
-		return func(x, y gen.CustomerRow) int { return cmp.Compare(x.ExpectedLossCents, y.ExpectedLossCents) }, true
-	}
-	return nil, false
 }
 
 func deref(p *float64) float64 {

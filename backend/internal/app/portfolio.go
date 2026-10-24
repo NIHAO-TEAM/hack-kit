@@ -55,7 +55,8 @@ type portfolioCache struct {
 }
 
 // Portfolio отдаёт клиентов последнего пересчёта; nil, пока расчёта нет. Сборка идёт один раз
-// на версию пересчёта.
+// на версию пересчёта: читатели, пришедшие за новой версией одновременно, ждут одну сборку,
+// а не собирают по портфелю каждый (на 100 000 клиентов это сотни мегабайт на читателя).
 func (r *Recalc) Portfolio() *analytics.Portfolio {
 	calc := r.Engine.Latest()
 	if calc == nil {
@@ -64,11 +65,24 @@ func (r *Recalc) Portfolio() *analytics.Portfolio {
 	if c := r.cache.Load(); c != nil && c.version == calc.Version {
 		return c.pf
 	}
+	r.buildMu.Lock()
+	defer r.buildMu.Unlock()
+	if c := r.cache.Load(); c != nil && c.version == calc.Version {
+		return c.pf // пока ждали, сборку закончил другой читатель
+	}
+	if pf, ok := calc.Extra.(*analytics.Portfolio); ok {
+		r.cache.Store(&portfolioCache{calc.Version, pf}) // частичный пересчёт собрал портфель сам
+		return pf
+	}
 	snap, ok := r.snaps.get(calc.DataVersion)
 	if !ok {
 		return nil
 	}
-	pf := buildPortfolio(calc.Result, snap, calc.Version)
+	build := r.build
+	if build == nil {
+		build = buildPortfolio
+	}
+	pf := build(calc.Result, snap, calc.Version)
 	r.cache.Store(&portfolioCache{calc.Version, pf})
 	return pf
 }
@@ -86,7 +100,7 @@ func buildPortfolio(res risk.Result, snap risk.Snapshot, version int64) *analyti
 	for _, sv := range snap.Services {
 		services[sv.OwnerID] = append(services[sv.OwnerID], sv)
 	}
-	pf := &analytics.Portfolio{Version: version, Customers: make([]analytics.Customer, 0, len(res.Customers))}
+	pf := &analytics.Portfolio{Version: version, Customers: make([]analytics.Customer, 0, len(res.Customers)), Reasons: knownFeatures()}
 	for _, c := range res.Customers {
 		pf.Customers = append(pf.Customers, buildCustomer(c, accounts[c.ID], services[c.ID]))
 	}
@@ -123,6 +137,18 @@ func buildCustomer(c risk.Customer, a risk.Account, svcs []risk.Service) analyti
 		})
 	}
 
+	// потеря по причинам — тем же разбором, что в сводке «Где теряем деньги»
+	for _, sr := range c.Services {
+		for i, v := range risk.AllocateLoss(sr.LossCents, sr.Features) {
+			if v > 0 {
+				if out.Loss == nil {
+					out.Loss = map[string]int64{}
+				}
+				out.Loss[sr.Features[i].ID] += v
+			}
+		}
+	}
+
 	top := -1
 	for i, sr := range c.Services {
 		out.Risks = append(out.Risks, gen.ServiceRisk{
@@ -146,8 +172,9 @@ func buildCustomer(c risk.Customer, a risk.Account, svcs []risk.Service) analyti
 			out.Row.TopReason = &reason
 		}
 	}
+	out.ActionCombo = c.ActionComboCents
 	for _, ar := range c.Actions {
-		act := gen.Action{Id: ar.ID, Title: ar.Title, EffectCents: ar.LossDeltaCents}
+		act := gen.Action{Id: ar.ID, Title: ar.Title, EffectCents: ar.LossDeltaCents, CostCents: &ar.CostCents, ReturnPerEuro: ar.ReturnPerEuro}
 		if ar.ScoreAfter != nil {
 			act.NewScore = *ar.ScoreAfter
 		}

@@ -22,20 +22,22 @@ const TopicStreamProgress = "source.stream"
 // Границы и умолчания запроса потока.
 const (
 	streamMinEvents     = 100
-	streamMaxEvents     = 5000
+	streamMaxEvents     = 100000
 	streamDefaultEvents = 2500
-	streamMaxRate       = 2000
+	streamMaxRate       = 20000
 	streamDefaultRate   = 100
 	streamDefaultSeed   = 1
 )
 
-// streamRunTimeout — предел одного прогона; streamSettleTimeout — сколько ждём, пока пересчёт
+// streamRunTimeout — предел одного прогона; streamSettleTimeout (ниже) — сколько ждём, пока пересчёт
 // догонит итоговый снимок.
 const (
-	streamRunTimeout    = 15 * time.Minute
-	streamSettleTimeout = 60 * time.Second
-	streamPollEvery     = 2 * time.Millisecond
+	streamRunTimeout = 15 * time.Minute
+	streamPollEvery  = 2 * time.Millisecond
 )
+
+// streamSettleTimeout — переменная только ради теста сбоя пересчёта (SetStreamSettleTimeout).
+var streamSettleTimeout = 60 * time.Second
 
 // StreamView — то, что поток берёт у пересчёта: последний готовый результат или результат
 // «с нуля» по заданному снимку. Модуль не знает ядра модели, поэтому сборка сервера подставляет
@@ -75,14 +77,14 @@ var (
 	}, []string{"result"})
 	streamApply = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "churn_emulator_stream_apply_seconds",
-		Help:    "Время применения одного события потока эмулятора: чтение снимка, правка, запись (секунды).",
+		Help:    "Время применения одного события потока эмулятора: от постановки в очередь до фиксации пачки (секунды).",
 		Buckets: []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5},
 	})
 )
 
 // StreamCollectors — метрики потока событий для /metrics.
 func StreamCollectors() []prometheus.Collector {
-	return []prometheus.Collector{streamEvents, streamApply}
+	return []prometheus.Collector{streamEvents, streamApply, ingestBatchSize, ingestBatchSeconds, ingestQueueDepth, ingestDBWaits, ingestAPIEvents, ingestAPIShed}
 }
 
 // streamRun — состояние прогона; один на SourceAPI.
@@ -155,14 +157,58 @@ func (a *SourceAPI) startStream(ctx context.Context, n, rate int, seed int64) (s
 	if !a.stream.tryStart(st) {
 		return "", errStreamBusy
 	}
-	base, err := a.streamBase(ctx)
+	release, err := a.lockStream(ctx)
 	if err != nil {
+		a.stream.update(func(s *gen.StreamState) { *s = gen.StreamState{State: gen.Idle} })
+		if errors.Is(err, errStreamBusy) {
+			return "", err
+		}
+		log.Printf("source: поток, блокировка прогона: %v", err)
+		return "", httpError{"прогон не занят"}
+	}
+	base, err := a.streamBase(ctx)
+	if err == nil {
+		err = a.ensureSnapshot(ctx)
+	}
+	if err != nil {
+		release()
 		a.stream.update(func(s *gen.StreamState) { *s = gen.StreamState{State: gen.Idle} })
 		log.Printf("source: поток, чтение снимка: %v", err)
 		return "", httpError{"снимок не прочитан"}
 	}
-	go a.runStream(runID, GenerateStream(base, n, seed), n, rate, base)
+	go func() {
+		defer release()
+		a.runStream(runID, GenerateStream(base, n, seed), n, rate, base)
+	}()
 	return runID, nil
+}
+
+// streamLockKey — ключ advisory-блокировки прогона потока: на двух репликах идёт один прогон.
+const streamLockKey int64 = 7_405_120_001
+
+// lockStream занимает прогон на уровне базы. Блокировка держится на выделенном соединении до release:
+// если реплика умирает, соединение рвётся и база сама снимает блокировку.
+func (a *SourceAPI) lockStream(ctx context.Context) (release func(), err error) {
+	conn, err := a.pool.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var got bool
+	if err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", streamLockKey).Scan(&got); err != nil {
+		conn.Release()
+		return nil, err
+	}
+	if !got {
+		conn.Release()
+		return nil, errStreamBusy
+	}
+	return func() {
+		// Фоновый контекст: прогон мог закончиться по таймауту. Не вышло снять — соединение закрываем, блокировка уйдёт с ним.
+		if _, err := conn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", streamLockKey); err != nil {
+			_ = conn.Conn().Close(context.Background())
+		}
+		conn.Release()
+	}, nil
 }
 
 // streamBase — снимок, над которым строится поток; в пустой базе — сид, как у шагов эмулятора.
@@ -177,6 +223,16 @@ func (a *SourceAPI) streamBase(ctx context.Context) (Snapshot, error) {
 		return *fresh, nil
 	}
 	return s, err
+}
+
+// ensureSnapshot записывает сид, если в базе ещё нет снимка: точечные правки потока ложатся на
+// существующие строки и версию, а в пустой базе им нечего править.
+func (a *SourceAPI) ensureSnapshot(ctx context.Context) error {
+	if _, ok, err := currentStatus(ctx, a.pool); err != nil || ok {
+		return err
+	}
+	_, _, err := a.commitStep(ctx, func(s *Snapshot) (*Snapshot, string, error) { return s, OriginEmulator, nil })
+	return err
 }
 
 // applyStreamEvent применяет событие теми же patchService и patchAccount, что PATCH-вызовы.
@@ -217,22 +273,26 @@ func (p *pendingLag) add(version int64, at time.Time) {
 	p.mu.Unlock()
 }
 
-// settle засчитывает задержку всем событиям, версия которых уже вошла в результат пересчёта.
-func (p *pendingLag) settle(dataVersion int64, now time.Time) {
+// settle засчитывает задержку всем событиям, версия которых уже вошла в результат пересчёта;
+// возвращает задержки, засчитанные этим вызовом.
+func (p *pendingLag) settle(dataVersion int64, now time.Time) []time.Duration {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	var fresh []time.Duration
 	keep := p.pending[:0]
 	for _, e := range p.pending {
 		if e.version <= dataVersion {
-			p.lags = append(p.lags, now.Sub(e.at))
+			fresh = append(fresh, now.Sub(e.at))
 		} else {
 			keep = append(keep, e)
 		}
 	}
 	p.pending = keep
+	p.lags = append(p.lags, fresh...)
+	return fresh
 }
 
-// runStream применяет события по одному и собирает отчёт. Работает в своей горутине.
+// runStream ставит события в очередь приёма, которая пишет их пачками, и собирает отчёт. Работает в своей горутине.
 func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, base Snapshot) {
 	ctx, cancel := context.WithTimeout(context.Background(), streamRunTimeout)
 	defer cancel()
@@ -242,6 +302,13 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		msg := err.Error()
 		st := a.stream.update(func(s *gen.StreamState) { s.State, s.Error = gen.Failed, &msg })
 		a.bus.Publish(TopicStreamProgress, st)
+	}
+
+	// failAfterSend — сбой после постановки событий: в причину входит, сколько событий успели применить
+	// и отклонить; писатель к этому моменту остановлен (finish), счётчики никто не меняет.
+	var applied, failed int
+	failAfterSend := func(err error) {
+		fail(fmt.Errorf("%w (на момент сбоя применено %d, отклонено %d из %d событий)", err, applied, failed, len(events)))
 	}
 
 	before, err := a.observer.StreamFresh(ctx, base)
@@ -255,6 +322,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 	}
 
 	lag := &pendingLag{}
+	win := newWindowRecorder(startRecalcs)
 	stopWatch := make(chan struct{})
 	watchDone := make(chan struct{})
 	go func() {
@@ -267,21 +335,82 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 				return
 			case <-t.C:
 				if v, ok := a.observer.StreamLatest(); ok {
-					lag.settle(v.DataVersion, time.Now())
+					win.addLags(lag.settle(v.DataVersion, time.Now()))
 				}
 			}
 		}
 	}()
 
 	var (
-		applyDur        = make([]time.Duration, 0, len(events))
-		applied, failed int
-		started         = time.Now()
-		lastPublish     = started
-		every           = n / 100
+		applyDur    = make([]time.Duration, 0, len(events))
+		started     = time.Now()
+		lastPublish = started
 	)
-	if every < 1 {
-		every = 1
+	progress := func(force bool) {
+		if !force && time.Since(lastPublish) < 150*time.Millisecond {
+			return
+		}
+		lastPublish = time.Now()
+		done := applied + failed
+		st := a.stream.update(func(s *gen.StreamState) { s.Applied = done })
+		a.bus.Publish(TopicStreamProgress, st)
+	}
+	// onBatch вызывает писатель из своей горутины, пока отправитель ждёт в submit или на паузе;
+	// счётчики читает только эта же горутина, а после finish — runStream.
+	ing := newEventWriter(a.pool, newIngestState(&base), time.Now,
+		func(ch Change) { a.bus.Publish(TopicChanged, ch) },
+		func(res []ingestResult) {
+			now := time.Now()
+			okN, badN := 0, 0
+			for _, r := range res {
+				applyDur = append(applyDur, r.dur)
+				streamApply.Observe(r.dur.Seconds())
+				if r.err != nil {
+					failed++
+					badN++
+					streamEvents.WithLabelValues("failed").Inc()
+					log.Printf("source: поток %s: событие %d не применено: %v", runID, r.seq, r.err)
+					continue
+				}
+				applied++
+				okN++
+				streamEvents.WithLabelValues("applied").Inc()
+				lag.add(r.version, now)
+			}
+			win.addBatch(okN, badN)
+			progress(false)
+		})
+	ing.start(ctx)
+	publishWindow := func() {
+		recalcs := startRecalcs
+		if v, ok := a.observer.StreamLatest(); ok {
+			recalcs = v.Recalcs
+		}
+		pts := win.tick(ing.queueLen(), recalcs)
+		st := a.stream.update(func(s *gen.StreamState) { s.Window = &pts })
+		a.bus.Publish(TopicStreamProgress, st)
+	}
+	stopTick := make(chan struct{})
+	tickDone := make(chan struct{})
+	go func() {
+		defer close(tickDone)
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-stopTick:
+				return
+			case <-t.C:
+				publishWindow()
+			}
+		}
+	}()
+	// stopWindow останавливает тикер и сбрасывает последнюю неполную секунду отдельной точкой:
+	// короткий прогон (меньше секунды) всё равно оставляет в окне хотя бы одну точку.
+	stopWindow := func() {
+		close(stopTick)
+		<-tickDone
+		publishWindow()
 	}
 	var gap time.Duration
 	if rate > 0 {
@@ -296,45 +425,27 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 				}
 			}
 		}
-		if ctx.Err() != nil {
+		if !ing.submit(ctx, i, ev) || ctx.Err() != nil {
+			ing.finish()
+			stopWindow()
 			close(stopWatch)
 			<-watchDone
-			fail(fmt.Errorf("прогон прерван: %w", ctx.Err()))
+			failAfterSend(fmt.Errorf("прогон прерван: %w", ctx.Err()))
 			return
 		}
-		t0 := time.Now()
-		acc, _, err := a.commitStep(ctx, func(s *Snapshot) (*Snapshot, string, error) {
-			if err := applyStreamEvent(s, ev); err != nil {
-				return nil, "", err
-			}
-			return s, OriginEmulator, nil
-		})
-		d := time.Since(t0)
-		applyDur = append(applyDur, d)
-		streamApply.Observe(d.Seconds())
-		if err != nil {
-			failed++
-			streamEvents.WithLabelValues("failed").Inc()
-			log.Printf("source: поток %s: событие %d (%s) не применено: %v", runID, i, ev.Kind, err)
-		} else {
-			applied++
-			streamEvents.WithLabelValues("applied").Inc()
-			lag.add(acc.Version, time.Now())
-		}
-		if (i+1)%every == 0 || time.Since(lastPublish) > 150*time.Millisecond || i == len(events)-1 {
-			lastPublish = time.Now()
-			ap, fl := applied, failed
-			st := a.stream.update(func(s *gen.StreamState) { s.Applied = ap + fl })
-			a.bus.Publish(TopicStreamProgress, st)
-		}
+		win.addAccepted()
 	}
+	ing.finish()
+	progress(true)
 	elapsed := time.Since(started)
 
+	// тикер окна живёт до конца сверки: очередь и пересчёты видны, пока идёт settleAndVerify
 	after, cons, err := a.settleAndVerify(ctx)
+	stopWindow()
 	close(stopWatch)
 	<-watchDone
 	if err != nil {
-		fail(err)
+		failAfterSend(err)
 		return
 	}
 	lag.settle(after.DataVersion, time.Now())
@@ -349,6 +460,8 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		LossBeforeCents: before.ExpectedLossCents, LossAfterCents: after.ExpectedLossCents,
 		Consistency: cons,
 	}
+	p99 := ms(percentile(applyDur, 99))
+	rep.ApplyP99Ms = &p99
 	if p95 := percentile(lag.lags, 95); len(lag.lags) > 0 {
 		v := ms(p95)
 		rep.QueueLagP95Ms = &v
