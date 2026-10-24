@@ -98,8 +98,10 @@ function Risk({ task, listed }: { task: RetentionTask; listed?: CustomerRow }) {
   );
 }
 
-export function TasksPage({ role }: { role: Role }) {
-  const [filter, setFilter] = useState<TaskFilter>(role === 'marketer' ? 'mine' : 'open');
+export function TasksPage({ role, initialFilter }: { role: Role; initialFilter?: TaskFilter }) {
+  const [filter, setFilter] = useState<TaskFilter>(
+    initialFilter ?? (role === 'marketer' ? 'mine' : 'open'),
+  );
   const tasks = useQuery(tasksQuery(filter));
   const customers = useQuery(customersOptions({ sort: 'id', order: 'asc' }));
   const now = useNow();

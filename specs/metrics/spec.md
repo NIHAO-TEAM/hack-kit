@@ -63,3 +63,19 @@
 - WHEN клиент открытой задачи пропал из снимка или у него другой email
 - THEN его потеря в `churn_retention_expected_loss_in_work_cents` не считается, а сама задача остаётся в счётчиках
 - Тест: `TestTaskMetrics`
+
+### Requirement: работа с клиентами в сводке
+
+Сводка SHALL показывать долю ожидаемой потери в работе и клиентов высокого риска без работы — те же числа, что `/metrics`. Блок `retention` в ответе необязателен: при ошибке чтения задач сводка отдаётся без него, экран блок скрывает.
+
+#### Scenario: клиент 9 в работе
+
+- WHEN на наборе организаторов в работе только клиент 9
+- THEN «В работе 1 клиент · 3 189,10 € из 3 599,07 €», «Высокий риск без работы: 2 клиента»; `churn_retention_expected_loss_in_work_cents` = 318910
+- Тест: `TestSummaryRetentionMatchesMetrics`, `TestSummaryRetention`, `summary.test.tsx`
+
+#### Scenario: ошибка чтения задач
+
+- WHEN база задач недоступна
+- THEN `GET /api/v1/analytics/summary` отвечает 200 без поля `retention`
+- Тест: `TestSummaryRetentionTasksError`

@@ -1,7 +1,9 @@
 import { Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { churnChartQuery, summaryQuery } from '../api/analytics';
+import { churnChartQuery } from '../api/analytics';
+import { RetentionBlock } from './RetentionBlock';
 import { ChurnChart } from './ChurnChart';
+import { summaryOptions } from '@entities/summary';
 import { ApiError } from '@shared/api';
 import { LevelBadge, Money, StateError, StateLoading, StateOffline } from '@shared/ui';
 
@@ -17,7 +19,7 @@ function failure(error: unknown, title: string, retry: () => void) {
 }
 
 export function SummaryPage() {
-  const summary = useQuery(summaryQuery);
+  const summary = useQuery({ ...summaryOptions, retry: false });
   const chart = useQuery(churnChartQuery);
 
   return (
@@ -64,6 +66,7 @@ export function SummaryPage() {
               </Group>
             ))}
           </Group>
+          <RetentionBlock summary={summary.data} />
         </>
       )}
 
