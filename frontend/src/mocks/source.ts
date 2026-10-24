@@ -65,11 +65,31 @@ const bump = (source: string) => {
   });
 };
 
+/** Секундные отсчёты залпа для мока: 20 секунд, очередь растёт и рассасывается. */
+function mockWindow() {
+  return Array.from({ length: 20 }, (_, i) => ({
+    t: i + 1,
+    accepted: 900 + (i % 5) * 40,
+    applied: 880 + (i % 4) * 30,
+    failed: 0,
+    queueDepth: Math.round(Math.sin(i / 3) ** 2 * 600),
+    batchSize: 120 + (i % 6) * 15,
+    lagP95Ms: 8 + (i % 7),
+    recalcs: 3 + (i % 3),
+  }));
+}
+
 /** Поток событий в моке: `?stream=running|done|failed` в адресе, по умолчанию «не запускали». */
 function streamMock() {
   const mode = new URLSearchParams(globalThis.location?.search).get('stream');
   if (mode === 'running') {
-    return { state: 'running', runId: 'mock-run', events: 2500, applied: 1180 };
+    return {
+      state: 'running',
+      runId: 'mock-run',
+      events: 10000,
+      applied: 4180,
+      window: mockWindow(),
+    };
   }
   if (mode === 'failed') {
     return {
@@ -85,6 +105,7 @@ function streamMock() {
       runId: 'mock-run',
       events: 2500,
       applied: 2500,
+      window: mockWindow(),
       report: {
         events: 2500,
         applied: 2500,
