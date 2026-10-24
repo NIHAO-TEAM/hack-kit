@@ -67,14 +67,7 @@ export function customerDetailHandler(
       return HttpResponse.json({
         ...base,
         ...extra,
-        customer: { ...base.customer, score: 0.8814, level: 'high', expectedLossCents: 345927 },
-      });
-    }
-    if (id === 2) {
-      return HttpResponse.json({
-        ...base,
-        customer: { ...base.customer, level: 'lost', score: null, expectedLossCents: 0 },
-        explanation: 'Уже потеряно: все услуги заблокированы',
+        customer: { ...base.customer, score: 88.14, level: 'high', expectedLossCents: 345927 },
       });
     }
     return HttpResponse.json(extra ? { ...base, ...extra } : base);

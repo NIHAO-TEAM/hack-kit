@@ -5,4 +5,4 @@ export {
   type CustomerDetail,
   type CustomerFeature,
 } from './api/customer';
-export { byContribution, formulaText } from './model/features';
+export { byContribution, formulaText, scorePercentText } from './model/features';

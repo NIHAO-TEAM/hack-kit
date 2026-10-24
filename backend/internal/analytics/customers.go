@@ -50,6 +50,8 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 		return
 	}
 
+	pinUnscored := sortBy == "score" || sortBy == "expectedLoss"
+
 	rows := make([]gen.CustomerRow, 0, len(pf.Customers))
 	q := ""
 	if p.Q != nil {
@@ -66,15 +68,17 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 		rows = append(rows, c.Row)
 	}
 	slices.SortStableFunc(rows, func(x, y gen.CustomerRow) int {
-		xs, ys := isScored(x), isScored(y)
-		switch {
-		case xs != ys: // «нет оценки» и «потерян» всегда внизу
-			if xs {
-				return -1
+		if pinUnscored { // только по скору и потере: «нет оценки» и «потерян» внизу
+			xs, ys := isScored(x), isScored(y)
+			switch {
+			case xs != ys:
+				if xs {
+					return -1
+				}
+				return 1
+			case !xs:
+				return cmp.Compare(x.Id, y.Id)
 			}
-			return 1
-		case !xs:
-			return cmp.Compare(x.Id, y.Id)
 		}
 		c := cmpFn(x, y)
 		if desc {
