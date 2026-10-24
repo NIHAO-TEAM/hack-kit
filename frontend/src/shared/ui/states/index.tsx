@@ -1,6 +1,5 @@
 import { Alert, Button, Center, Skeleton, Stack, Text, Title } from '@mantine/core';
 import type { ReactNode } from 'react';
-import { BrandPattern } from '../brand-pattern';
 import { IconAlertTriangle, IconInbox, IconLock, IconWifiOff } from '../icon';
 
 /** Пять состояний экрана: загрузка, пусто, ошибка, нет связи, нет прав. */
@@ -49,16 +48,7 @@ export function StateEmpty({
   action?: ReactNode;
 }) {
   return (
-    <Message
-      icon={
-        <>
-          <BrandPattern width={240} height={90} />
-          <IconInbox size={32} aria-hidden />
-        </>
-      }
-      title={title}
-      action={action}
-    >
+    <Message icon={<IconInbox size={32} aria-hidden />} title={title} action={action}>
       {children}
     </Message>
   );

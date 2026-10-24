@@ -51,15 +51,16 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
   });
 
-  it('фирменный паттерн на экране входа — декор, скрыт от скринридеров', () => {
+  it('фон скрыт от читалок, над карточкой есть значок, форма доступна', () => {
     vi.stubGlobal('fetch', config(false));
     const { container } = render(
       <MantineProvider>
         <LoginPage onSubmit={async () => {}} />
       </MantineProvider>,
     );
-    const svg = container.querySelector('svg[aria-hidden="true"]');
-    expect(svg).not.toBeNull();
-    expect(svg?.getAttribute('focusable')).toBe('false');
+    expect(container.querySelector('[aria-hidden="true"] > div')).not.toBeNull();
+    expect(container.querySelector('main img[aria-hidden="true"]')).not.toBeNull();
+    expect(screen.getByLabelText('Логин')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
   });
 });
