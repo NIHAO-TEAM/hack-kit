@@ -50,4 +50,16 @@ describe('LoginPage', () => {
     expect(screen.queryByRole('link', { name: 'Войти через SSO' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
   });
+
+  it('фирменный паттерн на экране входа — декор, скрыт от скринридеров', () => {
+    vi.stubGlobal('fetch', config(false));
+    const { container } = render(
+      <MantineProvider>
+        <LoginPage onSubmit={async () => {}} />
+      </MantineProvider>,
+    );
+    const svg = container.querySelector('svg[aria-hidden="true"]');
+    expect(svg).not.toBeNull();
+    expect(svg?.getAttribute('focusable')).toBe('false');
+  });
 });
