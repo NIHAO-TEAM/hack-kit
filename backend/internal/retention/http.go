@@ -70,8 +70,7 @@ func (a *TasksAPI) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, ErrNotReady):
 		httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "расчёт ещё не готов")
 	default:
-		log.Printf("%v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "задачи недоступны")
+		httpx.WriteFailure(w, r, err, "задачи недоступны")
 	}
 }
 

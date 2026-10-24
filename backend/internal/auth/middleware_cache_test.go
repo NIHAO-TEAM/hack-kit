@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -88,4 +89,45 @@ func TestMiddlewareSessionCache(t *testing.T) {
 			t.Fatalf("запросов к БД %d, ждали 1 (второй запрос из кэша)", n.Load())
 		}
 	})
+}
+
+// База пропала: сессия из кэша работает, промах кэша — 503 с Retry-After, не 500.
+func TestMiddlewareDBDown(t *testing.T) {
+	api, _, sess, h := middlewareStand(t, Config{SessionCacheTTL: 5 * time.Second})
+	if code := get(h, sess.Token); code != http.StatusNoContent {
+		t.Fatalf("прогрев кэша: статус %d", code)
+	}
+	api.svc.load = func(context.Context, string) (sessionRecord, error) {
+		return sessionRecord{}, syscall.ECONNREFUSED
+	}
+	if code := get(h, sess.Token); code != http.StatusNoContent {
+		t.Fatalf("сессия из кэша при упавшей БД: статус %d", code)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "незнакомый-токен"})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" {
+		t.Fatalf("промах кэша: статус %d, Retry-After %q", rec.Code, rec.Header().Get("Retry-After"))
+	}
+}
+
+// Зависшая база (pause): load не возвращается сам, запрос обязан уложиться в dbWait и получить 503.
+func TestMiddlewareDBHangs(t *testing.T) {
+	api, _, _, h := middlewareStand(t, Config{SessionCacheTTL: 5 * time.Second})
+	api.svc.load = func(ctx context.Context, _ string) (sessionRecord, error) {
+		<-ctx.Done()
+		return sessionRecord{}, ctx.Err()
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "незнакомый-токен"})
+	rec := httptest.NewRecorder()
+	start := time.Now()
+	h.ServeHTTP(rec, req)
+	if d := time.Since(start); d > dbWait+time.Second {
+		t.Fatalf("ответ через %v, ждали не больше %v", d, dbWait)
+	}
+	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" {
+		t.Fatalf("статус %d, Retry-After %q", rec.Code, rec.Header().Get("Retry-After"))
+	}
 }

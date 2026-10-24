@@ -122,8 +122,7 @@ func (a *AuthAPI) Middleware(mux *http.ServeMux, next http.Handler) http.Handler
 			return
 		}
 		if err != nil {
-			log.Printf("auth: %v", err)
-			httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка проверки сессии")
+			httpx.WriteFailure(w, r, err, "ошибка проверки сессии")
 			return
 		}
 		if fromCookie && !safeMethod(r.Method) && !tokenEquals(r.Header.Get("X-CSRF-Token"), id.CSRFToken) {
@@ -184,8 +183,7 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("auth: вход: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка входа")
+		httpx.WriteFailure(w, r, err, "ошибка входа")
 		return
 	}
 	a.svc.clearFailures(key)
@@ -202,8 +200,7 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 func (a *AuthAPI) Logout(w http.ResponseWriter, r *http.Request) {
 	id, _ := identityFrom(r.Context())
 	if err := a.svc.logout(r.Context(), id.TokenHash); err != nil {
-		log.Printf("auth: выход: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка выхода")
+		httpx.WriteFailure(w, r, err, "ошибка выхода")
 		return
 	}
 	a.record(r, audit.Entry{Actor: id.Login, Action: audit.ActionLogout, Summary: "Выход из системы"})
@@ -337,8 +334,7 @@ func (a *AuthAPI) OidcCallback(w http.ResponseWriter, r *http.Request, params ge
 	}
 	sess, err := a.svc.ssoLogin(r.Context(), ssoLoginPrefix+name, role)
 	if err != nil {
-		log.Printf("auth: вход SSO %q: %v", name, err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "ошибка входа")
+		httpx.WriteFailure(w, r, err, "ошибка входа")
 		return
 	}
 	a.record(r, audit.Entry{Actor: sess.Login, Action: audit.ActionLogin, Summary: "Вход в систему через SSO"})

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
@@ -110,6 +111,15 @@ func scoreSnapshot(ctx context.Context, rs risk.Snapshot, st risk.Settings, m *a
 
 // Collectors — метрики пересчёта для /metrics: воркеры, отменённые прогоны, длительность пачек.
 func (r *Recalc) Collectors() []prometheus.Collector { return []prometheus.Collector{r.metrics} }
+
+// CalculatedAt — когда готов последний расчёт; нулевое время, пока расчёта нет.
+// По нему читающие ответы получают X-Data-Age.
+func (r *Recalc) CalculatedAt() time.Time {
+	if c := r.Engine.Latest(); c != nil {
+		return c.CalculatedAt
+	}
+	return time.Time{}
+}
 
 // TableReads — сколько раз пересчёт читал таблицы снимка целиком; смена настроек их не читает.
 func (r *Recalc) TableReads() int64 { return r.reads.Load() }
