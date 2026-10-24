@@ -42,6 +42,13 @@ test.describe('открытая часть', () => {
     await expect(page).toHaveURL(/\/grafana\/login/);
     await expect(page.locator('input[name="user"]')).toBeVisible();
   });
+
+  test('Keycloak: discovery на /sso', async ({ request, baseURL }) => {
+    const res = await request.get('/sso/realms/churn/.well-known/openid-configuration');
+    expect(res.status(), 'discovery Keycloak').toBe(200);
+    const body = (await res.json()) as { issuer: string };
+    expect(body.issuer).toBe(`${baseURL?.replace(/\/$/, '')}/sso/realms/churn`);
+  });
 });
 
 async function allRows(request: APIRequestContext): Promise<{ rows: Row[]; version: number }> {
