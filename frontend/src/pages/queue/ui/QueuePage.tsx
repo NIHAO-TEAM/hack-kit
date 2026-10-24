@@ -1,10 +1,11 @@
-import { Button, Group, Select, Stack, TextInput, Title } from '@mantine/core';
+import { Button, Group, Pagination, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import {
   customersOptions,
+  QUEUE_PAGE_SIZE,
   type CustomerParams,
   type CustomerSort,
   type RiskLevel,
@@ -54,7 +55,21 @@ export function QueuePage({
   role: Role;
 }) {
   const router = useRouter();
-  const customers = useQuery({ ...customersOptions(params), placeholderData: keepPreviousData });
+  const page = params.page ?? 1;
+  const customers = useQuery({
+    ...customersOptions({ ...params, limit: QUEUE_PAGE_SIZE }),
+    placeholderData: keepPreviousData,
+  });
+  const total = customers.data?.total ?? 0;
+  const pageCount = Math.max(Math.ceil(total / QUEUE_PAGE_SIZE), 1);
+  // Смена вида возвращает на первую страницу.
+  const withView = (next: CustomerParams): CustomerParams => ({ ...next, page: undefined });
+  const toPage = (value: number) => onParams({ ...params, page: value > 1 ? value : undefined });
+  // Страница за пределами total (ссылка устарела) — первая.
+  useEffect(() => {
+    if (customers.data && !customers.isPlaceholderData && page > pageCount) toPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- реагируем на ответ сервера
+  }, [customers.data, customers.isPlaceholderData]);
   const summary = useQuery(summaryOptions);
   // Полоса «удалит биллинг» не зависит от поиска и фильтра: к биллингу уходят все.
   const unfiltered = useQuery(customersOptions({ sort: 'expectedLoss', order: 'desc' }));
@@ -63,18 +78,21 @@ export function QueuePage({
   const [search, setSearch] = useState(params.q ?? '');
   const [debounced] = useDebouncedValue(search, 300);
   useEffect(() => {
-    if (debounced !== (params.q ?? '')) onParams({ ...params, q: debounced || undefined });
+    if (debounced !== (params.q ?? ''))
+      onParams(withView({ ...params, q: debounced || undefined }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- реагируем только на ввод
   }, [debounced]);
 
   const open = (id: number) => void router.navigate({ href: `/queue/${id}` });
   const onSort = (column: CustomerSort) =>
-    onParams({
-      ...params,
-      sort: column,
-      order:
-        params.sort === column ? (params.order === 'asc' ? 'desc' : 'asc') : firstOrder[column],
-    });
+    onParams(
+      withView({
+        ...params,
+        sort: column,
+        order:
+          params.sort === column ? (params.order === 'asc' ? 'desc' : 'asc') : firstOrder[column],
+      }),
+    );
 
   const error = customers.error ?? summary.error;
   // Время — время стенда из сводки; часы браузера не подставляем.
@@ -109,15 +127,26 @@ export function QueuePage({
       );
   } else if (customers.data) {
     body = (
-      <QueueTable
-        rows={customers.data.items}
-        version={customers.data.version}
-        asOf={asOf}
-        sort={params.sort}
-        order={params.order}
-        onSort={onSort}
-        onOpen={open}
-      />
+      <Stack gap="sm" style={{ opacity: customers.isPlaceholderData ? 0.6 : 1 }}>
+        <QueueTable
+          rows={customers.data.items}
+          version={customers.data.version}
+          asOf={asOf}
+          sort={params.sort}
+          order={params.order}
+          onSort={onSort}
+          onOpen={open}
+        />
+        {total > QUEUE_PAGE_SIZE ? (
+          <Group justify="space-between" align="center">
+            <Text size="sm" c="dimmed" aria-live="polite">
+              Показаны {(page - 1) * QUEUE_PAGE_SIZE + 1}–
+              {(page - 1) * QUEUE_PAGE_SIZE + customers.data.items.length} из {total}
+            </Text>
+            <Pagination value={page} onChange={toPage} total={pageCount} />
+          </Group>
+        ) : null}
+      </Stack>
     );
   }
 
@@ -160,7 +189,7 @@ export function QueuePage({
           data={levelOptions}
           value={params.level ?? null}
           onChange={(value) =>
-            onParams({ ...params, level: (value as RiskLevel | null) ?? undefined })
+            onParams(withView({ ...params, level: (value as RiskLevel | null) ?? undefined }))
           }
         />
       </Group>
