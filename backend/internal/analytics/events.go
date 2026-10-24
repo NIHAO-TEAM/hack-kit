@@ -3,6 +3,7 @@ package analytics
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 )
 
@@ -15,6 +16,11 @@ func (a *AnalyticsAPI) GetEvents(w responseWriter, r *request) {
 	defer cancel()
 	taskEvents, cancelTasks := a.bus.Subscribe(TopicTasks)
 	defer cancelTasks()
+
+	// Поток живёт дольше ReadTimeout/IdleTimeout сервера: дедлайны с него снимаются.
+	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(time.Time{})
+	_ = rc.SetWriteDeadline(time.Time{})
 
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
@@ -30,6 +36,9 @@ func (a *AnalyticsAPI) GetEvents(w responseWriter, r *request) {
 	for {
 		select {
 		case <-r.Context().Done():
+			// Клиент ушёл или сервер останавливается: просим переподключиться (новому поду).
+			_, _ = fmt.Fprint(w, "retry: 1000\n\n")
+			_ = flush(w)
 			return
 		case ev, ok := <-events:
 			if !ok {

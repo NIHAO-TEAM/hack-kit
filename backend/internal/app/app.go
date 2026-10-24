@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"example.com/app/internal/analytics"
 	"example.com/app/internal/audit"
@@ -80,7 +81,15 @@ func problemOnBadRequest(w http.ResponseWriter, r *http.Request, err error) {
 // Option донастраивает сервер.
 type Option func(*options)
 
-type options struct{ billing *source.Adapter }
+type options struct {
+	billing    *source.Adapter
+	collectors []prometheus.Collector
+}
+
+// WithCollectors добавляет в /metrics метрики процесса (например, остановки).
+func WithCollectors(c ...prometheus.Collector) Option {
+	return func(o *options) { o.collectors = append(o.collectors, c...) }
+}
 
 // WithBilling подключает опрос REST-биллинга: статус, пауза после ручной загрузки, метрики.
 func WithBilling(a *source.Adapter) Option { return func(o *options) { o.billing = a } }
@@ -116,6 +125,7 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	}
 	analyticsAPI := newAnalytics(pool, bus, clk, feed)
 	analyticsAPI.WithCollectors(source.IngestCollectors()...)
+	analyticsAPI.WithCollectors(o.collectors...)
 	if rec != nil {
 		analyticsAPI.WithAudit(rec)
 	}

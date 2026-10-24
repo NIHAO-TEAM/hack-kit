@@ -7,9 +7,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"example.com/app/internal/app"
@@ -17,6 +21,7 @@ import (
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/db"
 	"example.com/app/internal/platform/events"
+	"example.com/app/internal/platform/httpx"
 	"example.com/app/internal/source"
 )
 
@@ -34,10 +39,38 @@ func newHandler() http.Handler {
 type config struct {
 	addr        string
 	databaseURL string
+	drain       time.Duration // пауза после снятия готовности до Shutdown
+	timeout     time.Duration // сколько Shutdown ждёт идущие запросы
+}
+
+// Умолчания остановки; terminationGracePeriodSeconds в Helm больше их суммы.
+const (
+	defaultDrain   = 5 * time.Second
+	defaultTimeout = 20 * time.Second
+)
+
+// envDuration читает длительность из окружения (формат time.ParseDuration).
+func envDuration(name string, def time.Duration) (time.Duration, error) {
+	v := os.Getenv(name)
+	if v == "" {
+		return def, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d < 0 {
+		return 0, fmt.Errorf("%s: нужна длительность вида 5s, получено %q", name, v)
+	}
+	return d, nil
 }
 
 func loadConfig() (config, error) {
 	c := config{addr: os.Getenv("HTTP_ADDR"), databaseURL: os.Getenv("DATABASE_URL")}
+	var err error
+	if c.drain, err = envDuration("SHUTDOWN_DRAIN", defaultDrain); err != nil {
+		return config{}, err
+	}
+	if c.timeout, err = envDuration("SHUTDOWN_TIMEOUT", defaultTimeout); err != nil {
+		return config{}, err
+	}
 	if c.addr == "" {
 		c.addr = os.Getenv("ADDR")
 	}
@@ -93,7 +126,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
+	// Корневой контекст: SIGTERM/SIGINT останавливают воркеры пересчёта, биллинга и эмулятора.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	if err := db.Up(ctx, cfg.databaseURL); err != nil {
 		return err
 	}
@@ -112,24 +147,78 @@ func run() error {
 		return err
 	}
 
+	var workers sync.WaitGroup
 	// Воркер пересчёта: первый расчёт идёт сразу, дальше по source.changed и model.changed.
 	recalc := app.NewRecalc(pool, bus, clock.System{})
-	recalc.Start(ctx)
+	recalcStopped := recalc.Start(ctx)
+	workers.Add(1)
+	go func() { defer workers.Done(); <-recalcStopped }()
+
+	lc := httpx.NewLifecycle()
+	lc.Ready = func() bool { return recalc.Engine.Latest() != nil }
+	lc.Ping = pool.Ping
+	opts := []app.Option{app.WithCollectors(lc.Collector())}
 
 	// Опрос REST-биллинга включается, только если задан BILLING_URL.
-	var opts []app.Option
 	if bc := source.AdapterConfigFromEnv(); bc != nil {
 		billing := source.NewAdapter(pool, bus, clock.System{}, *bc)
-		go billing.Run(ctx)
+		workers.Add(1)
+		go func() { defer workers.Done(); billing.Run(ctx) }()
 		opts = append(opts, app.WithBilling(billing))
 		log.Printf("api: опрос биллинга каждые %s", bc.Interval)
 	}
 
-	srv := &http.Server{
-		Addr:              cfg.addr,
-		Handler:           app.New(pool, bus, clock.System{}, authAPI, recalc, opts...),
-		ReadHeaderTimeout: 5 * time.Second,
+	srv := newServer(cfg.addr, app.New(pool, bus, clock.System{}, authAPI, recalc, opts...), lc)
+	ln, err := net.Listen("tcp", cfg.addr)
+	if err != nil {
+		return err
 	}
 	log.Printf("api: слушаю %s", cfg.addr)
-	return srv.ListenAndServe()
+	err = serve(ctx, srv, ln, lc, cfg.drain, cfg.timeout)
+	// Сервер остановлен: ждём воркеры (ctx уже отменён), и только потом закрывается пул (defer).
+	workers.Wait()
+	return err
+}
+
+// newServer оборачивает обработчик приложения: /readyz отвечает мимо сессии и счётчика запросов,
+// остальные запросы считаются, а их контекст наследует отмену потоков при остановке.
+func newServer(addr string, h http.Handler, lc *httpx.Lifecycle) *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /readyz", lc.ReadyHandler)
+	mux.Handle("/", lc.Track(h))
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return lc.BaseContext() },
+	}
+	srv.RegisterOnShutdown(lc.CancelStreams)
+	return srv
+}
+
+// serve обслуживает ln, пока ctx не отменён. Порядок остановки: /readyz отвечает 503 →
+// пауза drain (балансировщик снимает под) → Shutdown с таймаутом: идущие запросы дорабатывают,
+// потоки SSE закрываются. Вернёт nil при штатной остановке.
+func serve(ctx context.Context, srv *http.Server, ln net.Listener, lc *httpx.Lifecycle, drain, timeout time.Duration) error {
+	errc := make(chan error, 1)
+	go func() { errc <- srv.Serve(ln) }()
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+	}
+	started := time.Now()
+	lc.BeginShutdown()
+	log.Printf("api: остановка, запросов в работе: %d", lc.InflightAtShutdown())
+	time.Sleep(drain)
+	sctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	err := srv.Shutdown(sctx)
+	if err != nil {
+		_ = srv.Close() // таймаут: оставшиеся соединения закрываются принудительно
+	}
+	log.Printf("api: остановлен за %s (ошибка: %v)", time.Since(started).Round(time.Millisecond), err)
+	return err
 }
