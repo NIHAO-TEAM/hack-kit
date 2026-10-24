@@ -1,7 +1,6 @@
 package risk
 
 import (
-	"fmt"
 	"math"
 	"time"
 )
@@ -30,5 +29,5 @@ func (pwait) Eval(ctx ServiceCtx) (float64, string, bool) {
 	if ctx.NoReason {
 		return f, "", true
 	}
-	return f, fmt.Sprintf("Услуга ждёт оплаты, до удаления осталось %s", daysText(days)), true
+	return f, "Услуга ждёт оплаты, до удаления осталось " + daysText(days), true
 }

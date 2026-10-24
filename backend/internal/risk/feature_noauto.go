@@ -1,7 +1,6 @@
 package risk
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -28,5 +27,5 @@ func (noauto) Eval(ctx ServiceCtx) (float64, string, bool) {
 	if days <= 0 {
 		return f, "Автопродление выключено, срок услуги уже вышел", true
 	}
-	return f, fmt.Sprintf("Автопродление выключено, срок услуги закончится через %s", daysText(days)), true
+	return f, "Автопродление выключено, срок услуги закончится через " + daysText(days), true
 }

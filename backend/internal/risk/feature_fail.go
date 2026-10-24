@@ -1,6 +1,6 @@
 package risk
 
-import "fmt"
+import "strconv"
 
 type fail struct{}
 
@@ -27,5 +27,5 @@ func (fail) Eval(ctx ServiceCtx) (float64, string, bool) {
 	if ctx.NoReason {
 		return float64(bad) / float64(total), "", true
 	}
-	return float64(bad) / float64(total), fmt.Sprintf("%d из %d продлений не прошли", bad, total), true
+	return float64(bad) / float64(total), strconv.Itoa(bad) + " из " + strconv.Itoa(total) + " продлений не прошли", true
 }

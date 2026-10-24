@@ -1,7 +1,5 @@
 package risk
 
-import "fmt"
-
 type bonusLocked struct{}
 
 func init() { Register(bonusLocked{}) }
@@ -20,5 +18,5 @@ func (bonusLocked) Eval(ctx ServiceCtx) (float64, string, bool) {
 	if ctx.NoReason {
 		return 1, "", true
 	}
-	return 1, fmt.Sprintf("Бонус %s заблокирован, средств на 7 дней не хватает", euros(a.BonusBalance)), true
+	return 1, "Бонус " + euros(a.BonusBalance) + " заблокирован, средств на 7 дней не хватает", true
 }
