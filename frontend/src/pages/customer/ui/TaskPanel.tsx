@@ -124,7 +124,7 @@ export function TaskPanel({
   const [contactText, setContactText] = useState('');
   const [postponeTo, setPostponeTo] = useState('');
   // Контакт уже записан, а смена статуса не удалась: повтор не пишет событие второй раз.
-  const recorded = useRef<RetentionTask | null>(null);
+  const recorded = useRef(false);
   const [outcome, setOutcome] = useState<TaskOutcome | null>(null);
 
   const assigneeOptions = (assignees.data ?? []).map((a) => ({ value: a.login, label: a.login }));
@@ -272,18 +272,20 @@ export function TaskPanel({
   const contact = () =>
     run(
       async () => {
-        let next =
-          recorded.current ??
-          (await addTaskEvent(task.id, {
+        // Версия для PATCH — у актуальной задачи: после «Показать новое» она свежая.
+        let next = task;
+        if (!recorded.current) {
+          next = await addTaskEvent(task.id, {
             kind: 'contact',
             channel: channel ?? undefined,
             text: contactText,
-          }));
-        recorded.current = next;
+          });
+          recorded.current = true;
+        }
         if (next.status !== 'contacted') {
           next = await patchTask(task.id, { version: next.version, status: 'contacted' });
         }
-        recorded.current = null;
+        recorded.current = false;
         return next;
       },
       () => {

@@ -67,6 +67,26 @@ describe('карточка: работа с клиентом', () => {
     );
   });
 
+  it('контакт: после 409 и «Показать новое» повтор ставит статус по свежей версии, событие одно', async () => {
+    const user = userEvent.setup();
+    seedTask(9);
+    conflictOn.add(9);
+    await openCard();
+    await user.click(await screen.findByRole('button', { name: 'Связались' }));
+    await user.click(screen.getByRole('combobox', { name: 'Канал' }));
+    await user.click(await screen.findByRole('option', { name: 'Почта', hidden: true }));
+    await user.click(screen.getByRole('button', { name: 'Записать контакт' }));
+    expect(await screen.findByText(/Задачу уже изменил jury/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Показать новое' }));
+    await user.click(screen.getByRole('button', { name: 'Записать контакт' }));
+    const history = await screen.findByRole('list', { name: 'История задачи' });
+    await waitFor(() =>
+      expect(within(history).getAllByText(/связались \(почта\)/)).toHaveLength(1),
+    );
+    expect(within(panel()).getAllByText('Связались').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Задачу уже изменил/)).toBeNull();
+  });
+
   it('«Отложить до…»: статус «Отложено», срок обновлён', async () => {
     const user = userEvent.setup();
     seedTask(9);

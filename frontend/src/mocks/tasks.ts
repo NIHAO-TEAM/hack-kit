@@ -93,7 +93,8 @@ function conflict(task: Task) {
 }
 
 function touch(task: Task, text = '', kind: Event['kind'] = 'changed', channel?: Event['channel']) {
-  task.version += 1;
+  // Как на сервере: контакт и заметка версию задачи не меняют.
+  if (kind === 'changed') task.version += 1;
   task.updatedAt = new Date().toISOString();
   task.updatedBy = login() ?? 'marketer';
   task.events = [
