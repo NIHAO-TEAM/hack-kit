@@ -112,6 +112,25 @@ function touch(task: Task, text = '', kind: Event['kind'] = 'changed', channel?:
 }
 
 export const taskHandlers = [
+  http.get(`${API}/tasks`, ({ request }) => {
+    const denied = guard(false);
+    if (denied) return denied;
+    const q = new URL(request.url).searchParams;
+    const me = login();
+    const now = Date.now();
+    const items = tasks
+      .filter((t) => !q.get('status') || t.status === q.get('status'))
+      .filter(
+        (t) =>
+          !q.get('assignee') ||
+          t.assignee === (q.get('assignee') === 'me' ? me : q.get('assignee')),
+      )
+      .filter(
+        (t) => q.get('overdue') !== 'true' || (isOpen(t) && new Date(t.dueAt).getTime() < now),
+      )
+      .map((t) => ({ ...t, events: undefined }));
+    return HttpResponse.json({ items, total: items.length });
+  }),
   http.get(`${API}/tasks/assignees`, () => {
     const denied = guard(false);
     if (denied) return denied;

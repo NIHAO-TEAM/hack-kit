@@ -12,6 +12,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useRouter, useRouterState } from '@tanstack/react-router';
+import { TaskReminder } from '@widgets/task-reminder';
 import { can, logout, sessionKey, type Right } from '@entities/session';
 import { IconExternalLink, IconLogout } from '@shared/ui';
 import { RealtimeProvider } from '../realtime';
@@ -19,11 +20,12 @@ import { Route } from '../routes/_app';
 import { ThemeSwitch } from './ThemeSwitch';
 
 const sections: {
-  to: '/queue' | '/summary' | '/model' | '/source' | '/about';
+  to: '/queue' | '/tasks' | '/summary' | '/model' | '/source' | '/about';
   label: string;
   right: Right;
 }[] = [
   { to: '/queue', label: 'Очередь', right: 'queue.view' },
+  { to: '/tasks', label: 'Задачи', right: 'tasks.view' },
   { to: '/summary', label: 'Сводка', right: 'summary.view' },
   { to: '/model', label: 'Модель', right: 'model.view' },
   { to: '/source', label: 'Источник', right: 'source.view' },
@@ -88,6 +90,7 @@ export function AppShell() {
                 </Button>
               </Tooltip>
             )}
+            {user.role !== 'analyst' && <TaskReminder />}
             <ThemeSwitch />
             <Text size="sm" visibleFrom="sm">
               {user.login}

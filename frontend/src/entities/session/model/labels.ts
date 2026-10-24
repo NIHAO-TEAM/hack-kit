@@ -12,6 +12,7 @@ export const rightHolders: Record<Right, string> = {
   'queue.view': 'всем ролям',
   'summary.view': 'всем ролям',
   'customer.view': 'всем ролям',
+  'tasks.view': 'всем ролям',
   'tasks.edit': 'маркетологу, администратору и жюри',
   'model.view': 'аналитику, администратору и жюри',
   'model.edit': 'аналитику, администратору и жюри',
