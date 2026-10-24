@@ -198,6 +198,11 @@ func (old *readModel) patched(cs []Customer, pos []int32) *readModel {
 			}()
 		}
 	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rm.byReason = reasonOrders(cs)
+	}()
 	wg.Wait()
 	return rm
 }

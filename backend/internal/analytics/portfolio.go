@@ -27,7 +27,7 @@ type Portfolio struct {
 // портфель собирают заново. Модель чтения строится из модели prev, а не с нуля (см. readModel.patched);
 // prev не меняется.
 func PatchPortfolio(prev *Portfolio, version int64, changed []Customer) *Portfolio {
-	pf := &Portfolio{Version: version, Customers: slices.Clone(prev.Customers)}
+	pf := &Portfolio{Version: version, Customers: slices.Clone(prev.Customers), Reasons: prev.Reasons}
 	pos := make([]int32, 0, len(changed))
 	for _, c := range changed {
 		i, ok := slices.BinarySearchFunc(prev.Customers, c.Row.Id, func(x Customer, id int64) int { return cmp.Compare(x.Row.Id, id) })
