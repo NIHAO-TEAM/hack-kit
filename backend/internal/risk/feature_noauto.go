@@ -22,6 +22,9 @@ func (noauto) Eval(ctx ServiceCtx) (float64, string, bool) {
 		return 0, "", true
 	}
 	f := math.Min(1, 1-days/7)
+	if ctx.NoReason {
+		return f, "", true
+	}
 	if days <= 0 {
 		return f, "Автопродление выключено, срок услуги уже вышел", true
 	}

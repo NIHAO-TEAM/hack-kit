@@ -178,11 +178,11 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 	// Клиенты не зависят друг от друга: считаем их параллельно в слайс по индексу, а сводку и
 	// проверки собираем потом по порядку индекса — результат тот же, что при последовательном счёте.
 	customers := make([]Customer, len(accounts))
-	err := parallelFor(ctx, len(accounts), opt, func(i int) {
+	err := parallelFor(ctx, len(accounts), opt, func(w *scratch, i int) {
 		a := accounts[i]
-		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs)
+		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs, false)
 		if c.State == StateScored {
-			c.Actions = actionResults(s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
+			c.Actions = actionResults(w, s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
 		}
 		customers[i] = c
 	})
@@ -245,18 +245,21 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 // parallelFor вызывает fn(i) для i в [0, n) пулом воркеров. Индексы нарезаны на пачки: воркер берёт
 // следующую пачку атомарным счётчиком, пишет результат в свою ячейку по индексу, общих блокировок нет.
 // Между пачками проверяется ctx: после отмены новые пачки не берутся, возвращается ошибка контекста.
-func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error {
+//
+// scratch — буферы воркера для действий: живут весь прогон воркера и переиспользуются между его клиентами.
+// В результат ничего из них не попадает.
+func parallelFor(ctx context.Context, n int, opt Options, fn func(w *scratch, i int)) error {
 	batch := opt.BatchSize
 	if batch <= 0 {
 		batch = DefaultBatchSize
 	}
-	run := func(lo, hi int) {
+	run := func(w *scratch, lo, hi int) {
 		var t0 time.Time
 		if opt.OnBatch != nil {
 			t0 = time.Now()
 		}
 		for i := lo; i < hi; i++ {
-			fn(i)
+			fn(w, i)
 		}
 		if opt.OnBatch != nil {
 			opt.OnBatch(hi-lo, time.Since(t0))
@@ -264,11 +267,12 @@ func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error 
 	}
 	workers := Workers(n)
 	if workers <= 1 {
+		w := &scratch{}
 		for lo := 0; lo < n; lo += batch {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			run(lo, min(lo+batch, n))
+			run(w, lo, min(lo+batch, n))
 		}
 		return nil
 	}
@@ -278,12 +282,13 @@ func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			w := &scratch{}
 			for ctx.Err() == nil {
 				lo := int(next.Add(int64(batch))) - batch
 				if lo >= n {
 					return
 				}
-				run(lo, min(lo+batch, n))
+				run(w, lo, min(lo+batch, n))
 			}
 		}()
 	}
@@ -291,20 +296,28 @@ func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error 
 	return ctx.Err()
 }
 
+// scratch — буферы воркера для расчёта действий (данные одного клиента). Перезаписываются на каждом клиенте.
+type scratch struct {
+	acct [1]Account
+	svcs []Service
+	txs  []Transaction
+}
+
 // actionResults применяет каждое подходящее действие к копии снимка, где изменён только этот клиент.
 // Копия содержит только данные клиента (аккаунт, его услуги и их платежи): действия и пересчёт
 // клиента от остальных не зависят, а копировать весь снимок на каждое действие — квадратичная
-// работа (на 10 000 аккаунтов пересчёт шёл минуту с лишним).
-func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]Transaction, st Settings, asOf time.Time,
+// работа (на 10 000 аккаунтов пересчёт шёл минуту с лишним). Копия лежит в буферах воркера.
+func actionResults(w *scratch, snapAsOf time.Time, svcs []Service, txByService map[int64][]Transaction, st Settings, asOf time.Time,
 	a Account, c Customer, funds FundsCtx, fs []Feature, cs []Check, as []Action) []ActionResult {
 	out := []ActionResult{}
-	ctx := CustomerCtx{Account: a, Customer: c, Funds: funds}
-	ctx.Services = append(ctx.Services, svcs...)
-	s := Snapshot{AsOf: snapAsOf, Accounts: []Account{a}, Services: ctx.Services}
-	for _, sv := range s.Services {
-		s.Transactions = append(s.Transactions, txByService[sv.ID]...)
+	w.acct[0] = a
+	w.svcs = append(w.svcs[:0], svcs...)
+	w.txs = w.txs[:0]
+	for _, sv := range w.svcs {
+		w.txs = append(w.txs, txByService[sv.ID]...)
 	}
-	ctx.Transactions = s.Transactions
+	ctx := CustomerCtx{Account: a, Customer: c, Funds: funds, Services: w.svcs, Transactions: w.txs}
+	s := Snapshot{AsOf: snapAsOf, Accounts: w.acct[:], Services: w.svcs, Transactions: w.txs}
 	for _, act := range as {
 		if !act.Applies(ctx) {
 			continue
@@ -315,7 +328,7 @@ func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]T
 		} else {
 			applied = act.Apply(s, a.ID)
 		}
-		after := scoreOne(applied, a.ID, st, asOf, fs, cs)
+		after := scoreOne(applied, s, a.ID, txByService, st, asOf, fs, cs)
 		out = append(out, ActionResult{
 			ID:             act.ID(),
 			Title:          act.Title(ctx),
@@ -330,30 +343,39 @@ func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]T
 	return out
 }
 
-// scoreOne считает одного клиента без действий.
-func scoreOne(s Snapshot, accountID int64, st Settings, asOf time.Time, fs []Feature, cs []Check) Customer {
-	txByService := map[int64][]Transaction{}
-	for _, t := range s.Transactions {
-		txByService[t.ServiceID] = append(txByService[t.ServiceID], t)
+// sameTransactions — действие вернуло те же транзакции, что получило (не пересобрало срез).
+func sameTransactions(a, b []Transaction) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
+}
+
+// scoreOne считает одного клиента без действий. Тексты причин не нужны: важны только потеря, скор и уровень.
+// Если действие не тронуло транзакции, берётся индекс снимка (orig — снимок до действия, byService — его индекс).
+func scoreOne(s, orig Snapshot, accountID int64, byService map[int64][]Transaction, st Settings, asOf time.Time, fs []Feature, cs []Check) Customer {
+	txByService := byService
+	if !sameTransactions(s.Transactions, orig.Transactions) {
+		txByService = map[int64][]Transaction{}
+		for _, t := range s.Transactions {
+			txByService[t.ServiceID] = append(txByService[t.ServiceID], t)
+		}
 	}
 	for _, a := range s.Accounts {
 		if a.ID != accountID {
 			continue
 		}
-		var svcs []Service
+		svcs := make([]Service, 0, len(s.Services))
 		for _, sv := range s.Services {
 			if sv.OwnerID == accountID {
 				svcs = append(svcs, sv)
 			}
 		}
-		c, _ := scoreCustomer(a, svcs, txByService, st, asOf, fs, cs)
+		c, _ := scoreCustomer(a, svcs, txByService, st, asOf, fs, cs, true)
 		return c
 	}
 	return Customer{ID: accountID, State: StateUnscored}
 }
 
 func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transaction, st Settings, asOf time.Time,
-	fs []Feature, cs []Check) (Customer, FundsCtx) {
+	fs []Feature, cs []Check, noReason bool) (Customer, FundsCtx) {
 	c := Customer{ID: a.ID, Actions: []ActionResult{}}
 	if len(svcs) == 0 {
 		c.State = StateUnscored
@@ -385,7 +407,7 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 	best := 0.0
 	c.Services = make([]ServiceResult, 0, len(live))
 	for _, sv := range live {
-		ctx := ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID], Funds: funds}
+		ctx := ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID], Funds: funds, NoReason: noReason}
 		sr := scoreService(ctx, st, fs, cs)
 		c.Services = append(c.Services, sr)
 		c.ExpectedLossCents += sr.LossCents

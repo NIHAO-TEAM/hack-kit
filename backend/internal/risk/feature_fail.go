@@ -24,5 +24,8 @@ func (fail) Eval(ctx ServiceCtx) (float64, string, bool) {
 	if total == 0 || bad == 0 {
 		return 0, "", true
 	}
+	if ctx.NoReason {
+		return float64(bad) / float64(total), "", true
+	}
 	return float64(bad) / float64(total), fmt.Sprintf("%d из %d продлений не прошли", bad, total), true
 }

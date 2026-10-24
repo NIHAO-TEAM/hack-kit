@@ -22,5 +22,8 @@ func (flight) Eval(ctx ServiceCtx) (float64, string, bool) {
 	if f <= 0 {
 		return 0, "", true
 	}
+	if ctx.NoReason {
+		return f, "", true
+	}
 	return f, fmt.Sprintf("Доступно к выводу %s из %s. Факт вывода в данных не виден; по умолчанию не влияет на риск", euros(a.WithdrawBalance), euros(a.Balance)), true
 }

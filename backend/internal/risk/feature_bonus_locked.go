@@ -17,5 +17,8 @@ func (bonusLocked) Eval(ctx ServiceCtx) (float64, string, bool) {
 	if a.BonusBalance <= 0 || a.BonusState != "locked" || ctx.Funds.Have >= ctx.Funds.Need {
 		return 0, "", false
 	}
+	if ctx.NoReason {
+		return 1, "", true
+	}
 	return 1, fmt.Sprintf("Бонус %s заблокирован, средств на 7 дней не хватает", euros(a.BonusBalance)), true
 }
