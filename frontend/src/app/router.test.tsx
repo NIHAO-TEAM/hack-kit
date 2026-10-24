@@ -1,10 +1,10 @@
-import { screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { server } from '../mocks/server';
 import { renderApp } from './render-app';
 
-function signedInAs(role: 'marketer' | 'analyst') {
+function signedInAs(role: 'marketer' | 'analyst' | 'jury') {
   server.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 1, login: role, role })));
 }
 
@@ -38,6 +38,25 @@ describe('охрана маршрутов', () => {
     const nav = await screen.findByRole('navigation', { name: 'Разделы' });
     expect(nav).toHaveTextContent('Модель');
     expect(nav).toHaveTextContent('Источник');
+  });
+
+  it('аналитик и жюри видят ссылку «Мониторинг» на /grafana/ в новой вкладке', async () => {
+    for (const role of ['analyst', 'jury'] as const) {
+      signedInAs(role);
+      renderApp('/queue');
+      const link = await screen.findByRole('link', { name: /Мониторинг/ });
+      expect(link).toHaveAttribute('href', '/grafana/');
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+      cleanup();
+    }
+  });
+
+  it('маркетологу ссылка «Мониторинг» не показывается', async () => {
+    signedInAs('marketer');
+    renderApp('/queue');
+    await screen.findByRole('navigation', { name: 'Разделы' });
+    expect(screen.queryByRole('link', { name: /Мониторинг/ })).not.toBeInTheDocument();
   });
 
   it('корень ведёт на стартовую страницу роли', async () => {
