@@ -1,4 +1,4 @@
-import type { CustomerFeature } from '../api/customer';
+import type { CustomerFeature, ServiceRisk } from '../api/customer';
 
 /** Признаки по убыванию вклада: сначала то, что сильнее всего двигает оценку. */
 export function byContribution(features: readonly CustomerFeature[]): CustomerFeature[] {
@@ -15,4 +15,9 @@ export function formulaText(features: readonly CustomerFeature[], scorePercent: 
   const num = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
   const terms = byContribution(features).map((f) => `(1 − ${num(f.weight)}·${num(f.value)})`);
   return `P = 1 − ${terms.join(' · ') || '1'} = ${num(scorePercent / 100)}`;
+}
+
+/** Сумма ожидаемых потерь по услугам; на сервере ожидаемая потеря клиента — ровно эта сумма (`risk/score.go`). */
+export function lossSum(risks: readonly ServiceRisk[]): number {
+  return risks.reduce((sum, r) => sum + r.lossCents, 0);
 }

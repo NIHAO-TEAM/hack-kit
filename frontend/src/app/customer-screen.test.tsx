@@ -31,7 +31,7 @@ describe('экран «Карточка клиента»', () => {
     const rows = within(table).getAllByRole('row');
     expect(rows[1]).toHaveTextContent('noauto');
     expect(rows[2]).toHaveTextContent('fail');
-    expect(within(table).getByText('funds')).toBeInTheDocument();
+    expect(within(table!).getByText('funds')).toBeInTheDocument();
     expect(within(table).getByText('susp')).toBeInTheDocument();
     expect(within(table).getByText('Вклад')).toBeInTheDocument();
     expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,88');
@@ -45,6 +45,73 @@ describe('экран «Карточка клиента»', () => {
     if (!control) throw new Error('нет раскрывающейся услуги');
     await user.click(control);
     expect(screen.getAllByRole('table', { name: /Признаки риска/ })).toHaveLength(1);
+  });
+
+  it('услуга клиента 9: P, R, P·R, признаки услуги и формула, заканчивающаяся её вероятностью', async () => {
+    const user = userEvent.setup();
+    renderApp('/queue/9');
+    await screen.findByRole('table', { name: /Признаки риска/ });
+    const controls = document.querySelectorAll<HTMLElement>('[data-accordion-control]');
+    await user.click(controls[1]!);
+    expect(screen.getAllByText(/Вероятность непродления P = 0,56 \(56 %\)/)).toHaveLength(2);
+    expect(screen.getAllByText(/ожидаемая потеря P·R/)[1]).toHaveTextContent(/3\s451,78\s€/);
+    const [table] = screen.getAllByRole('table', { name: 'Признаки услуги' });
+    expect(within(table!).getByText('funds')).toBeInTheDocument();
+    for (const f of screen.getAllByTestId('service-formula'))
+      expect(f).toHaveTextContent(/= (0,88|0,56)$/);
+    expect(screen.queryByText(/появятся, когда сервер/)).toBeNull();
+  });
+
+  it('клиент 9: сумма потерь по услугам сходится с шапкой', async () => {
+    renderApp('/queue/9');
+    expect(
+      await screen.findByText(/Сумма потерь по услугам = ожидаемая потеря клиента/),
+    ).toHaveTextContent(/3\s459,27\s€/);
+    expect(screen.queryByText('Сумма не сходится с шапкой')).toBeNull();
+  });
+
+  it('расхождение суммы услуг с шапкой видно, а не скрыто', async () => {
+    const { server } = await import('../mocks/server');
+    const res = await fetch('/api/v1/customers/9');
+    const detail = (await res.json()) as CustomerDetail;
+    server.use(
+      http.get('/api/v1/customers/9', () =>
+        HttpResponse.json({
+          ...detail,
+          customer: {
+            ...detail.customer,
+            expectedLossCents: detail.customer.expectedLossCents + 500,
+          },
+        }),
+      ),
+    );
+    renderApp('/queue/9');
+    expect(await screen.findByText('Сумма не сходится с шапкой')).toBeInTheDocument();
+  });
+
+  it('клиент 7: неживая услуга без вероятности, с пометкой', async () => {
+    const user = userEvent.setup();
+    renderApp('/queue/7');
+    await screen.findByText(/потерян: живых услуг не осталось/);
+    const controls = document.querySelectorAll<HTMLElement>('[data-accordion-control]');
+    await user.click(controls[0]!);
+    expect(screen.getAllByText(/в ожидаемую потерю не входит/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Вероятность непродления/)).toBeNull();
+    expect(screen.queryByText(/Сумма потерь по услугам/)).toBeNull();
+  });
+
+  it('без serviceRisks: «Оценок по услугам нет», без сверки', async () => {
+    const user = userEvent.setup();
+    const { server } = await import('../mocks/server');
+    const res = await fetch('/api/v1/customers/9');
+    const detail = (await res.json()) as CustomerDetail;
+    const rest = { ...detail, serviceRisks: undefined };
+    server.use(http.get('/api/v1/customers/9', () => HttpResponse.json(rest)));
+    renderApp('/queue/9');
+    await screen.findByRole('table', { name: /Признаки риска/ });
+    await user.click(document.querySelector<HTMLElement>('[data-accordion-control]')!);
+    expect(screen.getAllByText('Оценок по услугам нет.').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Сумма потерь по услугам/)).toBeNull();
   });
 
   it('нечисловой адрес — «Такого клиента нет»', async () => {
