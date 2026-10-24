@@ -56,3 +56,40 @@ describe('QueueTable: подсветка изменившихся строк', (
     expect(changedIds()).toEqual([]);
   });
 });
+
+describe('QueueTable: колонка «Работа»', () => {
+  it('у клиента в работе — статус, ответственный и срок; без задачи пусто', () => {
+    const withTask: CustomerRow = {
+      ...row(9, 500),
+      task: {
+        id: 1,
+        status: 'in_work',
+        assignee: 'marketer',
+        dueAt: '2026-10-20T15:00:00Z',
+        overdue: false,
+      },
+    };
+    render(table([withTask, row(10, 100)], 1));
+    const [, r9, r10] = screen.getAllByRole('row');
+    expect(r9!.textContent).toContain('В работе');
+    expect(r9!.textContent).toContain('marketer');
+    expect(r9!.textContent).toContain('осталось 15 ч');
+    expect(r10!.querySelector('td[data-label="Работа"]')!.textContent).toBe('');
+  });
+
+  it('просроченный срок — текстом', () => {
+    const overdue: CustomerRow = {
+      ...row(9, 500),
+      task: {
+        id: 1,
+        status: 'contacted',
+        assignee: 'jury',
+        dueAt: '2026-10-19T00:00:00Z',
+        overdue: true,
+      },
+    };
+    render(table([overdue], 1));
+    expect(screen.getByText(/срок прошёл/)).toBeInTheDocument();
+    expect(screen.getByText('Связались')).toBeInTheDocument();
+  });
+});

@@ -11,6 +11,7 @@ import {
   RescueWindow,
 } from '@shared/ui';
 import classes from './QueueTable.module.css';
+import { WorkCell } from './WorkCell';
 
 interface Column {
   label: string;
@@ -29,6 +30,7 @@ const columns: Column[] = [
   { label: 'Потеря', sort: 'expectedLoss', num: true },
   { label: 'Причина' },
   { label: 'Окно спасения' },
+  { label: 'Работа' },
   { label: 'Действие' },
 ];
 
@@ -96,6 +98,9 @@ const signature = (row: CustomerRow) =>
     row.topAction?.id ?? null,
     row.topAction?.effectCents ?? null,
     row.billing ?? false,
+    row.task
+      ? [row.task.id, row.task.status, row.task.assignee, row.task.dueAt, row.task.overdue]
+      : null,
   ]);
 
 /**
@@ -181,7 +186,8 @@ export function QueueTable({
               {cell(5, dim ? '—' : <Money cents={row.expectedLossCents} />)}
               {cell(6, <span className={classes.reason}>{row.topReason ?? '—'}</span>)}
               {cell(7, asOf ? <RescueWindow expiresAt={row.expiresAt ?? null} asOf={asOf} /> : '—')}
-              {cell(8, <ActionCell row={row} />)}
+              {cell(8, <WorkCell task={row.task} asOf={asOf} />)}
+              {cell(9, <ActionCell row={row} />)}
             </tr>
           );
         })}

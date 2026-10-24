@@ -171,3 +171,9 @@
     transition: none;
   }
 }
+
+.work {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
