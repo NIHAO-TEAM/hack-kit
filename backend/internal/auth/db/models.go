@@ -63,6 +63,7 @@ type RetentionTaskEvent struct {
 	Channel pgtype.Text
 	Text    string
 	Changes []byte
+	ObsKey  pgtype.Text
 }
 
 type Service struct {
