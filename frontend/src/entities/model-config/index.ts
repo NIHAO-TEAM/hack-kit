@@ -8,5 +8,5 @@ export {
   type ModelSettings,
   type ModelSettingsPatch,
 } from './api/model-settings';
-export { defaultSettings, featureHint, featureTitle } from './model/features';
+export { defaultSettings, featureHint, featureInfo, featureTitle } from './model/features';
 export { changedCount, dryRunText } from './model/dry-run';
