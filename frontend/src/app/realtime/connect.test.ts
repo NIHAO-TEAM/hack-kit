@@ -51,6 +51,27 @@ describe('connectEvents', () => {
     expect(roots(spy)).toEqual(['customers', 'customer', 'summary']);
   });
 
+  it('на streamProgress кладёт кадр хода потока в кэш и не перезапрашивает данные', () => {
+    const queryClient = new QueryClient();
+    const spy = vi.spyOn(queryClient, 'invalidateQueries');
+    const sources: FakeSource[] = [];
+    connectEvents(
+      queryClient,
+      () => undefined,
+      () => {
+        const s = new FakeSource();
+        sources.push(s);
+        return s as never;
+      },
+    );
+    const frame = { state: 'running', events: 2500, applied: 300 };
+    sources[0]!.emit('streamProgress', JSON.stringify(frame));
+    expect(queryClient.getQueryData(['stream'])).toEqual(frame);
+    sources[0]!.emit('streamProgress', 'не JSON');
+    expect(queryClient.getQueryData(['stream'])).toEqual(frame);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it('обрыв даёт offline, возврат связи — один перезапрос', () => {
     const { spy, sources, states } = setup();
     sources[0]!.onopen?.(new Event('open'));
