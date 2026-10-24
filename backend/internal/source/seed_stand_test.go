@@ -15,6 +15,17 @@ func TestStandSeedParses(t *testing.T) {
 	}
 }
 
+// Сид стенда проходит ту же проверку, что PUT /source/snapshot: иначе сервер не стартует.
+func TestStandSeedValidates(t *testing.T) {
+	body, err := mergeSeeds(organizers, standSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if errs := Validate(parseFile(t, body)); len(errs) != 0 {
+		t.Fatalf("сид стенда не проходит проверку снимка: %v", errs)
+	}
+}
+
 // Склейка даёт 16 аккаунтов; данные организаторов не меняются.
 func TestMergeStand(t *testing.T) {
 	body, err := mergeSeeds(organizers, standSeed)

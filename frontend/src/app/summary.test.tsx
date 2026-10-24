@@ -34,6 +34,10 @@ describe('сводка', () => {
         expectedLossCents: 359907,
         atRiskCents: 690046,
         lostCents: 736834,
+        lossByFeature: [
+          { featureId: 'susp', lossCents: 184419, customers: 2, sharePercent: 51.24 },
+          { featureId: 'funds', lossCents: 134738, customers: 1, sharePercent: 37.44 },
+        ],
         version: 7,
         ...(retention ? { retention } : {}),
       }),
@@ -64,5 +68,20 @@ describe('сводка', () => {
     renderApp('/summary');
     expect(await screen.findByText('Ожидаемая потеря за 30 дней')).toBeInTheDocument();
     expect(screen.queryByText('Работа с клиентами')).not.toBeInTheDocument();
+  });
+
+  it('блок «Где теряем деньги»: причины по убыванию, сумма и доля, оговорка про причинность', async () => {
+    server.use(marketer(), summaryWith(null));
+    renderApp('/summary');
+    const block = (await screen.findByText('Где теряем деньги')).closest(
+      'section, div.mantine-Card-root',
+    );
+    expect(block).not.toBeNull();
+    const items = await screen.findAllByRole('listitem');
+    const reasons = items.filter((li) => li.textContent?.includes('%'));
+    expect(reasons[0]).toHaveTextContent('Услуга приостановлена');
+    expect(reasons[0]).toHaveTextContent('51,24');
+    expect(reasons[1]).toHaveTextContent('Не хватает средств на продление');
+    expect(screen.getByText(/Это не доказанная причинность/)).toBeInTheDocument();
   });
 });

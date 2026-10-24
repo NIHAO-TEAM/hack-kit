@@ -9,6 +9,7 @@ import (
 type goldenAction struct {
 	Type           string   `json:"type"`
 	AmountCents    *int64   `json:"amountCents"`
+	CostCents      int64    `json:"costCents"`
 	LossDeltaCents int64    `json:"lossDeltaCents"`
 	ScoreBefore    *float64 `json:"scoreBefore"`
 	ScoreAfter     *float64 `json:"scoreAfter"`
@@ -27,6 +28,7 @@ func TestActionsGolden(t *testing.T) {
 			ID       int64                         `json:"id"`
 			Features map[string]map[string]float64 `json:"features"`
 			Actions  []goldenAction                `json:"actions"`
+			Combo    *int64                        `json:"actionComboCents"`
 		} `json:"customers"`
 	}
 	readJSON(t, "../../../testdata/golden/organizers.json", &g)
@@ -68,6 +70,9 @@ func TestActionsGolden(t *testing.T) {
 			if a.ID != want.Type || a.LossDeltaCents != want.LossDeltaCents {
 				t.Errorf("клиент %d, действие %d: %s %d, эталон %s %d", c.ID, k, a.ID, a.LossDeltaCents, want.Type, want.LossDeltaCents)
 			}
+			if a.CostCents != want.CostCents {
+				t.Errorf("клиент %d, %s: цена %d, эталон %d", c.ID, want.Type, a.CostCents, want.CostCents)
+			}
 			if want.AmountCents != nil {
 				if w := fmt.Sprintf("Пополнить баланс на %s", euros(*want.AmountCents)); a.Title != w {
 					t.Errorf("клиент %d: заголовок %q, ждали %q", c.ID, a.Title, w)
@@ -78,6 +83,11 @@ func TestActionsGolden(t *testing.T) {
 			}
 			if a.LevelAfter == nil || want.LevelAfter == nil || *a.LevelAfter != *want.LevelAfter {
 				t.Errorf("клиент %d, %s: уровень после не совпал с эталоном", c.ID, want.Type)
+			}
+		}
+		if c.Combo != nil {
+			if g := res.Customers[i].ActionComboCents; g == nil || *g != *c.Combo {
+				t.Errorf("клиент %d: сочетание %v, эталон %d", c.ID, g, *c.Combo)
 			}
 		}
 		checked++

@@ -1,7 +1,5 @@
 package risk
 
-import "fmt"
-
 type flight struct{}
 
 func init() { Register(flight{}) }
@@ -22,5 +20,8 @@ func (flight) Eval(ctx ServiceCtx) (float64, string, bool) {
 	if f <= 0 {
 		return 0, "", true
 	}
-	return f, fmt.Sprintf("Доступно к выводу %s из %s. Факт вывода в данных не виден; по умолчанию не влияет на риск", euros(a.WithdrawBalance), euros(a.Balance)), true
+	if ctx.NoReason {
+		return f, "", true
+	}
+	return f, "Доступно к выводу " + euros(a.WithdrawBalance) + " из " + euros(a.Balance) + ". Факт вывода в данных не виден; по умолчанию не влияет на риск", true
 }

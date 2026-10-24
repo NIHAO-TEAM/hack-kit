@@ -1,7 +1,5 @@
 package risk
 
-import "fmt"
-
 type topUp struct{}
 
 func init() { RegisterAction(topUp{}) }
@@ -11,8 +9,11 @@ func (topUp) ID() string { return "top_up" }
 // Applies: на окно запаса средств не хватает денег (правило 5, funds > 0).
 func (topUp) Applies(ctx CustomerCtx) bool { return ctx.Funds.Need > ctx.Funds.Have }
 
+// CostCents — сумма пополнения.
+func (topUp) CostCents(ctx CustomerCtx) int64 { return ctx.Funds.Need - ctx.Funds.Have }
+
 func (topUp) Title(ctx CustomerCtx) string {
-	return fmt.Sprintf("Пополнить баланс на %s", euros(ctx.Funds.Need-ctx.Funds.Have))
+	return "Пополнить баланс на " + euros(ctx.Funds.Need-ctx.Funds.Have)
 }
 
 // Apply без настроек считает «нужно» по умолчанию; ядро вызывает ApplyWith с настройками расчёта.

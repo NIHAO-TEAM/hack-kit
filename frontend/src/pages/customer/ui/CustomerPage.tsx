@@ -67,7 +67,9 @@ export function CustomerPage({ id }: { id: number }) {
             },
             {
               id: 'action',
-              signature: JSON.stringify(detail.actions.map((a) => [a.id, a.title, a.effectCents])),
+              signature: JSON.stringify(
+                detail.actions.map((a) => [a.id, a.title, a.effectCents, a.costCents]),
+              ),
             },
           ]
         : undefined,
@@ -94,7 +96,8 @@ export function CustomerPage({ id }: { id: number }) {
     );
   }
 
-  const { customer, account, services, serviceRisks, features, actions, explanation } = query.data;
+  const { customer, account, services, serviceRisks, features, actions, actionCombo, explanation } =
+    query.data;
   const lost = customer.level === 'lost';
 
   return (
@@ -147,7 +150,9 @@ export function CustomerPage({ id }: { id: number }) {
       <Grid>
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Stack>
-            {lost ? null : <ActionsCard actions={actions} changed={changed.has('action')} />}
+            {lost ? null : (
+              <ActionsCard actions={actions} combo={actionCombo} changed={changed.has('action')} />
+            )}
             <ServiceList
               services={services}
               risks={serviceRisks ?? []}

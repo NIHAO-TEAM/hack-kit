@@ -17,12 +17,14 @@ var wantAccess = map[string]struct{ marketer, analyst, jury, admin bool }{
 	"getMetrics":       {true, true, true, true}, "getMetricsAlias": {true, true, true, true},
 	"listTasks": {true, true, true, true}, "getTask": {true, true, true, true}, "listTaskAssignees": {true, true, true, true},
 	"takeCustomerTask": {true, false, true, true}, "patchTask": {true, false, true, true}, "addTaskEvent": {true, false, true, true},
-	"patchModelSettings": {false, true, true, true},
-	"listAudit":          {false, true, true, true},
-	"putSnapshot":        {false, true, true, true},
-	"setSourcePolling":   {false, true, true, true},
-	"patchService":       {false, true, true, true}, "patchAccount": {false, true, true, true},
+	"patchModelSettings":  {false, true, true, true},
+	"getModelSensitivity": {false, true, true, true},
+	"listAudit":           {false, true, true, true},
+	"putSnapshot":         {false, true, true, true},
+	"setSourcePolling":    {false, true, true, true},
+	"patchService":        {false, true, true, true}, "patchAccount": {false, true, true, true},
 	"emulatorTick": {false, true, true, true}, "emulatorActions": {false, true, true, true},
+	"startEmulatorStream": {false, true, true, true}, "getEmulatorStream": {false, true, true, true},
 }
 
 // Операции без сессии: вход, документация, спека, служебные пути.
