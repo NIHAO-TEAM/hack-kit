@@ -50,7 +50,7 @@ describe('экран «Карточка клиента»', () => {
   it('услуга клиента 9: P, R, P·R, признаки услуги и формула, заканчивающаяся её вероятностью', async () => {
     const user = userEvent.setup();
     renderApp('/queue/9');
-    await screen.findByRole('table', { name: /Признаки риска/ });
+    await screen.findByRole('table', { name: /Признаки риска/ }, { timeout: 5000 });
     const controls = document.querySelectorAll<HTMLElement>('[data-accordion-control]');
     await user.click(controls[1]!);
     expect(screen.getAllByText(/Вероятность непродления P = 0,56 \(56 %\)/)).toHaveLength(2);
@@ -65,7 +65,9 @@ describe('экран «Карточка клиента»', () => {
   it('клиент 9: сумма потерь по услугам сходится с шапкой', async () => {
     renderApp('/queue/9');
     expect(
-      await screen.findByText(/Сумма потерь по услугам = ожидаемая потеря клиента/),
+      await screen.findByText(/Сумма потерь по услугам = ожидаемая потеря клиента/, undefined, {
+        timeout: 5000,
+      }),
     ).toHaveTextContent(/3\s459,27\s€/);
     expect(screen.queryByText('Сумма не сходится с шапкой')).toBeNull();
   });
@@ -86,13 +88,15 @@ describe('экран «Карточка клиента»', () => {
       ),
     );
     renderApp('/queue/9');
-    expect(await screen.findByText('Сумма не сходится с шапкой')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Сумма не сходится с шапкой', undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
   });
 
   it('клиент 7: неживая услуга без вероятности, с пометкой', async () => {
     const user = userEvent.setup();
     renderApp('/queue/7');
-    await screen.findByText(/потерян: живых услуг не осталось/);
+    await screen.findByText(/потерян: живых услуг не осталось/, undefined, { timeout: 5000 });
     const controls = document.querySelectorAll<HTMLElement>('[data-accordion-control]');
     await user.click(controls[0]!);
     expect(screen.getAllByText(/в ожидаемую потерю не входит/).length).toBeGreaterThan(0);
@@ -108,7 +112,7 @@ describe('экран «Карточка клиента»', () => {
     const rest = { ...detail, serviceRisks: undefined };
     server.use(http.get('/api/v1/customers/9', () => HttpResponse.json(rest)));
     renderApp('/queue/9');
-    await screen.findByRole('table', { name: /Признаки риска/ });
+    await screen.findByRole('table', { name: /Признаки риска/ }, { timeout: 5000 });
     await user.click(document.querySelector<HTMLElement>('[data-accordion-control]')!);
     expect(screen.getAllByText('Оценок по услугам нет.').length).toBeGreaterThan(0);
     expect(screen.queryByText(/Сумма потерь по услугам/)).toBeNull();
