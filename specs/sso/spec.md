@@ -61,3 +61,13 @@
 - WHEN `OIDC_*` заданы
 - THEN `ssoEnabled: true`, кнопка есть
 - Тест: `TestAuthConfigWithOIDC`, `LoginPage.test.tsx` («SSO включён»)
+
+### Requirement: Keycloak на проде
+
+Прод SHALL отдавать discovery Keycloak по `/sso` после каждого выката.
+
+#### Scenario: discovery
+
+- WHEN запрошен `https://<домен>/sso/realms/churn/.well-known/openid-configuration`
+- THEN 200, JSON с `issuer` = `https://<домен>/sso/realms/churn`
+- Тест: `e2e/tests/smoke.spec.ts` («Keycloak: discovery на /sso»); выкат ждёт ответа до 180 с (`single-ingress.sh`)
