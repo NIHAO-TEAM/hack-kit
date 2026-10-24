@@ -36,3 +36,18 @@ fi
 echo "поднимаю спутников: keycloak (профиль sso, если включён), prometheus, grafana"
 "${COMPOSE[@]}" up -d --no-deps keycloak prometheus grafana
 "${COMPOSE[@]}" up --no-deps grafana-init >/dev/null 2>&1 || true
+
+# Keycloak стартует 1–2 минуты: ждём discovery до 180 с. Не ответил — лог в job и красный шаг
+# (прод не откатываем: приложение работает, вход по паролю — запасной).
+bind="$(grep -E '^COMPANIONS_BIND=' "$ENV_FILE" | cut -d= -f2-)"
+url="http://${bind:-172.17.0.1}:18080/sso/realms/churn/.well-known/openid-configuration"
+for _ in $(seq 1 36); do
+  if [ "$(curl -s -o /dev/null --max-time 5 -w '%{http_code}' "$url")" = 200 ]; then
+    echo "Keycloak: discovery отвечает 200"; exit 0
+  fi
+  sleep 5
+done
+echo "Keycloak не ответил за 180 с; последние строки лога (без секретов):" >&2
+"${COMPOSE[@]}" ps keycloak >&2 || true
+"${COMPOSE[@]}" logs --tail 60 keycloak 2>&1 | grep -v -i -E 'password|secret|token|totp' >&2 || true
+exit 1
