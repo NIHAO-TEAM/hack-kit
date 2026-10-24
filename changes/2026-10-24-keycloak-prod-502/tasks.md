@@ -4,7 +4,7 @@
 
 ## 1. Диагностика
 
-- [ ] 1.1 `diagnose.sh`: состояние и лог Keycloak, ответ discovery с хоста — проверка: лог ручного `deploy-ingress.yml` без секретов; причина в `design.md`
+- [x] 1.1 `diagnose.sh`: состояние и лог Keycloak, ответ discovery с хоста — проверка: лог ручного `deploy-ingress.yml` без секретов; причина в `design.md`
 
 ## 2. Правка
 

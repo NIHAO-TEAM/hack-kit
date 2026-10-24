@@ -27,3 +27,14 @@ echo "== Prometheus: targets =="
 bind="$(grep -E '^COMPANIONS_BIND=' "$HOME/churn/.env" 2>/dev/null | cut -d= -f2-)"
 curl -fsS --max-time 5 "http://${bind:-172.17.0.1}:19090/api/v1/targets" 2>/dev/null \
   | grep -o '"health":"[a-z]*"' | sort | uniq -c || echo "Prometheus не отвечает"
+echo "== Keycloak: контейнер, лог (без секретов), discovery с хоста =="
+docker ps -a --filter name=keycloak --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}' 2>&1 || true
+kc="$(docker ps -aq --filter name=keycloak | head -n 1)"
+if [ -n "$kc" ]; then
+  # В логе Keycloak возможны значения переменных: отсекаем строки с секретами.
+  docker logs --tail 60 "$kc" 2>&1 | grep -v -i -E 'password|secret|token|totp' || true
+else
+  echo "контейнера Keycloak нет (профиль sso не поднят?)"
+fi
+curl -sS -o /dev/null --max-time 5 -w "discovery с хоста: HTTP %{http_code}\n" \
+  "http://${bind:-172.17.0.1}:18080/sso/realms/churn/.well-known/openid-configuration" 2>&1 || echo "discovery с хоста: нет ответа"
