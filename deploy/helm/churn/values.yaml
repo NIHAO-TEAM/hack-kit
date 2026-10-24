@@ -10,6 +10,8 @@ image:
   # Образ собирается на сервере и импортируется в k3s, реестра нет.
   pullPolicy: IfNotPresent
 
+# Реплик API. 1 — прод, пока не проверена память узла (kubectl top); 2 и больше добавляют
+# PodDisruptionBudget (minAvailable: 1) и мягкое распределение по узлам. Прогон: deploy-chaos.yml.
 replicaCount: 1
 
 resources:

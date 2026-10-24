@@ -155,17 +155,58 @@ func (a *SourceAPI) startStream(ctx context.Context, n, rate int, seed int64) (s
 	if !a.stream.tryStart(st) {
 		return "", errStreamBusy
 	}
+	release, err := a.lockStream(ctx)
+	if err != nil {
+		a.stream.update(func(s *gen.StreamState) { *s = gen.StreamState{State: gen.Idle} })
+		if errors.Is(err, errStreamBusy) {
+			return "", err
+		}
+		log.Printf("source: поток, блокировка прогона: %v", err)
+		return "", httpError{"прогон не занят"}
+	}
 	base, err := a.streamBase(ctx)
 	if err == nil {
 		err = a.ensureSnapshot(ctx)
 	}
 	if err != nil {
+		release()
 		a.stream.update(func(s *gen.StreamState) { *s = gen.StreamState{State: gen.Idle} })
 		log.Printf("source: поток, чтение снимка: %v", err)
 		return "", httpError{"снимок не прочитан"}
 	}
-	go a.runStream(runID, GenerateStream(base, n, seed), n, rate, base)
+	go func() {
+		defer release()
+		a.runStream(runID, GenerateStream(base, n, seed), n, rate, base)
+	}()
 	return runID, nil
+}
+
+// streamLockKey — ключ advisory-блокировки прогона потока: на двух репликах идёт один прогон.
+const streamLockKey int64 = 7_405_120_001
+
+// lockStream занимает прогон на уровне базы. Блокировка держится на выделенном соединении до release:
+// если реплика умирает, соединение рвётся и база сама снимает блокировку.
+func (a *SourceAPI) lockStream(ctx context.Context) (release func(), err error) {
+	conn, err := a.pool.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var got bool
+	if err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", streamLockKey).Scan(&got); err != nil {
+		conn.Release()
+		return nil, err
+	}
+	if !got {
+		conn.Release()
+		return nil, errStreamBusy
+	}
+	return func() {
+		// Фоновый контекст: прогон мог закончиться по таймауту. Не вышло снять — соединение закрываем, блокировка уйдёт с ним.
+		if _, err := conn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", streamLockKey); err != nil {
+			_ = conn.Conn().Close(context.Background())
+		}
+		conn.Release()
+	}, nil
 }
 
 // streamBase — снимок, над которым строится поток; в пустой базе — сид, как у шагов эмулятора.
