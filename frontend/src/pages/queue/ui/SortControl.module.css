@@ -1,0 +1,40 @@
+/* Только планшет и телефон: на широком экране сортируют заголовки таблицы. */
+.root {
+  display: none;
+  gap: 8px;
+  align-items: stretch;
+}
+
+@media (width <= 64em) {
+  .root {
+    display: flex;
+  }
+}
+
+.field {
+  flex: 1;
+}
+
+.input {
+  min-height: 44px;
+}
+
+.order {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  font: inherit;
+  color: var(--text-strong);
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--mantine-radius-md);
+}
+
+.order:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
