@@ -20,3 +20,19 @@
 
 - WHEN прод переключён на k3s (`deploy-k8s.yml`, `cutover=true`)
 - THEN по тому же домену с TLS открывается стенд, данные и настройки модели те же, что до переключения (проверка: `deploy/k3s/deploy.sh` ждёт `/healthz`, откат `helm rollback`; сквозная проверка вручную)
+
+### Requirement: спутники за единым входом
+
+Прод на k3s SHALL отдавать Grafana по `/grafana` и Keycloak по `/sso` через Traefik.
+
+#### Scenario: Grafana по ссылке
+
+- WHEN без входа открыт `https://<домен>/grafana/`
+- THEN перенаправление на `/grafana/login`, форма входа Grafana
+
+#### Scenario: Keycloak discovery
+
+- WHEN запрошен `https://<домен>/sso/realms/churn/.well-known/openid-configuration`
+- THEN JSON с `issuer` = `https://<домен>/sso/realms/churn`
+
+Держат: `Endpoints` спутников в `deploy/helm/churn/templates/companions.yaml`, `deploy-smoke.yml` (тест «Grafana за входом»).
