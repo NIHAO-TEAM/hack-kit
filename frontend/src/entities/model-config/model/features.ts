@@ -17,7 +17,7 @@ export const featureInfo: Record<string, { title: string; hint: string; defaultW
   },
   fail: {
     title: 'Были неудачные платежи',
-    hint: 'В истории есть неудачные попытки оплаты',
+    hint: 'Доля неудачных продлений услуги в истории',
     defaultWeight: 0.4,
   },
   susp: {
@@ -27,7 +27,7 @@ export const featureInfo: Record<string, { title: string; hint: string; defaultW
   },
   flight: {
     title: 'Реферальный баланс к выводу',
-    hint: 'Доступно к выводу X из Y. Факт вывода в данных не виден; по умолчанию не влияет на риск',
+    hint: 'Доля реферального баланса, доступная к выводу. Факт вывода в данных не виден; по умолчанию не влияет на риск',
     defaultWeight: 0,
   },
   bonus_locked: {

@@ -16,6 +16,8 @@ describe('экран «Карточка клиента»', () => {
     expect(screen.getByText(/Пополнить на 529,84/)).toBeInTheDocument();
     expect(screen.getByText(/−1\s027,49\s€/)).toBeInTheDocument();
     expect(screen.getByText(/платежи на 30 дней × вероятность срыва/i)).toBeInTheDocument();
+    expect(screen.getByText(/расчётное снижение ожидаемой потери/i)).toBeInTheDocument();
+    expect(screen.queryByText(/сохранит/i)).not.toBeInTheDocument();
   });
 
   it('клиент 9: скор в шапке «87 %», в формуле вероятность «0,87»', async () => {
