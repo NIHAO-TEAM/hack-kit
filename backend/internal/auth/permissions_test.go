@@ -23,6 +23,7 @@ var wantAccess = map[string]struct{ marketer, analyst, jury, admin bool }{
 	"setSourcePolling":   {false, true, true, true},
 	"patchService":       {false, true, true, true}, "patchAccount": {false, true, true, true},
 	"emulatorTick": {false, true, true, true}, "emulatorActions": {false, true, true, true},
+	"startEmulatorStream": {false, true, true, true}, "getEmulatorStream": {false, true, true, true},
 }
 
 // Операции без сессии: вход, документация, спека, служебные пути.

@@ -22,7 +22,7 @@ var implemented = map[string]bool{
 	"getModelSettings": true, "patchModelSettings": true,
 	"listCustomers": true, "exportCustomers": true, "getCustomer": true,
 	"getSummary": true, "getChurnChart": true, "getMetrics": true, "getMetricsAlias": true,
-	"emulatorTick": true, "emulatorActions": true,
+	"emulatorTick": true, "emulatorActions": true, "startEmulatorStream": true, "getEmulatorStream": true,
 	"patchService": true, "patchAccount": true, "setSourcePolling": true, "listAudit": true,
 	"takeCustomerTask": true, "listTasks": true, "listTaskAssignees": true, "getTask": true, "patchTask": true, "addTaskEvent": true,
 }

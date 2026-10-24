@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"example.com/app/internal/analytics"
 	"example.com/app/internal/audit"
@@ -109,6 +110,9 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	if c, ok := feed.(qualityChecker); ok {
 		src.WithChecks(c.QualityChecks)
 	}
+	if o, ok := feed.(source.StreamObserver); ok {
+		src.WithStreamObserver(o)
+	}
 	mod := model.New(settings, modelPorts(pool), clk)
 	if rec != nil {
 		src.WithAudit(rec)
@@ -116,6 +120,10 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	}
 	analyticsAPI := newAnalytics(pool, bus, clk, feed)
 	analyticsAPI.WithCollectors(source.IngestCollectors()...)
+	if c, ok := feed.(collectorsProvider); ok {
+		analyticsAPI.WithCollectors(c.Collectors()...)
+	}
+	analyticsAPI.WithCollectors(source.StreamCollectors()...)
 	if rec != nil {
 		analyticsAPI.WithAudit(rec)
 	}
@@ -141,6 +149,7 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 		AuditAPI:     audit.NewAPI(journal),
 		TasksAPI:     retention.NewAPI(tasks),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
+	mux.Handle("GET /debug/pprof/", pprofHandler())
 	mux.Handle("GET /api/v1/docs/assets/", docs.Assets())
 	mux.Handle("GET /", webui.Handler())
 	return mux
@@ -171,6 +180,9 @@ func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.Aut
 type qualityChecker interface {
 	QualityChecks(version int64) []gen.QualityCheck
 }
+
+// collectorsProvider — метрики воркера пересчёта для /metrics.
+type collectorsProvider interface{ Collectors() []prometheus.Collector }
 
 // overviewer — источник сводки; воркер пересчёта и тестовый стенд его реализуют.
 type overviewer interface{ Overview() *analytics.Overview }

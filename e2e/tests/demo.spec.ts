@@ -138,71 +138,25 @@ test('демо: очередь → карточка → вес → автопр�
   }
 });
 
-interface TaskItem {
-  id: number;
-  customerId: number;
-  status: string;
-  outcome?: string;
-  version: number;
-}
-
-async function tasksOf(request: APIRequestContext, customerId: number): Promise<TaskItem[]> {
-  const res = await request.get('/api/v1/tasks?limit=200');
-  expect(res.ok(), 'список задач').toBeTruthy();
-  return ((await res.json()).items as TaskItem[]).filter((t) => t.customerId === customerId);
-}
-
-// Цикл удержания (шаг 5 демо): взять в работу → пополнение эмулятором → наблюдение → закрыть «Продлил».
-// Задачи сбросом эмулятора не стираются, поэтому старую открытую задачу клиента 9 закрываем до начала.
-test('демо: взять в работу → пополнение → наблюдение → закрыть «Продлил»', async ({ browser, baseURL }) => {
+// ADR-0004: цикла «взять в работу» в интерфейсе нет. Карточка клиента 9 — причины, потеря, действие с ценой.
+test('демо: карточка без CRM-цикла', async ({ browser, baseURL }) => {
   test.skip(!juryPassword, 'нужен E2E_JURY_PASSWORD');
   const ctx = await browser.newContext({ baseURL });
-  const api = ctx.request;
   try {
-    await apiLogin(api, 'jury', juryPassword);
-    const reset = await mutate(api, 'post', '/api/v1/source/emulator/actions', { actions: [{ customerId: 0, actionId: 'reset' }] });
-    expect(reset.ok(), 'reset эмулятора').toBeTruthy();
-    for (const t of (await tasksOf(api, 9)).filter((x) => x.status !== 'closed')) {
-      const closed = await mutate(api, 'patch', `/api/v1/tasks/${t.id}`, { version: t.version, status: 'closed', outcome: 'not_needed' });
-      expect(closed.ok(), 'закрытие старой задачи клиента 9').toBeTruthy();
-    }
-    const lossTaken = (await customers(api)).find((r) => r.id === 9)!.expectedLossCents;
-
-    // Взять в работу в карточке.
     const page = await ctx.newPage();
+    await uiLogin(page, 'jury', juryPassword);
     await page.goto('/queue/9');
-    await page.getByRole('button', { name: 'Взять в работу' }).click();
-    await expect(page.getByRole('button', { name: 'Связались' })).toBeVisible();
-
-    // «Источник»: эмулятор пополняет баланс клиента 9.
-    await page.goto('/source');
-    const emulator = page.getByRole('region', { name: 'Эмулятор биллинга' });
-    await emulator.getByLabel('Номер клиента').fill('9');
-    await emulator.getByLabel('Сумма, €').fill('529,84');
-    await emulator.getByRole('button', { name: 'Пополнить' }).click();
-
-    // Карточка: наблюдение биллинга с подписью «после, а не благодаря», потеря меньше.
-    await expect
-      .poll(async () => (await customers(api)).find((r) => r.id === 9)!.expectedLossCents, {
-        timeout: 20_000,
-      })
-      .toBeLessThan(lossTaken);
-    await page.goto('/queue/9');
-    const observed = page.getByRole('region', { name: 'После взятия в работу' });
-    await expect(observed).toContainText(/Баланс пополнен на 529,84\s€/, { timeout: 20_000 });
-    await expect(observed).toContainText('не доказывают, что помог именно контакт');
-
-    // Закрыть задачу с итогом «Продлил».
-    await page.getByRole('button', { name: 'Закрыть', exact: true }).click();
-    await page.getByRole('combobox', { name: 'Итог' }).click();
-    await page.getByRole('option', { name: 'Продлил' }).click();
-    await page.getByRole('button', { name: 'Закрыть задачу' }).click();
-    await expect(page.getByRole('button', { name: 'Взять в работу' })).toBeVisible();
-    const last = (await tasksOf(api, 9)).find((t) => t.status === 'closed' && t.outcome === 'renewed');
-    expect(last, 'закрытая задача с итогом renewed').toBeTruthy();
+    await expect(page.getByRole('heading', { name: 'Клиент 9' })).toBeVisible();
+    await expect(page.getByText(money('3 189,10')).first()).toBeVisible();
+    for (const name of ['Отметить: взято в работу', 'Взять в работу', 'Связались', 'Отложить до…']) {
+      await expect(page.getByRole('button', { name })).toHaveCount(0);
+    }
+    await expect(page.getByRole('region', { name: 'Работа с клиентом' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'После взятия в работу' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Разделы' })).not.toContainText('Задачи');
+    await page.goto('/tasks');
+    await expect(page).toHaveURL(/\/queue$/);
   } finally {
-    await mutate(api, 'post', '/api/v1/source/emulator/actions', { actions: [{ customerId: 0, actionId: 'reset' }] })
-      .catch(() => undefined);
     await ctx.close();
   }
 });

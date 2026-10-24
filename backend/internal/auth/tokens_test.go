@@ -56,3 +56,20 @@ func TestEmptyServiceTokensNeverMatch(t *testing.T) {
 		t.Errorf("пустой Bearer: %d", resp.StatusCode)
 	}
 }
+
+// Профили процесса открывает только токен метрик: ни сессия любой роли, ни другой токен, ни анонимный запрос.
+func TestPprofOnlyWithMetricsToken(t *testing.T) {
+	s := apitest.New(t)
+	get := func(mod func(*http.Request)) int {
+		return do(t, s, http.MethodGet, "/debug/pprof/goroutine?debug=1", mod).StatusCode
+	}
+	if code := get(nil); code != http.StatusUnauthorized {
+		t.Errorf("без токена: %d, ждали 401", code)
+	}
+	if code := get(func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+apitest.SourceToken) }); code != http.StatusUnauthorized {
+		t.Errorf("с токеном источника: %d, ждали 401", code)
+	}
+	if code := get(func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+apitest.MetricsToken) }); code != http.StatusOK {
+		t.Errorf("с токеном метрик: %d, ждали 200", code)
+	}
+}

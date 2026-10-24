@@ -1,8 +1,8 @@
 import { Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { churnChartQuery } from '../api/analytics';
-import { RetentionBlock } from './RetentionBlock';
 import { ChurnChart } from './ChurnChart';
+import { LossByReason } from './LossByReason';
 import { summaryOptions } from '@entities/summary';
 import { ApiError } from '@shared/api';
 import { LevelBadge, Money, StateError, StateLoading, StateOffline } from '@shared/ui';
@@ -66,7 +66,7 @@ export function SummaryPage() {
               </Group>
             ))}
           </Group>
-          <RetentionBlock summary={summary.data} />
+          <LossByReason items={summary.data.lossByFeature} />
         </>
       )}
 

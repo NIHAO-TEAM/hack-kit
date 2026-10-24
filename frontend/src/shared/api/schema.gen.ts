@@ -523,6 +523,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/source/emulator/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Состояние текущего или последнего прогона потока (аналитик, jury) */
+        get: operations["getEmulatorStream"];
+        put?: never;
+        /**
+         * Запустить поток событий пользователей над текущим снимком (аналитик, jury)
+         * @description Сервер строит из снимка и зерна детерминированный список событий (пополнение, автопродление, остановка и возобновление услуги, неудачное продление, ожидание продления) и применяет их тем же путём, что PATCH услуг и счетов. Ход идёт в поток GET /events событием streamProgress, итог — в GET /source/emulator/stream. Одновременно идёт один прогон.
+         */
+        post: operations["startEmulatorStream"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -530,7 +551,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** SSE-поток событий, например {"type":"recalculated","version":N} */
+        /** SSE-поток событий, например {"type":"recalculated","version":N}; ход потока событий эмулятора — event streamProgress с телом StreamState */
         get: operations["getEvents"];
         put?: never;
         post?: never;
@@ -784,6 +805,91 @@ export interface components {
         EmulatorActionsRequest: {
             actions: components["schemas"]["EmulatorAction"][];
         };
+        StreamRequest: {
+            /**
+             * @description Сколько событий применить
+             * @default 2500
+             */
+            events: number;
+            /**
+             * @description Скорость, событий в секунду; 0 — без пауз между событиями
+             * @default 100
+             */
+            ratePerSecond: number;
+            /**
+             * Format: int64
+             * @description Зерно генератора; то же зерно на том же снимке даёт ту же последовательность
+             * @default 1
+             */
+            seed: number;
+        };
+        StreamAccepted: {
+            runId: string;
+        };
+        LevelCounts: {
+            high: number;
+            medium: number;
+            low: number;
+            unscored: number;
+            lost: number;
+        };
+        StreamLevelChange: {
+            from: components["schemas"]["RiskLevel"];
+            to: components["schemas"]["RiskLevel"];
+            /** @description Сколько клиентов перешло с уровня from на to (клиент считается по худшей услуге) */
+            count: number;
+        };
+        StreamConsistency: {
+            /** @description Пересчёт с нуля над итоговым снимком совпал с тем, что отдаёт сервис */
+            ok: boolean;
+            /**
+             * Format: int64
+             * @description Наибольшая по модулю разница ожидаемой потери, суммы под риском и уже потерянного, в центах
+             */
+            diffCents: number;
+            /**
+             * Format: int64
+             * @description Версия снимка, по которой сверяли
+             */
+            version: number;
+        };
+        StreamReport: {
+            events: number;
+            applied: number;
+            failed: number;
+            /** Format: int64 */
+            durationMs: number;
+            eventsPerSecond: number;
+            applyP50Ms: number;
+            applyP95Ms: number;
+            applyMaxMs: number;
+            /** @description Сколько пересчётов выполнил движок за прогон (пересчёт склеивает пачки событий) */
+            recalcs: number;
+            /** @description p95 задержки от применения события до очереди, в которой оно учтено */
+            queueLagP95Ms?: number;
+            levelsBefore: components["schemas"]["LevelCounts"];
+            levelsAfter: components["schemas"]["LevelCounts"];
+            levelChanges: components["schemas"]["StreamLevelChange"][];
+            /** Format: int64 */
+            lossBeforeCents: number;
+            /** Format: int64 */
+            lossAfterCents: number;
+            consistency: components["schemas"]["StreamConsistency"];
+        };
+        StreamState: {
+            /** @enum {string} */
+            state: "idle" | "running" | "done" | "failed";
+            runId?: string;
+            events: number;
+            applied: number;
+            ratePerSecond?: number;
+            /** Format: int64 */
+            seed?: number;
+            /** Format: date-time */
+            startedAt?: string;
+            error?: string;
+            report?: components["schemas"]["StreamReport"];
+        };
         /** @enum {string} */
         RiskLevel: "high" | "medium" | "low" | "unscored" | "lost";
         CustomerRow: {
@@ -1004,7 +1110,7 @@ export interface components {
             /** @description Логин того, кто действовал; при неудачном входе — введённый логин */
             actor: string;
             /** @enum {string} */
-            action: "login" | "loginFailed" | "logout" | "settingsChanged" | "snapshotLoaded" | "serviceChanged" | "accountChanged" | "emulatorTick" | "emulatorActions" | "customersExported" | "taskCreated" | "taskChanged" | "taskRecorded";
+            action: "login" | "loginFailed" | "logout" | "settingsChanged" | "snapshotLoaded" | "serviceChanged" | "accountChanged" | "emulatorTick" | "emulatorActions" | "emulatorStream" | "customersExported" | "taskCreated" | "taskChanged" | "taskRecorded";
             /** @description Запись простыми словами */
             summary: string;
             /** @description Что было и что стало; пусто, если запись без правок значений */
@@ -1090,9 +1196,24 @@ export interface components {
             qualityCounts?: {
                 [key: string]: number;
             };
+            /** @description Ожидаемая потеря по причинам (признакам модели), по убыванию потери. Сумма lossCents равна expectedLossCents. Распределение по вкладу w·f признака, не доказанная причинность. */
+            lossByFeature: components["schemas"]["LossByFeature"][];
             retention?: components["schemas"]["SummaryRetention"];
             /** Format: int64 */
             version: number;
+        };
+        LossByFeature: {
+            /** @description Идентификатор признака модели (funds, noauto, fail и т. д.) */
+            featureId: string;
+            /** Format: int64 */
+            lossCents: number;
+            /** @description Клиенты с ненулевой долей потери по этой причине */
+            customers: number;
+            /**
+             * Format: double
+             * @description Доля в ожидаемой потере, 0..100, два знака
+             */
+            sharePercent: number;
         };
         /** @description Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics. */
         SummaryRetention: {
@@ -2167,6 +2288,66 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    getEmulatorStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Состояние прогона; пока прогонов не было, state — idle */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamState"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    startEmulatorStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StreamRequest"];
+            };
+        };
+        responses: {
+            /** @description Прогон принят */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamAccepted"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Другой прогон ещё идёт */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             501: components["responses"]["NotImplemented"];
         };
     };
