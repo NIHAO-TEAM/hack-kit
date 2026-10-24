@@ -55,3 +55,13 @@
 - WHEN идёт запрос на 300 мс и открыт SSE-поток, приходит SIGTERM
 - THEN `/readyz` сразу `503`, запрос получает `200`, SSE закрыт, процесс завершился до `SHUTDOWN_TIMEOUT`
 - Тест: `TestServeGracefulShutdown`
+
+### Requirement: отказ базы не роняет процесс
+
+При недоступной базе сервер SHALL продолжать работать: `/readyz` — `503`, чтение — последний готовый результат с заголовком `X-Data-Age`, запросы, которым нужна база, — `503` с `Retry-After`; после возврата базы события потока применены без потерь.
+
+#### Scenario: база пропала на 10 с под залпом
+
+- WHEN идёт залп 10 000 событий и PostgreSQL недоступен 10 с
+- THEN процесс не перезапускался, ответов `500` нет, после возврата все события применены, согласованность 0 центов
+- Тест: режим `outage` в `deploy-burst.yml` (`docs/load/outage.sh`); `TestIsDBUnavailable`, `TestMiddlewareDBDown`, `TestRetryCommitWaitsForDB`, `TestDataAge`
