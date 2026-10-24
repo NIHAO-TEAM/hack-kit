@@ -86,6 +86,14 @@ function ActionCell({ row }: { row: CustomerRow }) {
   );
 }
 
+/** Задача в строке: её смена на другом экране (SSE `tasks`) подсвечивает строку без пересчёта. */
+const taskSignature = (row: CustomerRow) =>
+  JSON.stringify(
+    row.task
+      ? [row.task.id, row.task.status, row.task.assignee, row.task.dueAt, row.task.overdue]
+      : null,
+  );
+
 /** Всё, что видно в строке: изменилось любое поле — строка подсветится. */
 const signature = (row: CustomerRow) =>
   JSON.stringify([
@@ -98,9 +106,7 @@ const signature = (row: CustomerRow) =>
     row.topAction?.id ?? null,
     row.topAction?.effectCents ?? null,
     row.billing ?? false,
-    row.task
-      ? [row.task.id, row.task.status, row.task.assignee, row.task.dueAt, row.task.overdue]
-      : null,
+    taskSignature(row),
   ]);
 
 /**
@@ -132,6 +138,9 @@ export function QueueTable({
 }) {
   const items = useMemo(() => rows.map((r) => ({ id: r.id, signature: signature(r) })), [rows]);
   const changed = useChangedRows(items, version);
+  const tasks = useMemo(() => rows.map((r) => ({ id: r.id, signature: taskSignature(r) })), [rows]);
+  const taskStamp = useMemo(() => tasks.map((t) => t.signature).join('|'), [tasks]);
+  const taskChanged = useChangedRows(tasks, taskStamp, true);
   const ariaSort = (c: Column) =>
     c.sort && c.sort === sort ? (order === 'asc' ? 'ascending' : 'descending') : undefined;
   return (
@@ -175,7 +184,7 @@ export function QueueTable({
               key={row.id}
               className={classes.row}
               data-dim={dim}
-              data-changed={changed.has(row.id)}
+              data-changed={changed.has(row.id) || taskChanged.has(row.id)}
               onClick={open}
             >
               {cell(0, row.id)}

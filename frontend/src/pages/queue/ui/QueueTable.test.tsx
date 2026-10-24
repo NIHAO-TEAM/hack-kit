@@ -93,3 +93,33 @@ describe('QueueTable: колонка «Работа»', () => {
     expect(screen.getByText('Связались')).toBeInTheDocument();
   });
 });
+
+describe('QueueTable: смена задачи подсвечивает строку', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const brief = (assignee: string) => ({
+    id: 1,
+    status: 'in_work' as const,
+    assignee,
+    dueAt: '2026-10-21T15:00:00Z',
+    overdue: false,
+  });
+
+  it('взяли на другом экране: версия пересчёта та же, строка подсвечена и через 2 с снята', () => {
+    const { rerender } = render(table([row(1, 100), row(2, 200)], 1));
+    rerender(table([row(1, 100), { ...row(2, 200), task: brief('jury') }], 1));
+    expect(changedIds()).toHaveLength(1);
+    expect(changedIds()[0]).toContain('c2@example.com');
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    expect(changedIds()).toEqual([]);
+  });
+
+  it('другая выборка (фильтр): новые строки не подсвечиваются', () => {
+    const { rerender } = render(table([row(1, 100)], 1));
+    rerender(table([row(3, 300), row(4, 400)], 1));
+    expect(changedIds()).toEqual([]);
+  });
+});

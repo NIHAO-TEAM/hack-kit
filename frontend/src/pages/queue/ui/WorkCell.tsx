@@ -23,6 +23,7 @@ export function WorkCell({
     return onTake ? (
       <Button
         size="xs"
+        className={classes.take}
         variant="default"
         loading={taking}
         onClick={(e) => {

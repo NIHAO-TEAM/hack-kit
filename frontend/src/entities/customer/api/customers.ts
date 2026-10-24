@@ -40,7 +40,6 @@ export const customersExportHref = (params: CustomerParams) => {
   const query = new URLSearchParams({ sort: params.sort, order: params.order });
   if (params.level) query.set('level', params.level);
   if (params.q) query.set('q', params.q);
-  if (params.task) query.set('task', params.task);
   return `/api/v1/customers/export.csv?${query}`;
 };
 

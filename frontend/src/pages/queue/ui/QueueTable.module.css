@@ -177,3 +177,10 @@
   flex-direction: column;
   gap: 2px;
 }
+
+/* Касание на планшете и телефоне: кнопка не меньше 44 px. */
+@media (width <= 64em) {
+  .take {
+    min-height: 44px;
+  }
+}
