@@ -6,7 +6,7 @@
 
 .table th,
 .table td {
-  padding: 12px 8px;
+  padding: 12px 6px;
   text-align: left;
   vertical-align: middle;
   border-bottom: 1px solid var(--border);
@@ -61,7 +61,12 @@
 }
 
 .email {
+  display: inline-block;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  vertical-align: bottom;
   color: inherit;
   font-weight: 500;
   text-decoration: none;
@@ -156,7 +161,7 @@
 
 @media (width > 64em) {
   .wide {
-    min-width: 12rem;
+    min-width: 9rem;
   }
 }
 
@@ -169,5 +174,34 @@
 @media (prefers-reduced-motion: reduce) {
   .row {
     transition: none;
+  }
+}
+
+.work {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 5.5rem;
+}
+
+.take {
+  height: auto;
+  min-height: 28px;
+  padding-block: 4px;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+/* Касание на планшете и телефоне: кнопка не меньше 44 px. */
+@media (width <= 64em) {
+  .take {
+    min-height: 44px;
+  }
+}
+
+/* Шкала окна спасения уже, чем по умолчанию: десятая колонка «Работа» должна уместиться на 1440. */
+@media (width > 64em) {
+  .table .window > * {
+    min-width: 150px;
   }
 }

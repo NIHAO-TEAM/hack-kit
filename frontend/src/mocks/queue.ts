@@ -1,6 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import type { components } from '@shared/api';
 import data from './data.json';
+import { openTaskBrief, taskFilterMatches } from './tasks';
 
 type CustomerRow = components['schemas']['CustomerRow'];
 type RiskLevel = components['schemas']['RiskLevel'];
@@ -99,12 +100,15 @@ export const queueHandlers = [
     const level = url.searchParams.get('level');
     const q = (url.searchParams.get('q') ?? '').toLowerCase();
     const billing = url.searchParams.get('billing');
+    const task = url.searchParams.get('task');
     const key = sortKey[sort] ?? sortKey['expectedLoss']!;
     const items = rows()
+      .map((r) => ({ ...r, task: openTaskBrief(r.id) }))
       .filter(
         (r) =>
           (!level || r.level === level) &&
           r.email.toLowerCase().includes(q) &&
+          taskFilterMatches(task, r.task) &&
           (!billing || Boolean(r.billing) === (billing === 'only')),
       )
       .sort((a, b) => {

@@ -11,6 +11,7 @@ import {
   RescueWindow,
 } from '@shared/ui';
 import classes from './QueueTable.module.css';
+import { WorkCell } from './WorkCell';
 
 interface Column {
   label: string;
@@ -29,6 +30,7 @@ const columns: Column[] = [
   { label: 'Потеря', sort: 'expectedLoss', num: true },
   { label: 'Причина' },
   { label: 'Окно спасения' },
+  { label: 'Работа' },
   { label: 'Действие' },
 ];
 
@@ -84,6 +86,14 @@ function ActionCell({ row }: { row: CustomerRow }) {
   );
 }
 
+/** Задача в строке: её смена на другом экране (SSE `tasks`) подсвечивает строку без пересчёта. */
+const taskSignature = (row: CustomerRow) =>
+  JSON.stringify(
+    row.task
+      ? [row.task.id, row.task.status, row.task.assignee, row.task.dueAt, row.task.overdue]
+      : null,
+  );
+
 /** Всё, что видно в строке: изменилось любое поле — строка подсветится. */
 const signature = (row: CustomerRow) =>
   JSON.stringify([
@@ -96,6 +106,7 @@ const signature = (row: CustomerRow) =>
     row.topAction?.id ?? null,
     row.topAction?.effectCents ?? null,
     row.billing ?? false,
+    taskSignature(row),
   ]);
 
 /**
@@ -110,6 +121,8 @@ export function QueueTable({
   order,
   onSort,
   onOpen,
+  onTake,
+  takingId,
 }: {
   rows: CustomerRow[];
   /** Версия пересчёта, по которому построена страница: подсветка только при её смене. */
@@ -119,9 +132,15 @@ export function QueueTable({
   order: CustomerOrder;
   onSort: (column: CustomerSort) => void;
   onOpen: (id: number) => void;
+  /** Взять клиента в работу из строки; без права не передаётся. */
+  onTake?: (id: number) => void;
+  takingId?: number | null;
 }) {
   const items = useMemo(() => rows.map((r) => ({ id: r.id, signature: signature(r) })), [rows]);
   const changed = useChangedRows(items, version);
+  const tasks = useMemo(() => rows.map((r) => ({ id: r.id, signature: taskSignature(r) })), [rows]);
+  const taskStamp = useMemo(() => tasks.map((t) => t.signature).join('|'), [tasks]);
+  const taskChanged = useChangedRows(tasks, taskStamp, true);
   const ariaSort = (c: Column) =>
     c.sort && c.sort === sort ? (order === 'asc' ? 'ascending' : 'descending') : undefined;
   return (
@@ -165,7 +184,7 @@ export function QueueTable({
               key={row.id}
               className={classes.row}
               data-dim={dim}
-              data-changed={changed.has(row.id)}
+              data-changed={changed.has(row.id) || taskChanged.has(row.id)}
               onClick={open}
             >
               {cell(0, row.id)}
@@ -180,8 +199,26 @@ export function QueueTable({
               {cell(4, <Score row={row} />)}
               {cell(5, dim ? '—' : <Money cents={row.expectedLossCents} />)}
               {cell(6, <span className={classes.reason}>{row.topReason ?? '—'}</span>)}
-              {cell(7, asOf ? <RescueWindow expiresAt={row.expiresAt ?? null} asOf={asOf} /> : '—')}
-              {cell(8, <ActionCell row={row} />)}
+              {cell(
+                7,
+                asOf ? (
+                  <span className={classes.window}>
+                    <RescueWindow expiresAt={row.expiresAt ?? null} asOf={asOf} />
+                  </span>
+                ) : (
+                  '—'
+                ),
+              )}
+              {cell(
+                8,
+                <WorkCell
+                  task={row.task}
+                  asOf={asOf}
+                  onTake={onTake && !row.billing ? () => onTake(row.id) : undefined}
+                  taking={takingId === row.id}
+                />,
+              )}
+              {cell(9, <ActionCell row={row} />)}
             </tr>
           );
         })}

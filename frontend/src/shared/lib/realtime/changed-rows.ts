@@ -11,10 +11,12 @@ export interface RowSignature {
 /** ID строк, которые изменились при смене version; живут HIGHLIGHT_MS. */
 export function useChangedRows(
   items: readonly RowSignature[] | undefined,
-  version: number | null,
+  version: number | string | null,
+  /** Только строки, что были на экране раньше: новые на странице (другой фильтр) не подсвечиваются. */
+  existingOnly = false,
 ): ReadonlySet<string | number> {
   const previous = useRef<Map<string | number, string> | null>(null);
-  const seenVersion = useRef<number | null>(version);
+  const seenVersion = useRef<number | string | null>(version);
   const [changed, setChanged] = useState<ReadonlySet<string | number>>(new Set());
 
   useEffect(() => {
@@ -25,10 +27,12 @@ export function useChangedRows(
     // Первая загрузка и обновления без нового пересчёта не подсвечиваем.
     if (!before || version === seenVersion.current) return;
     seenVersion.current = version;
-    const ids = items.filter((i) => before.get(i.id) !== i.signature).map((i) => i.id);
+    const ids = items
+      .filter((i) => (!existingOnly || before.has(i.id)) && before.get(i.id) !== i.signature)
+      .map((i) => i.id);
     if (ids.length === 0) return;
     setChanged(new Set(ids));
-  }, [items, version]);
+  }, [items, version, existingOnly]);
 
   useEffect(() => {
     if (changed.size === 0) return;
