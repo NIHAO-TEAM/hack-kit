@@ -2,7 +2,7 @@ import { Anchor, Badge, Card, Grid, Group, Stack, Text, Title } from '@mantine/c
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import { customerQuery, type CustomerDetail } from '@entities/customer-detail';
+import { customerQuery, scorePercentText, type CustomerDetail } from '@entities/customer-detail';
 import { summaryOptions } from '@entities/summary';
 import { ApiError } from '@shared/api';
 import { formatMoney, useChangedRows } from '@shared/lib';
@@ -31,7 +31,7 @@ function BackLink() {
 function scoreText(customer: CustomerDetail['customer']): string {
   if (customer.level === 'lost') return 'потерян: все услуги заблокированы';
   if (customer.score == null) return 'нет оценки';
-  return `скор ${Math.round(customer.score * 100)} %`;
+  return scorePercentText(customer.score);
 }
 
 function NotFound({ id }: { id: number }) {

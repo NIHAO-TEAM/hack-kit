@@ -18,6 +18,13 @@ describe('экран «Карточка клиента»', () => {
     expect(screen.getByText(/платежи на 30 дней × вероятность срыва/i)).toBeInTheDocument();
   });
 
+  it('клиент 9: скор в шапке «88 %», в формуле вероятность «0,88»', async () => {
+    renderApp('/queue/9');
+    expect(await screen.findByText('скор 88 %')).toBeInTheDocument();
+    expect(screen.queryByText(/8814/)).toBeNull();
+    expect(await screen.findByText(/^P = 1 − /)).toHaveTextContent(/= 0,88$/);
+  });
+
   it('карточка клиента 9: признаки по убыванию вклада и формула с числами ответа', async () => {
     renderApp('/queue/9');
     const table = await screen.findByRole('table', { name: 'Признаки риска клиента' });
@@ -109,7 +116,7 @@ describe('экран «Карточка клиента»', () => {
               email: 'c9@example.com',
               balance: 0,
               totalReplenished: 0,
-              score: 0.88,
+              score: 88,
               level: 'high',
               expectedLossCents: 100,
             },

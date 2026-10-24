@@ -67,7 +67,7 @@ export function customerDetailHandler(
       return HttpResponse.json({
         ...base,
         ...extra,
-        customer: { ...base.customer, score: 0.8814, level: 'high', expectedLossCents: 345927 },
+        customer: { ...base.customer, score: 88.14, level: 'high', expectedLossCents: 345927 },
       });
     }
     if (id === 2) {
