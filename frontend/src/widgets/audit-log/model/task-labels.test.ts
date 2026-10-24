@@ -1,4 +1,4 @@
-import { outcomeLabel, statusLabel } from './labels';
+import { outcomeLabel, statusLabel } from './task-labels';
 
 describe('подписи задачи', () => {
   it('статусы и итоги', () => {
