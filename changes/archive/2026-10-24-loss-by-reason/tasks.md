@@ -15,6 +15,6 @@
 
 ## 3. Документы и готовность
 
-- [ ] 3.1 `docs/model.md`: раздел «Потеря по причинам» — проверка: числа совпадают с golden
-- [ ] 3.2 `go test ./...` и `pnpm check` зелёные
-- [ ] 3.3 `main` после слияния: CI, `Deploy k8s`, ingress, smoke, a11y, layout зелёные — проверка: логи прогонов
+- [x] 3.1 `docs/model.md`: раздел «Потеря по причинам» — проверка: числа совпадают с golden
+- [x] 3.2 `go test ./...` и `pnpm check` зелёные (backend: go test без БД; frontend: pnpm check; тесты с БД проверит CI)
+- [ ] 3.3 `main` после слияния: CI, `Deploy k8s`, ingress, smoke, a11y, layout зелёные — проверка: логи прогонов (после слияния, не в этом PR)
