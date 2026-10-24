@@ -1,10 +1,11 @@
 package risk
 
 import (
+	"cmp"
 	"context"
 	"math"
 	"runtime"
-	"sort"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -164,7 +165,7 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 	}
 
 	accounts := append([]Account(nil), s.Accounts...)
-	sort.Slice(accounts, func(i, j int) bool { return accounts[i].ID < accounts[j].ID })
+	slices.SortFunc(accounts, func(a, b Account) int { return cmp.Compare(a.ID, b.ID) })
 
 	res := Result{AsOf: asOf, Summary: Summary{
 		Levels:        map[string]int{LevelHigh: 0, LevelMedium: 0, LevelLow: 0, StateLost: 0, StateUnscored: 0},
@@ -325,7 +326,7 @@ func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]T
 		})
 	}
 	// первое — главное действие: наибольшее снижение потери (правило 9)
-	sort.SliceStable(out, func(i, j int) bool { return out[i].LossDeltaCents < out[j].LossDeltaCents })
+	slices.SortStableFunc(out, func(a, b ActionResult) int { return cmp.Compare(a.LossDeltaCents, b.LossDeltaCents) })
 	return out
 }
 
@@ -358,9 +359,9 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 		c.State = StateUnscored
 		return c, FundsCtx{}
 	}
-	sort.Slice(svcs, func(i, j int) bool { return svcs[i].ID < svcs[j].ID })
+	slices.SortFunc(svcs, func(a, b Service) int { return cmp.Compare(a.ID, b.ID) })
 
-	var live []Service
+	live := make([]Service, 0, len(svcs))
 	for _, sv := range svcs {
 		if sv.IsLive() {
 			live = append(live, sv)
@@ -382,6 +383,7 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 
 	funds := accountFunds(a, live, asOf, st)
 	best := 0.0
+	c.Services = make([]ServiceResult, 0, len(live))
 	for _, sv := range live {
 		ctx := ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID], Funds: funds}
 		sr := scoreService(ctx, st, fs, cs)
@@ -406,6 +408,7 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 func scoreService(ctx ServiceCtx, st Settings, fs []Feature, cs []Check) ServiceResult {
 	sr := ServiceResult{ID: ctx.Service.ID, RCents: amount(ctx.Service, ctx.AsOf, st.horizonHours(), st.PriceBasis)}
 	q := 1.0
+	sr.Features = make([]FeatureHit, 0, len(fs))
 	for _, f := range fs {
 		v, reason, ok := f.Eval(ctx)
 		if !ok {
@@ -416,13 +419,16 @@ func scoreService(ctx ServiceCtx, st Settings, fs []Feature, cs []Check) Service
 		q *= 1 - w*v
 		sr.Features = append(sr.Features, FeatureHit{ID: f.ID(), F: v, Weight: w, Contribution: w * v, Reason: reason})
 	}
+	if len(sr.Features) == 0 {
+		sr.Features = nil
+	}
 	sr.P = 1 - q
 	sr.LossCents = int64(math.RoundToEven(sr.P * float64(sr.RCents)))
-	sort.SliceStable(sr.Features, func(i, j int) bool {
-		if sr.Features[i].Contribution != sr.Features[j].Contribution {
-			return sr.Features[i].Contribution > sr.Features[j].Contribution
+	slices.SortStableFunc(sr.Features, func(a, b FeatureHit) int {
+		if a.Contribution != b.Contribution {
+			return cmp.Compare(b.Contribution, a.Contribution)
 		}
-		return sr.Features[i].ID < sr.Features[j].ID
+		return cmp.Compare(a.ID, b.ID)
 	})
 	h := qualityFlags(ctx, cs)
 	sr.Quality, sr.QualityIDs = h.Messages, h.IDs
