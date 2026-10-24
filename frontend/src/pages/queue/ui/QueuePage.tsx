@@ -2,30 +2,25 @@ import {
   Button,
   Group,
   Select,
-  SegmentedControl,
   Stack,
   Text,
   TextInput,
   Title,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { notifications } from '@mantine/notifications';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import {
   customersExportHref,
-  customersKey,
   customersOptions,
   QUEUE_PAGE_SIZE,
   type CustomerParams,
   type CustomerSort,
   type RiskLevel,
-  type TaskFilter,
 } from '@entities/customer';
-import { takeTask, TaskConflictError } from '@entities/retention-task';
 import { ApiError } from '@shared/api';
-import { can, type Role } from '@entities/session';
+import type { Role } from '@entities/session';
 import {
   IconDownload,
   IconSearch,
@@ -52,13 +47,6 @@ const levelOptions: Array<{ value: RiskLevel; label: string }> = [
   { value: 'lost', label: 'Потерян' },
 ];
 
-const taskOptions: Array<{ value: TaskFilter | 'all'; label: string }> = [
-  { value: 'all', label: 'Все' },
-  { value: 'none', label: 'Без работы' },
-  { value: 'open', label: 'В работе' },
-  { value: 'mine', label: 'Мои' },
-];
-
 /** Первый клик по заголовку: числа — от больших к меньшим, текст и ID — по возрастанию. */
 const firstOrder: Record<CustomerSort, 'asc' | 'desc'> = {
   id: 'asc',
@@ -80,21 +68,6 @@ export function QueuePage({
   role: Role;
 }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
-  // 409: клиента уже взял другой, строка перечитывается и показывает его.
-  const take = useMutation({
-    mutationFn: (id: number) => takeTask(id, {}),
-    onError: (e) => {
-      notifications.show({
-        color: 'orange',
-        message:
-          e instanceof TaskConflictError
-            ? `Клиента уже взял ${e.changedBy ?? 'другой сотрудник'}`
-            : 'Не удалось взять в работу. Повторите попытку.',
-      });
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: customersKey }),
-  });
   const page = params.page ?? 1;
   const customers = useQuery({
     ...customersOptions({ ...params, billing: 'exclude', limit: QUEUE_PAGE_SIZE }),
@@ -117,7 +90,7 @@ export function QueuePage({
   );
   // Группа «У биллинга»: сбой автосписания, маркетолог не действует; сортировка и поиск очереди не влияют.
   const billing = useQuery(
-    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'only', task: params.task }),
+    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'only' }),
   );
 
   const [whatIf, setWhatIf] = useState(false);
@@ -167,7 +140,7 @@ export function QueuePage({
       );
   } else if (customers.data && customers.data.items.length === 0) {
     body =
-      params.q || params.level || params.task ? (
+      params.q || params.level ? (
         <StateEmpty title="Никого не нашли">
           Измените поиск, уровень риска или фильтр по работе.
         </StateEmpty>
@@ -195,8 +168,6 @@ export function QueuePage({
           order={params.order}
           onSort={onSort}
           onOpen={open}
-          onTake={can(role, 'tasks.edit') ? (id) => take.mutate(id) : undefined}
-          takingId={take.isPending ? take.variables : null}
         />
         {total > QUEUE_PAGE_SIZE ? (
           <Group justify="space-between" align="center">
@@ -263,16 +234,6 @@ export function QueuePage({
           Скачать CSV
         </Button>
       </Group>
-      <SegmentedControl
-        aria-label="Работа с клиентом"
-        data={taskOptions.filter((o) => o.value !== 'mine' || can(role, 'tasks.edit'))}
-        value={params.task ?? 'all'}
-        onChange={(value) =>
-          onParams(
-            withView({ ...params, task: value === 'all' ? undefined : (value as TaskFilter) }),
-          )
-        }
-      />
       {body}
       <BillingGroup
         rows={billing.data?.items}
