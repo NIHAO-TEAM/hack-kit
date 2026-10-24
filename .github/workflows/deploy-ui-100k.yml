@@ -75,14 +75,23 @@ jobs:
           E2E_BASE_URL: http://localhost:8080
           E2E_JURY_PASSWORD: ${{ env.DEMO_JURY_PASSWORD }}
           UI_100K_REPORT: ${{ runner.temp }}/ui-100k-report.md
+          UI_100K_LOG: ${{ runner.temp }}/ui-100k-steps.log
           CI: "true"
         run: npx playwright test ui-100k --retries=0 --reporter=list
+
+      - name: Журнал шагов
+        if: always()
+        run: |
+          { echo '## Журнал шагов'; echo '```'; cat "$RUNNER_TEMP/ui-100k-steps.log" 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/ui-100k-steps.log" 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ui-100k-report
-          path: ${{ runner.temp }}/ui-100k-report.md
+          path: |
+            ${{ runner.temp }}/ui-100k-report.md
+            ${{ runner.temp }}/ui-100k-steps.log
           if-no-files-found: ignore
 
       - name: Скриншоты падения

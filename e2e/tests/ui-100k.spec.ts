@@ -13,6 +13,9 @@ const PREVIEW_MS = 2000;
 const CSV_MEM_MB = 100;
 const CSV_ROWS = 100_000;
 
+const logPath = process.env.UI_100K_LOG ?? 'ui-100k-steps.log';
+const step = (msg: string) => appendFileSync(logPath, `${new Date().toISOString()} ${msg}\n`);
+
 const rows: { what: string; ms: number; goal: number }[] = [];
 const bad: string[] = [];
 const notes: string[] = [];
@@ -85,6 +88,7 @@ test('экраны на 100 тыс. клиентов: время, консоль
         await page.goto(s.path);
         await expect(s.ready(page)).toBeVisible({ timeout: 30_000 });
       });
+      step(`экран ${s.name}: ${ms} мс`);
       record(`экран: ${s.name}`, ms, SCREEN_MS);
       await expect(page.getByRole('alert').filter({ hasText: /ошибк|не удалось|сбой|недоступн/i }), `${s.name}: сообщение об ошибке`).toHaveCount(0);
     }
@@ -94,30 +98,39 @@ test('экраны на 100 тыс. клиентов: время, консоль
     });
     record('экран: карточка клиента', cardMs, SCREEN_MS);
 
+    step(`карточка: ${cardMs} мс`);
     // Очередь: строки на месте, не пустая и не обрезана.
     await page.goto('/queue');
     await expect(queueTable(page)).toBeVisible();
-    expect(await queueTable(page).getByRole('row').count(), 'строки очереди').toBeGreaterThan(10);
+    step('очередь открыта, считаю строки');
+    expect(await queueTable(page).locator('tbody tr').count(), 'строки очереди').toBeGreaterThan(10);
+    step('строки посчитаны');
 
     // 1.2. Сортировка и страницы очереди (клик по UI).
     const header = queueTable(page).getByRole('columnheader').getByRole('button').first();
     const sortMs = await timed(async () => {
+      const resp = page.waitForResponse((r) => r.url().includes('/api/v1/customers') && r.ok(), { timeout: 20_000 });
       await header.click();
-      await expect(queueTable(page).getByRole('row').nth(1)).toBeVisible();
-      await page.waitForLoadState('networkidle');
+      await resp;
+      await expect(queueTable(page).locator('tbody tr').first()).toBeVisible();
     });
+    step(`сортировка: ${sortMs} мс`);
     record('очередь: смена сортировки', sortMs, SORT_MS);
     const next = page.getByRole('button', { name: /Следующая|Вперёд/i }).first();
     if (await next.isVisible().catch(() => false)) {
-      record('очередь: следующая страница', await timed(async () => {
+      const pageMs = await timed(async () => {
+        const resp = page.waitForResponse((r) => r.url().includes('/api/v1/customers') && r.ok(), { timeout: 20_000 });
         await next.click();
-        await page.waitForLoadState('networkidle');
-      }), SORT_MS);
+        await resp;
+      });
+      step(`страница: ${pageMs} мс`);
+      record('очередь: следующая страница', pageMs, SORT_MS);
     }
     const apiPage = await timed(async () => {
       const res = await context.request.get('/api/v1/customers?sort=score&order=asc&limit=50&offset=99900');
       expect(res.ok()).toBeTruthy();
     });
+    step(`API последняя страница: ${apiPage} мс`);
     record('API: последняя страница очереди', apiPage, SORT_MS);
 
     // Предпросмотр веса и устойчивость.
@@ -129,20 +142,24 @@ test('экраны на 100 тыс. клиентов: время, консоль
       });
       expect(res.ok(), 'предпросмотр веса').toBeTruthy();
     });
+    step(`dryRun: ${preview} мс`);
     record('API: предпросмотр веса (dryRun)', preview, PREVIEW_MS);
     const sens = await timed(async () => {
-      const res = await context.request.get('/api/v1/model/sensitivity');
+      const res = await context.request.get('/api/v1/model/sensitivity', { timeout: 60_000 });
       expect(res.ok(), 'устойчивость').toBeTruthy();
     });
+    step(`устойчивость: ${sens} мс`);
     record('API: устойчивость очереди', sens, PREVIEW_MS);
 
     // 1.3. CSV целиком, память процесса.
+    step('CSV: старт');
     const before = await metric(context.request, 'process_resident_memory_bytes');
     let csv = '';
     const csvMs = await timed(async () => {
-      const res = await context.request.get('/api/v1/customers/export.csv');
+      const res = await context.request.get('/api/v1/customers/export.csv', { timeout: 120_000 });
       expect(res.ok(), 'CSV').toBeTruthy();
       csv = await res.text();
+      step(`CSV получен: ${csv.length} байт`);
     });
     const after = await metric(context.request, 'process_resident_memory_bytes');
     const lines = csv.split('\n').filter((l) => l.trim() !== '').length - 1;
