@@ -26,9 +26,9 @@ export const featureInfo: Record<string, { title: string; hint: string; defaultW
     defaultWeight: 0.35,
   },
   flight: {
-    title: 'Баланс уходит со счёта',
-    hint: 'Клиент выводит остаток — признак ухода',
-    defaultWeight: 0.15,
+    title: 'Реферальный баланс к выводу',
+    hint: 'Доступно к выводу X из Y. Факт вывода в данных не виден; по умолчанию не влияет на риск',
+    defaultWeight: 0,
   },
   bonus_locked: {
     title: 'Бонусы заблокированы',

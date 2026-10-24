@@ -12,17 +12,17 @@ describe('экран «Карточка клиента»', () => {
   it('клиент 9: потеря, главное действие с ценой и пояснение суммы', async () => {
     renderApp('/queue/9');
     expect(await screen.findByRole('heading', { name: 'Клиент 9' })).toBeInTheDocument();
-    expect(screen.getAllByText(/3\s459,27\s€/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/3\s189,10\s€/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Пополнить на 529,84/)).toBeInTheDocument();
-    expect(screen.getByText(/−1\s067,48\s€/)).toBeInTheDocument();
+    expect(screen.getByText(/−1\s027,49\s€/)).toBeInTheDocument();
     expect(screen.getByText(/платежи на 30 дней × вероятность срыва/i)).toBeInTheDocument();
   });
 
-  it('клиент 9: скор в шапке «88 %», в формуле вероятность «0,88»', async () => {
+  it('клиент 9: скор в шапке «87 %», в формуле вероятность «0,87»', async () => {
     renderApp('/queue/9');
-    expect(await screen.findByText('скор 88 %')).toBeInTheDocument();
+    expect(await screen.findByText('скор 87 %')).toBeInTheDocument();
     expect(screen.queryByText(/8814/)).toBeNull();
-    expect(await screen.findByText(/^P = 1 − /)).toHaveTextContent(/= 0,88$/);
+    expect(await screen.findByText(/^P = 1 − /)).toHaveTextContent(/= 0,87$/);
   });
 
   it('карточка клиента 9: признаки по убыванию вклада и формула с числами ответа', async () => {
@@ -34,7 +34,7 @@ describe('экран «Карточка клиента»', () => {
     expect(within(table).getByText('funds')).toBeInTheDocument();
     expect(within(table).getByText('susp')).toBeInTheDocument();
     expect(within(table).getByText('Вклад')).toBeInTheDocument();
-    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,88');
+    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,87');
   });
 
   it('раскрытая услуга не выдаёт признаки клиента за свои', async () => {

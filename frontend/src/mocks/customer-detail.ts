@@ -27,17 +27,17 @@ const featured: Record<number, Pick<Detail, 'features' | 'actions' | 'explanatio
       {
         id: 'flight',
         value: 0.605337,
-        weight: 0.15,
-        contribution: 0.0908,
-        reason: 'Баланс уходит',
+        weight: 0,
+        contribution: 0,
+        reason: 'Часть баланса доступна к выводу. Факт вывода в данных не виден',
       },
     ],
     actions: [
       {
         id: 'topup',
         title: 'Пополнить на 529,84 €',
-        effectCents: -106748,
-        newScore: 0.8346,
+        effectCents: -102749,
+        newScore: 0.8245,
         newLevel: 'high',
       },
       {
@@ -67,7 +67,7 @@ export function customerDetailHandler(
       return HttpResponse.json({
         ...base,
         ...extra,
-        customer: { ...base.customer, score: 88.14, level: 'high', expectedLossCents: 345927 },
+        customer: { ...base.customer, score: 86.95, level: 'high', expectedLossCents: 318910 },
       });
     }
     return HttpResponse.json(extra ? { ...base, ...extra } : base);

@@ -42,4 +42,4 @@ E2E_BASE_URL=https://<домен> npx playwright test smoke
 
 ## Данные стенда
 
-Суммы в `demo.spec.ts` (3 879,73 €, 3 459,27 €) верны для сида без `SEED_STAND` (по умолчанию `false`). При `SEED_STAND=true` `reset` возвращает 16 аккаунтов и 4 604,82 €, шаг 1 упадёт.
+Суммы в `demo.spec.ts` (3 599,07 €, 3 189,10 €) верны для сида без `SEED_STAND` (по умолчанию `false`). При `SEED_STAND=true` `reset` возвращает 16 аккаунтов и 4 604,82 €, шаг 1 упадёт.

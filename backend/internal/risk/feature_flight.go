@@ -6,8 +6,11 @@ type flight struct{}
 
 func init() { Register(flight{}) }
 
-func (flight) ID() string             { return "flight" }
-func (flight) DefaultWeight() float64 { return 0.15 }
+func (flight) ID() string { return "flight" }
+
+// DefaultWeight 0: withdrawBalance — реферальный баланс, доступный к выводу; факта вывода в данных нет.
+// Признак считается и виден в карточке, на скор влияет после включения веса на экране «Модель».
+func (flight) DefaultWeight() float64 { return 0 }
 
 // Eval: доля баланса, доступного к выводу; баланс 0 — 0 (правило 5).
 func (flight) Eval(ctx ServiceCtx) (float64, string, bool) {
@@ -19,5 +22,5 @@ func (flight) Eval(ctx ServiceCtx) (float64, string, bool) {
 	if f <= 0 {
 		return 0, "", true
 	}
-	return f, fmt.Sprintf("К выводу доступно %s из %s на балансе", euros(a.WithdrawBalance), euros(a.Balance)), true
+	return f, fmt.Sprintf("Доступно к выводу %s из %s. Факт вывода в данных не виден; по умолчанию не влияет на риск", euros(a.WithdrawBalance), euros(a.Balance)), true
 }

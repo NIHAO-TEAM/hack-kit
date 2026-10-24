@@ -70,7 +70,7 @@ func TestListCustomersDefault(t *testing.T) {
 	if got := ids(page); got[0] != 9 || got[1] != 1 {
 		t.Errorf("первые строки %v, ждали 9 и 1", got)
 	}
-	if page.Items[0].ExpectedLossCents != 345927 || page.Items[1].ExpectedLossCents != 38315 {
+	if page.Items[0].ExpectedLossCents != 318910 || page.Items[1].ExpectedLossCents != 37508 {
 		t.Errorf("потери %d и %d", page.Items[0].ExpectedLossCents, page.Items[1].ExpectedLossCents)
 	}
 	tail := page.Items[len(page.Items)-4:]
@@ -231,13 +231,13 @@ func TestGetCustomer9(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("статус %d", w.Code)
 	}
-	if d.Customer.ExpectedLossCents != 345927 {
-		t.Errorf("потеря №9 = %d, ждали 345927", d.Customer.ExpectedLossCents)
+	if d.Customer.ExpectedLossCents != 318910 {
+		t.Errorf("потеря №9 = %d, ждали 318910", d.Customer.ExpectedLossCents)
 	}
-	if len(d.Actions) == 0 || d.Actions[0].Id != "top_up" || d.Actions[0].EffectCents != -106748 {
-		t.Errorf("действия %+v, ждали пополнить −106748", d.Actions)
+	if len(d.Actions) == 0 || d.Actions[0].Id != "top_up" || d.Actions[0].EffectCents != -102749 {
+		t.Errorf("действия %+v, ждали пополнить −102749", d.Actions)
 	}
-	if d.Customer.TopAction == nil || d.Customer.TopAction.EffectCents != -106748 {
+	if d.Customer.TopAction == nil || d.Customer.TopAction.EffectCents != -102749 {
 		t.Errorf("topAction %+v", d.Customer.TopAction)
 	}
 	if d.Customer.TopReason == nil || *d.Customer.TopReason != "Автопродление выключено, срок услуги уже вышел" {

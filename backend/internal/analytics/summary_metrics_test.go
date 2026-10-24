@@ -25,7 +25,7 @@ func fixture() *analytics.Overview {
 	return &analytics.Overview{
 		Version: 7, AsOf: asOf, Duration: 12 * time.Millisecond,
 		Levels:            map[string]int{"high": 3, "medium": 2, "low": 1, "unscored": 0, "lost": 4},
-		ExpectedLossCents: 387973, AtRiskCents: 690046, LostCents: 736834,
+		ExpectedLossCents: 359907, AtRiskCents: 690046, LostCents: 736834,
 		QualityCounts: map[string]int{"stale": 2},
 	}
 }
@@ -64,7 +64,7 @@ func TestSummary(t *testing.T) {
 			t.Errorf("уровень %s = %d, ждали %d", k, got.Levels[k], v)
 		}
 	}
-	if got.ExpectedLossCents != 387973 || got.AtRiskCents != 690046 || got.LostCents != 736834 || got.Version != 7 {
+	if got.ExpectedLossCents != 359907 || got.AtRiskCents != 690046 || got.LostCents != 736834 || got.Version != 7 {
 		t.Errorf("суммы: %+v", got)
 	}
 	if !got.AsOf.Equal(asOf) || got.QualityCounts["stale"] != 2 {

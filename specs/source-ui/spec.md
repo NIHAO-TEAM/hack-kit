@@ -7,7 +7,7 @@
 #### Scenario: правка баланса
 
 - WHEN аналитик увеличивает баланс клиента 9 на 529,84 €
-- THEN ожидаемая потеря клиента 9 падает на 1 067,48 €, очередь у маркетолога обновилась
+- THEN ожидаемая потеря клиента 9 падает на 1 027,49 €, очередь у маркетолога обновилась
 - Тест: `TestPatchAccountRecalculatesLoss` (`backend/internal/app/customers_integration_test.go`), `TestPatchAccount` (`backend/internal/source/patch_test.go`)
 
 #### Scenario: плохой файл
