@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,8 +30,16 @@ const (
 	OriginEmulator = "emulator"
 )
 
-// TopicChanged — тема шины, в которую после коммита снимка уходит номер версии.
+// TopicChanged — тема шины, в которую после коммита снимка уходит Change.
 const TopicChanged = "source.changed"
+
+// Change — что изменилось в снимке: его новая версия и клиенты, чьи строки правились.
+// Пустой Accounts — «всё»: загрузка снимка, шаг эмулятора, опрос биллинга; пересчёт тогда полный.
+// Непустой — только эти клиенты (пачка событий потока): данные остальных не менялись.
+type Change struct {
+	Version  int64
+	Accounts []int64
+}
 
 // lockKey — ключ advisory-блокировки: два снимка одновременно не пишутся.
 const lockKey = 7301001
@@ -191,7 +200,7 @@ func OnStart(ctx context.Context, pool *pgxpool.Pool, bus *events.Bus, clk clock
 	if err != nil {
 		return fmt.Errorf("source: сид: %w", err)
 	}
-	bus.Publish(TopicChanged, acc.Version)
+	bus.Publish(TopicChanged, Change{Version: acc.Version})
 	return nil
 }
 
@@ -276,6 +285,76 @@ func (r *Reader) Load(ctx context.Context) (Snapshot, int64, error) {
 
 	rows, err = tx.Query(ctx, `SELECT id, amount, status, "performedAt", "createdAt", type, "serviceId"
 		FROM transactions ORDER BY id`)
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: transactions: %w", err)
+	}
+	snap.Transactions, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (t Transaction, err error) {
+		err = row.Scan(&t.ID, &t.Amount, &t.Status, &t.PerformedAt, &t.CreatedAt, &t.Type, &t.ServiceID)
+		return t, err
+	})
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: transactions: %w", err)
+	}
+	return snap, version, nil
+}
+
+// LoadAccounts читает строки только указанных клиентов: счета, их услуги и платежи этих услуг, и
+// версию снимка, на которой они согласованы (одна транзакция REPEATABLE READ). Счёта, которого нет в
+// таблице, в ответе нет — решает вызывающий. AsOf — как у Load.
+func (r *Reader) LoadAccounts(ctx context.Context, ids []int64) (Snapshot, int64, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return Snapshot{}, 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var (
+		version  int64
+		asOf     *time.Time
+		loadedAt time.Time
+	)
+	err = tx.QueryRow(ctx, "SELECT version, as_of, loaded_at FROM snapshots ORDER BY version DESC LIMIT 1").
+		Scan(&version, &asOf, &loadedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Snapshot{}, 0, ErrNoSnapshot
+	}
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: версия снимка: %w", err)
+	}
+	at := loadedAt.UTC()
+	if asOf != nil {
+		at = asOf.UTC()
+	}
+	snap := Snapshot{AsOf: &at}
+
+	rows, err := tx.Query(ctx, `SELECT id, email, balance, "withdrawBalance", "totalReplenished", "bonusBalance", "bonusState"
+		FROM accounts WHERE id = ANY($1) ORDER BY id`, ids)
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: accounts: %w", err)
+	}
+	snap.Accounts, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (a Account, err error) {
+		err = row.Scan(&a.ID, &a.Email, &a.Balance, &a.WithdrawBalance, &a.TotalReplenished, &a.BonusBalance, &a.BonusState)
+		return a, err
+	})
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: accounts: %w", err)
+	}
+
+	rows, err = tx.Query(ctx, `SELECT id, name, "ownerId", "paymentTerm", "autoProlong", "createdAt", "expiresAt", status, price
+		FROM services WHERE "ownerId" = ANY($1) ORDER BY id`, ids)
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: services: %w", err)
+	}
+	snap.Services, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (v Service, err error) {
+		err = row.Scan(&v.ID, &v.Name, &v.OwnerID, &v.PaymentTerm, &v.AutoProlong, &v.CreatedAt, &v.ExpiresAt, &v.Status, &v.Price)
+		return v, err
+	})
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: services: %w", err)
+	}
+
+	rows, err = tx.Query(ctx, `SELECT t.id, t.amount, t.status, t."performedAt", t."createdAt", t.type, t."serviceId"
+		FROM transactions t WHERE t."serviceId" IN (SELECT id FROM services WHERE "ownerId" = ANY($1)) ORDER BY t.id`, ids)
 	if err != nil {
 		return Snapshot{}, 0, fmt.Errorf("source: transactions: %w", err)
 	}
@@ -454,7 +533,7 @@ func (a *Adapter) poll(ctx context.Context) (bool, error) {
 	a.mu.Lock()
 	a.lastHash, a.hasHash = sum, true
 	a.mu.Unlock()
-	a.bus.Publish(TopicChanged, acc.Version)
+	a.bus.Publish(TopicChanged, Change{Version: acc.Version})
 	return true, nil
 }
 
@@ -535,7 +614,7 @@ type ingestResult struct {
 type eventWriter struct {
 	pool    *pgxpool.Pool
 	state   *ingestState
-	publish func(version int64) // после фиксации пачки: одно source.changed
+	publish func(Change) // после фиксации пачки: одно source.changed с клиентами пачки
 	now     func() time.Time
 	// onBatch вызывается писателем после каждой пачки; итоги в порядке событий пачки.
 	onBatch func([]ingestResult)
@@ -548,7 +627,7 @@ type eventWriter struct {
 	dups int
 }
 
-func newEventWriter(pool *pgxpool.Pool, st *ingestState, now func() time.Time, publish func(int64), onBatch func([]ingestResult)) *eventWriter {
+func newEventWriter(pool *pgxpool.Pool, st *ingestState, now func() time.Time, publish func(Change), onBatch func([]ingestResult)) *eventWriter {
 	return &eventWriter{
 		pool: pool, state: st, now: now, publish: publish, onBatch: onBatch,
 		in: make(chan ingestItem, ingestQueueSize), done: make(chan struct{}),
@@ -664,8 +743,28 @@ func (g *eventWriter) write(ctx context.Context, items []ingestItem) []ingestRes
 		ingestBatchSeconds.Observe(time.Since(t0).Seconds())
 	}
 	if err == nil && version != 0 {
-		g.publish(version)
+		g.publish(Change{Version: version, Accounts: g.touched(items, good, skipped)})
 	}
+	return out
+}
+
+// touched — клиенты записанных событий пачки по возрастанию номера, без повторов.
+// Событие, которое не затронуло ни одной строки, клиента не добавляет.
+func (g *eventWriter) touched(items []ingestItem, good []int, skipped map[int]error) []int64 {
+	seen := make(map[int64]struct{}, len(good))
+	for _, i := range good {
+		if skipped[i] != nil {
+			continue
+		}
+		for _, id := range g.state.accountsOf(items[i].ev) {
+			seen[id] = struct{}{}
+		}
+	}
+	out := make([]int64, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	slices.Sort(out)
 	return out
 }
 

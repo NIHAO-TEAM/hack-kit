@@ -30,6 +30,8 @@ type Recalc struct {
 	bus      *events.Bus
 	reads    *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
 	metrics  *analytics.RecalcMetrics
+	reader   *source.Reader
+	clk      clock.Clock
 }
 
 // NewRecalc собирает воркер: настройки из model_settings, снимок из таблиц организаторов.
@@ -78,6 +80,7 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 			DataVersion:     dataVersion,
 			SettingsVersion: settingsVersion,
 			Stages:          stages,
+			Customers:       len(res.Customers),
 		}, nil
 	}
 	r := &Recalc{
@@ -87,7 +90,11 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 		bus:      bus,
 		reads:    reads,
 		metrics:  metrics,
+		reader:   reader,
+		clk:      clk,
 	}
+	r.WithFullEvery(fullEveryFromEnv())
+	r.Engine.WithObserver(func(c *analytics.Calculation[risk.Result]) { metrics.ObserveRecalc(c.Partial, c.Duration) })
 	metrics.Cancelled = r.Engine.Cancelled
 	r.observer = retention.New(pool, bus, clk, r)
 	return r
@@ -213,6 +220,8 @@ func (r *Recalc) Overview() *analytics.Overview {
 		LostCents:         s.LostCents,
 		QualityCounts:     s.QualityCounts,
 		LossByFeature:     lossByFeature(s.LossByFeature),
+		RecalcCustomers:   c.Customers,
+		Partial:           c.Partial,
 	}
 }
 

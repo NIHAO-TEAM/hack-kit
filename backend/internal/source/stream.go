@@ -309,7 +309,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 	// onBatch вызывает писатель из своей горутины, пока отправитель ждёт в submit или на паузе;
 	// счётчики читает только эта же горутина, а после finish — runStream.
 	ing := newEventWriter(a.pool, newIngestState(&base), time.Now,
-		func(version int64) { a.bus.Publish(TopicChanged, version) },
+		func(ch Change) { a.bus.Publish(TopicChanged, ch) },
 		func(res []ingestResult) {
 			now := time.Now()
 			okN, badN := 0, 0

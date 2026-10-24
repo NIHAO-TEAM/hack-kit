@@ -18,6 +18,9 @@ type Overview struct {
 	LostCents         int64
 	QualityCounts     map[string]int
 	LossByFeature     []FeatureLoss // по убыванию потери; сумма равна ExpectedLossCents
+	// RecalcCustomers — сколько клиентов пересчитал последний прогон; Partial — только затронутые.
+	RecalcCustomers int
+	Partial         bool
 }
 
 // FeatureLoss — часть ожидаемой потери, отнесённая к одной причине (признаку модели).

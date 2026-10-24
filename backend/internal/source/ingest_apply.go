@@ -13,20 +13,35 @@ import (
 type ingestState struct {
 	accounts map[int64]struct{}
 	created  map[int64]time.Time // номер услуги → createdAt
+	owner    map[int64]int64     // номер услуги → владелец
 }
 
 func newIngestState(s *Snapshot) *ingestState {
 	st := &ingestState{
 		accounts: make(map[int64]struct{}, len(s.Accounts)),
 		created:  make(map[int64]time.Time, len(s.Services)),
+		owner:    make(map[int64]int64, len(s.Services)),
 	}
 	for _, a := range s.Accounts {
 		st.accounts[a.ID] = struct{}{}
 	}
 	for _, v := range s.Services {
 		st.created[v.ID] = v.CreatedAt
+		st.owner[v.ID] = v.OwnerID
 	}
 	return st
+}
+
+// accountsOf — клиенты, чьи строки правит событие: владелец счёта и владелец услуги.
+func (st *ingestState) accountsOf(ev StreamEvent) []int64 {
+	var out []int64
+	if ev.Balance != nil {
+		out = append(out, ev.AccountID)
+	}
+	if ev.Status != nil || ev.AutoProlong != nil || ev.ExpiresAt != nil {
+		out = append(out, st.owner[ev.ServiceID])
+	}
+	return out
 }
 
 // check проверяет событие теми же правилами, что patchAccount, patchService и Validate: счёт и
