@@ -14,7 +14,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   TaskConflictError,
   addTaskEvent,
@@ -123,6 +123,8 @@ export function TaskPanel({
   const [channel, setChannel] = useState<TaskChannel | null>(null);
   const [contactText, setContactText] = useState('');
   const [postponeTo, setPostponeTo] = useState('');
+  // Контакт уже записан, а смена статуса не удалась: повтор не пишет событие второй раз.
+  const recorded = useRef<RetentionTask | null>(null);
   const [outcome, setOutcome] = useState<TaskOutcome | null>(null);
 
   const assigneeOptions = (assignees.data ?? []).map((a) => ({ value: a.login, label: a.login }));
@@ -247,7 +249,7 @@ export function TaskPanel({
   const dirty =
     assigneeValue !== task.assignee ||
     noteValue !== task.note ||
-    (fromLocalInput(dueValue) ?? task.dueAt) !== new Date(task.dueAt).toISOString();
+    new Date(fromLocalInput(dueValue) ?? task.dueAt).getTime() !== new Date(task.dueAt).getTime();
   const resetDrafts = () => {
     setAssigneeDraft(null);
     setDueDraft(null);
@@ -270,14 +272,18 @@ export function TaskPanel({
   const contact = () =>
     run(
       async () => {
-        let next = await addTaskEvent(task.id, {
-          kind: 'contact',
-          channel: channel ?? undefined,
-          text: contactText,
-        });
+        let next =
+          recorded.current ??
+          (await addTaskEvent(task.id, {
+            kind: 'contact',
+            channel: channel ?? undefined,
+            text: contactText,
+          }));
+        recorded.current = next;
         if (next.status !== 'contacted') {
           next = await patchTask(task.id, { version: next.version, status: 'contacted' });
         }
+        recorded.current = null;
         return next;
       },
       () => {

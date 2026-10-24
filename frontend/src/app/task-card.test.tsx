@@ -1,5 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
+import { server } from '../mocks/server';
 import { conflictOn, seedTask } from '../mocks/tasks';
 import { renderApp } from './render-app';
 
@@ -40,6 +42,29 @@ describe('карточка: работа с клиентом', () => {
       await within(history).findByText(/связались \(телефон\): обещал пополнить/),
     ).toBeVisible();
     expect(within(panel()).getAllByText('Связались').length).toBeGreaterThan(0);
+  });
+
+  it('контакт: сбой смены статуса не дублирует событие при повторе', async () => {
+    const user = userEvent.setup();
+    seedTask(9);
+    server.use(
+      http.patch(
+        '/api/v1/tasks/:taskId',
+        () => HttpResponse.json({ title: 'Сбой', status: 500 }, { status: 500 }),
+        { once: true },
+      ),
+    );
+    await openCard();
+    await user.click(await screen.findByRole('button', { name: 'Связались' }));
+    await user.click(screen.getByRole('combobox', { name: 'Канал' }));
+    await user.click(await screen.findByRole('option', { name: 'Почта', hidden: true }));
+    await user.click(screen.getByRole('button', { name: 'Записать контакт' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Записать контакт' }));
+    const history = await screen.findByRole('list', { name: 'История задачи' });
+    await waitFor(() =>
+      expect(within(history).getAllByText(/связались \(почта\)/)).toHaveLength(1),
+    );
   });
 
   it('«Отложить до…»: статус «Отложено», срок обновлён', async () => {
