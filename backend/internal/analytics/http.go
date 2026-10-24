@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
@@ -96,3 +97,10 @@ func writeJSON(w http.ResponseWriter, _ *http.Request, v any) {
 
 // flush сбрасывает буфер ответа клиенту; работает и через обёртки, у которых есть Unwrap.
 func flush(w responseWriter) error { return http.NewResponseController(w).Flush() }
+
+// clearDeadlines снимает с соединения дедлайны чтения и записи сервера (для долгого потока SSE).
+func clearDeadlines(w responseWriter) {
+	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(time.Time{})
+	_ = rc.SetWriteDeadline(time.Time{})
+}

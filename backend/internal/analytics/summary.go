@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"math"
 
 	"example.com/app/internal/platform/api/gen"
 )
@@ -22,6 +23,7 @@ func (a *AnalyticsAPI) GetSummary(w responseWriter, r *request) {
 	out.ExpectedLossCents = o.ExpectedLossCents
 	out.AtRiskCents = o.AtRiskCents
 	out.LostCents = o.LostCents
+	out.LossByFeature = lossByFeatureOut(o.LossByFeature, o.ExpectedLossCents)
 	out.Version = o.Version
 	if !o.AsOf.IsZero() {
 		asOf := o.AsOf
@@ -84,4 +86,17 @@ func buildRetention(open map[int64]TaskRef, pf *Portfolio) *gen.SummaryRetention
 		}
 	}
 	return &b
+}
+
+// lossByFeatureOut переводит распределение потери в ответ; доля — процент от total с двумя знаками.
+func lossByFeatureOut(in []FeatureLoss, total int64) []gen.LossByFeature {
+	out := make([]gen.LossByFeature, 0, len(in))
+	for _, f := range in {
+		share := 0.0
+		if total > 0 {
+			share = math.Round(float64(f.LossCents)*10000/float64(total)) / 100
+		}
+		out = append(out, gen.LossByFeature{FeatureId: f.ID, LossCents: f.LossCents, Customers: f.Customers, SharePercent: share})
+	}
+	return out
 }

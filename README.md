@@ -55,11 +55,13 @@
 
 Нужен Docker с Compose. Три команды:
 
+<!-- quickstart:start -->
 ```sh
 cp .env.example .env
 # задайте в .env пароли и токены (случайное значение: openssl rand -hex 16)
 docker compose up -d
 ```
+<!-- quickstart:end -->
 
 Пустые `POSTGRES_PASSWORD` и `ADMIN_PASSWORD` — Compose или приложение не стартуют и называют переменную. База наружу не публикуется, снаружи доступен только порт приложения `8080`. Данные лежат в томе и переживают `docker compose down` (без `-v`).
 
@@ -82,6 +84,7 @@ docker compose up -d
 | `METRICS_TOKEN`, `SOURCE_TOKEN` | токены `/metrics` и приёма снимка источника |
 | `OIDC_ISSUER_URL`, `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` | вход через SSO; пустой `OIDC_ISSUER_URL` — кнопка выключена |
 | `SEED_ORGANIZERS` | загрузить набор организаторов при старте |
+| `GOMEMLIMIT` | мягкий предел памяти Go (по умолчанию в Compose `1GiB`, в Helm — 80 % лимита пода) |
 | `BILLING_URL`, `BILLING_TOKEN`, `BILLING_POLL_SECONDS` | опрос REST-биллинга: снимок той же формы, что `data.json`; пустой `BILLING_URL` — выключен, интервал по умолчанию 60 с |
 
 ## Вход через SSO (Keycloak)
@@ -132,6 +135,20 @@ docker compose --profile sso up -d
 - Вход через Keycloak (ключ доступа, TOTP), пароль остаётся запасным.
 - Замеры нагрузки на 100k клиентов: [docs/load/README.md](docs/load/README.md) (числа честные, часть целей пока не достигнута).
 - Образец «как добавить признак модели»: `backend/internal/risk/feature_bonus_locked.go` (один файл признака + тест + строка оракула), см. `changes/archive/2026-10-23-feature-bonus-locked/`.
+
+## Профиль сборки (PGO)
+
+Бинарь собирается по профилю `backend/cmd/api/default.pgo` (`go build -pgo=auto`, в `Dockerfile` флаг явный). Профиль не ломает сборку, если устарел, но выигрыш падает. Обновить после заметных правок горячего кода (пересчёт, шина событий):
+
+```sh
+cd backend
+go test ./internal/app -run '^$' -bench 'Recalc(10k|100k)$' -benchtime 5x -cpuprofile /tmp/recalc.pprof
+go test ./internal/platform/events -run '^$' -bench Publish -cpuprofile /tmp/events.pprof
+go test ./internal/retention -run '^$' -bench Observe -cpuprofile /tmp/ret.pprof
+go tool pprof -proto /tmp/recalc.pprof /tmp/events.pprof /tmp/ret.pprof > cmd/api/default.pgo
+```
+
+Замеры до и после — [docs/load/2026-10-24-pgo.md](docs/load/2026-10-24-pgo.md).
 
 ## Разработка
 

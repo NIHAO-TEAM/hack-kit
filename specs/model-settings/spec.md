@@ -27,3 +27,37 @@
 - WHEN настройки сохранены, а приложение перезапущено
 - THEN `GET /api/v1/model/settings` отдаёт сохранённые настройки, версию, автора и время
 - Тест: `TestSettingsAPI`
+
+### Requirement: чувствительность очереди к весам
+
+Система SHALL по запросу аналитика или `jury` показать, как меняются уровни клиентов, первая тройка по потере и суммарная потеря при сдвиге веса каждого признака с ненулевым весом на −20 % и +20 %, не меняя сохранённые настройки.
+
+#### Scenario: набор организаторов
+
+- WHEN аналитик открывает «О модели»
+- THEN виден блок «Насколько устойчива очередь» с числом сменивших уровень и пометкой про первую тройку по каждому признаку и каждому сдвигу
+- Тест: `TestSensitivityGolden` (`internal/risk/sensitivity_golden_test.go`), `аналитику показывает, насколько устойчива очередь` (`frontend/src/app/about-model.test.tsx`)
+
+#### Scenario: настройки не менялись
+
+- WHEN запрошена чувствительность
+- THEN сохранённые веса и версия настроек остались прежними
+- Тест: `TestShiftWeightKeepsOriginalAndClamps` (`internal/risk/sensitivity_test.go`); вызов только читает, в БД не пишет
+
+#### Scenario: кэш по версиям
+
+- WHEN чувствительность запрошена повторно при тех же версиях снимка и настроек
+- THEN расчёт не повторяется; одновременные запросы ждут один расчёт; дольше 10 секунд — `503`, расчёт доходит до конца и попадает в кэш
+- Тест: `TestSensitivityCacheByVersions`, `TestSensitivityCacheSingleFlight`, `TestSensitivityCacheTimeoutKeepsCalculating` (`internal/model/sensitivity_test.go`)
+
+#### Scenario: большой объём
+
+- WHEN клиентов больше 20 000
+- THEN расчёт идёт на детерминированной выборке 5 000 (по хэшу id), ответ помечен `sampled: true`, экран говорит, что числа относятся к выборке
+- Тест: `TestSampleSnapshot` (`internal/risk/sensitivity_test.go`), `при расчёте на выборке объясняет…` (`about-model.test.tsx`)
+
+#### Scenario: права
+
+- WHEN маркетолог вызывает чувствительность
+- THEN ответ `403`; без сессии — `401`; аналитик, `jury` и администратор получают `200`
+- Тест: `TestModelSensitivityAccess` (`internal/auth/access_test.go`), `TestPermissionMatrixCoversEveryOperation`

@@ -34,14 +34,14 @@
 | Признак | Когда есть | Формула |
 |---|---|---|
 | `pwait` | `prolong_wait` | `left = expiresAt + 5 дн − asOf`; `left ≤ 0` → 1, иначе `1 − left/5 дн` |
-| `funds` | всегда, на аккаунт | `нужно = Σ price × списания(168 ч)` по `active`, `suspended` `+ Σ price` по `prolong_wait`; `есть = balance + bonusBalance` при `bonusState = unlocked`, иначе `balance`; `f = max(0, (нужно − есть)/нужно)`, `нужно = 0` → 0 |
+| `funds` | у услуги, у которой в окне 168 ч есть списание (`prolong_wait` или `списания(168 ч) > 0`); «нужно» и «есть» — на аккаунт | `нужно = Σ price × списания(168 ч)` по `active`, `suspended` `+ Σ price` по `prolong_wait`; `есть = balance + bonusBalance` при `bonusState = unlocked`, иначе `balance`; `f = max(0, (нужно − есть)/нужно)`, `нужно = 0` → 0 |
 | `noauto` | `autoProlong = false` | `дни = (expiresAt − asOf)`; `дни > 7` → 0, иначе `min(1, 1 − дни/7)` (срок прошёл → 1) |
 | `fail` | всегда | доля транзакций `type = prolong` услуги со статусом `not_performed`; транзакций нет → 0 |
 | `susp` | `suspended` | 1 |
 | `flight` | всегда, на аккаунт | `withdrawBalance / balance` — доля реферального баланса, доступная к выводу; `balance = 0` → 0. Вес по умолчанию 0 |
 | `bonus_locked` | `bonusBalance > 0`, `bonusState = locked`, `нужно > есть` | 1 (иначе признак не применим); вес по умолчанию 0 |
 
-Примеры: услуга 1: срок через 30 мин → `noauto = 1 − 0,0208/7 = 0,997024`; клиент 1, `flight = 14 592/83 810 = 0,174108`; клиент 9: нужно 144 490, есть 91 506 (бонусы закрыты) → `funds = 0,366697`; услуга 10 (клиент 10): срок вышел давно → `pwait = 1`.
+Примеры: услуга 1: срок через 30 мин → `noauto = 1 − 0,0208/7 = 0,997024`; клиент 1, `flight = 14 592/83 810 = 0,174108`; клиент 9: нужно 144 490, есть 91 506 (бонусы закрыты) → `funds = 0,366697` (у каждой его услуги со списанием в окне; у услуги `year`, продлевающейся через 25 дней, `funds` нет, хотя аккаунт тот же); услуга 10 (клиент 10): срок вышел давно → `pwait = 1`.
 
 ## 6. Вероятность и скор
 
@@ -71,11 +71,15 @@
 - «Пополнить» — если `funds > 0`: сумма `нужно − есть` добавляется к `balance`. Пример: клиент 9 — пополнить на 529,84 € (52 984), эффект −1 027,49 € (−102 749).
 - «Включить автопродление» — если `noauto > 0`: у всех услуг клиента `autoProlong = true`. Пример: клиент 1 — скор 54,84 → 40,00 (`low`), эффект −375,08 € (−37 508).
 
+Цена действия `costCents`: у «Пополнить» — сумма пополнения, у остальных 0. «На каждый €» = `−эффект ÷ цена` с двумя знаками, при цене 0 пусто. Пример: клиент 9 — 102 749 ÷ 52 984 ≈ 1,94.
+
+Сочетание `actionComboCents` — если применимо два действия и больше: действия применяются подряд к копии данных (сначала автопродление, затем пополнение «нужно − есть» по данным после автопродления), эффект считается пересчётом, а не суммой эффектов. Пример: клиент 9 — −1 029,32 € (−102 932) против суммы −1 028,84 €.
+
 ## 10. Формат golden
 
 ```
 {asOf, source, settings, customers: [{id, state, score, level, expectedLossCents, exposureCents, lostCents,
-  features: {serviceId: {признак: f}}, actions: [{type, amountCents?, lossDeltaCents, scoreBefore, scoreAfter, levelAfter}]}],
+  features: {serviceId: {признак: f}}, actionComboCents?, actions: [{type, amountCents?, costCents, lossDeltaCents, scoreBefore, scoreAfter, levelAfter}]}],
  summary: {levels, expectedLossCents, exposureCents, lostCents}}
 ```
 

@@ -15,6 +15,9 @@
       },
       "id": 1,
       "level": "low",
+      "lossByFeature": {
+        "pwait": 240
+      },
       "lostCents": 0,
       "score": 48.0,
       "state": "scored"
@@ -47,6 +50,13 @@
       "medium": 0,
       "unscored": 0
     },
+    "lossByFeature": [
+      {
+        "customers": 1,
+        "id": "pwait",
+        "lossCents": 240
+      }
+    ],
     "lostCents": 0
   }
 }

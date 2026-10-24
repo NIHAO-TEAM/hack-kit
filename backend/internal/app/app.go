@@ -81,7 +81,15 @@ func problemOnBadRequest(w http.ResponseWriter, r *http.Request, err error) {
 // Option донастраивает сервер.
 type Option func(*options)
 
-type options struct{ billing *source.Adapter }
+type options struct {
+	billing    *source.Adapter
+	collectors []prometheus.Collector
+}
+
+// WithCollectors добавляет в /metrics метрики процесса (например, остановки).
+func WithCollectors(c ...prometheus.Collector) Option {
+	return func(o *options) { o.collectors = append(o.collectors, c...) }
+}
 
 // WithBilling подключает опрос REST-биллинга: статус, пауза после ручной загрузки, метрики.
 func WithBilling(a *source.Adapter) Option { return func(o *options) { o.billing = a } }
@@ -120,6 +128,9 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	}
 	analyticsAPI := newAnalytics(pool, bus, clk, feed)
 	analyticsAPI.WithCollectors(source.IngestCollectors()...)
+	analyticsAPI.WithCollectors(httpx.Collectors()...)
+	analyticsAPI.WithCollectors(bus.Collector())
+	analyticsAPI.WithCollectors(o.collectors...)
 	if c, ok := feed.(collectorsProvider); ok {
 		analyticsAPI.WithCollectors(c.Collectors()...)
 	}
@@ -173,7 +184,7 @@ func WithRequestID(next http.Handler) http.Handler {
 // New собирает полный обработчик: защитные заголовки, идентификатор запроса, проверка сессии, маршруты.
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed, opts ...Option) http.Handler {
 	mux := Routes(pool, bus, clk, authAPI, feed, opts...)
-	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, mux)))
+	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, httpx.Instrument(mux))))
 }
 
 // qualityChecker — источник проверок качества данных для /source/status; его реализует воркер пересчёта.
