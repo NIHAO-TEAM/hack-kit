@@ -116,7 +116,7 @@ func TestStreamPermissionsAndLimits(t *testing.T) {
 		t.Errorf("без сессии: %d", res.StatusCode())
 	}
 	c := s.As(t, "jury")
-	for _, tc := range []struct{ events, rate int }{{99, 0}, {5001, 0}, {100, -1}, {100, 2001}} {
+	for _, tc := range []struct{ events, rate int }{{99, 0}, {100001, 0}, {100, -1}, {100, 20001}} {
 		if res := startStream(t, c, tc.events, tc.rate, 1); res.StatusCode() != http.StatusBadRequest {
 			t.Errorf("events %d rate %d: %d, ждали 400", tc.events, tc.rate, res.StatusCode())
 		}
@@ -166,6 +166,9 @@ func TestStreamMetrics(t *testing.T) {
 		`churn_emulator_stream_events_total{result="applied"}`,
 		"churn_emulator_stream_apply_seconds_bucket",
 		"churn_emulator_stream_apply_seconds_count",
+		"churn_ingest_batch_size_count",
+		"churn_ingest_batch_seconds_count",
+		"churn_ingest_queue_depth",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("в /metrics нет %s", want)

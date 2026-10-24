@@ -22,6 +22,9 @@ func (a *AnalyticsAPI) GetEvents(w responseWriter, r *request) {
 	streamEvents, cancelStream := a.bus.Subscribe(TopicStreamProgress)
 	defer cancelStream()
 
+	// Поток живёт дольше ReadTimeout/IdleTimeout сервера: дедлайны с него снимаются.
+	clearDeadlines(w)
+
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-store")
@@ -36,6 +39,9 @@ func (a *AnalyticsAPI) GetEvents(w responseWriter, r *request) {
 	for {
 		select {
 		case <-r.Context().Done():
+			// Клиент ушёл или сервер останавливается: просим переподключиться (новому поду).
+			_, _ = fmt.Fprint(w, "retry: 1000\n\n")
+			_ = flush(w)
 			return
 		case ev, ok := <-events:
 			if !ok {

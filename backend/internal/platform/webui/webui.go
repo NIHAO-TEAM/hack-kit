@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"path"
 	"strings"
+
+	"example.com/app/internal/platform/httpx"
 )
 
 //go:embed all:dist
@@ -32,7 +34,7 @@ func handler(root fs.FS) http.Handler {
 		p := path.Clean(r.URL.Path)
 		for _, prefix := range reserved {
 			if p == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(p, prefix) {
-				http.NotFound(w, r)
+				httpx.WriteProblem(w, r, http.StatusNotFound, "путь не найден")
 				return
 			}
 		}
