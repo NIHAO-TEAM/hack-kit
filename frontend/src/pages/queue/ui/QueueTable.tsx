@@ -115,6 +115,8 @@ export function QueueTable({
   order,
   onSort,
   onOpen,
+  onTake,
+  takingId,
 }: {
   rows: CustomerRow[];
   /** Версия пересчёта, по которому построена страница: подсветка только при её смене. */
@@ -124,6 +126,9 @@ export function QueueTable({
   order: CustomerOrder;
   onSort: (column: CustomerSort) => void;
   onOpen: (id: number) => void;
+  /** Взять клиента в работу из строки; без права не передаётся. */
+  onTake?: (id: number) => void;
+  takingId?: number | null;
 }) {
   const items = useMemo(() => rows.map((r) => ({ id: r.id, signature: signature(r) })), [rows]);
   const changed = useChangedRows(items, version);
@@ -186,7 +191,15 @@ export function QueueTable({
               {cell(5, dim ? '—' : <Money cents={row.expectedLossCents} />)}
               {cell(6, <span className={classes.reason}>{row.topReason ?? '—'}</span>)}
               {cell(7, asOf ? <RescueWindow expiresAt={row.expiresAt ?? null} asOf={asOf} /> : '—')}
-              {cell(8, <WorkCell task={row.task} asOf={asOf} />)}
+              {cell(
+                8,
+                <WorkCell
+                  task={row.task}
+                  asOf={asOf}
+                  onTake={onTake && !row.billing ? () => onTake(row.id) : undefined}
+                  taking={takingId === row.id}
+                />,
+              )}
               {cell(9, <ActionCell row={row} />)}
             </tr>
           );

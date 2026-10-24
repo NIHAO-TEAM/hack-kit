@@ -1,4 +1,4 @@
-import { Text } from '@mantine/core';
+import { Button, Text } from '@mantine/core';
 import type { CustomerRow } from '@entities/customer';
 import { dueText, statusLabel } from '@entities/retention-task';
 import classes from './QueueTable.module.css';
@@ -7,8 +7,34 @@ import classes from './QueueTable.module.css';
  * Кто и до какого срока работает с клиентом. Нет открытой задачи — пусто.
  * Срок считается от времени стенда; просроченный — цветом внимания, флаг приходит с сервера.
  */
-export function WorkCell({ task, asOf }: { task: CustomerRow['task']; asOf: string | null }) {
-  if (!task) return null;
+export function WorkCell({
+  task,
+  asOf,
+  onTake,
+  taking,
+}: {
+  task: CustomerRow['task'];
+  asOf: string | null;
+  /** Есть право брать в работу: у строки без задачи появляется кнопка. */
+  onTake?: () => void;
+  taking?: boolean;
+}) {
+  if (!task) {
+    return onTake ? (
+      <Button
+        size="xs"
+        variant="default"
+        loading={taking}
+        onClick={(e) => {
+          // Клик по строке открывает карточку: кнопка её не открывает.
+          e.stopPropagation();
+          onTake();
+        }}
+      >
+        Взять в работу
+      </Button>
+    ) : null;
+  }
   const due = asOf ? dueText(task.dueAt, Date.parse(asOf)).text : null;
   return (
     <span className={classes.work}>

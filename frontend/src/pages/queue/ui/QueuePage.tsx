@@ -9,11 +9,13 @@ import {
   Title,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import {
   customersExportHref,
+  customersKey,
   customersOptions,
   QUEUE_PAGE_SIZE,
   type CustomerParams,
@@ -21,6 +23,7 @@ import {
   type RiskLevel,
   type TaskFilter,
 } from '@entities/customer';
+import { takeTask, TaskConflictError } from '@entities/retention-task';
 import { ApiError } from '@shared/api';
 import { can, type Role } from '@entities/session';
 import {
@@ -76,6 +79,21 @@ export function QueuePage({
   role: Role;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  // 409: клиента уже взял другой, строка перечитывается и показывает его.
+  const take = useMutation({
+    mutationFn: (id: number) => takeTask(id, {}),
+    onError: (e) => {
+      notifications.show({
+        color: 'orange',
+        message:
+          e instanceof TaskConflictError
+            ? `Клиента уже взял ${e.changedBy ?? 'другой сотрудник'}`
+            : 'Не удалось взять в работу. Повторите попытку.',
+      });
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: customersKey }),
+  });
   const page = params.page ?? 1;
   const customers = useQuery({
     ...customersOptions({ ...params, billing: 'exclude', limit: QUEUE_PAGE_SIZE }),
@@ -165,6 +183,8 @@ export function QueuePage({
           order={params.order}
           onSort={onSort}
           onOpen={open}
+          onTake={can(role, 'tasks.edit') ? (id) => take.mutate(id) : undefined}
+          takingId={take.isPending ? take.variables : null}
         />
         {total > QUEUE_PAGE_SIZE ? (
           <Group justify="space-between" align="center">

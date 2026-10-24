@@ -314,3 +314,34 @@ describe('очередь: фильтр по работе', () => {
     await waitFor(() => expect(ids()).not.toContain('2'));
   });
 });
+
+describe('очередь: «Взять в работу» в строке', () => {
+  it('один клик берёт клиента, карточка не открывается, в строке появляется «В работе»', async () => {
+    signedIn();
+    sessionStorage.setItem('mock-session', 'marketer');
+    const user = userEvent.setup();
+    const { router } = renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    await user.click(screen.getAllByRole('button', { name: 'Взять в работу' })[0]!);
+    expect(await screen.findByText('В работе')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/queue');
+  });
+
+  it('409: подсказка «уже взял …»', async () => {
+    signedIn();
+    sessionStorage.setItem('mock-session', 'marketer');
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/v1/customers/:id/task', () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Конфликт', status: 409, task: { updatedBy: 'jury' } },
+          { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    await user.click(screen.getAllByRole('button', { name: 'Взять в работу' })[0]!);
+    expect(await screen.findByText('Клиента уже взял jury')).toBeInTheDocument();
+  });
+});
