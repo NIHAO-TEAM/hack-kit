@@ -1,3 +1,4 @@
+import { customersKey } from '@entities/customer';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
@@ -184,6 +185,16 @@ describe('очередь удержания', () => {
       expect(await screen.findByText(/Показаны 201–230 из 230/)).toBeInTheDocument();
       expect(await screen.findByText('c201@example.test')).toBeInTheDocument();
       expect(router.state.location.search).toMatchObject({ page: 5 });
+    });
+
+    it('живое обновление перезапрашивает текущую страницу и не сбрасывает её', async () => {
+      signedIn();
+      many();
+      const { router, queryClient } = renderApp('/queue?page=3');
+      await screen.findByText(/Показаны 101–150 из 230/);
+      await queryClient.invalidateQueries({ queryKey: customersKey });
+      expect(await screen.findByText(/Показаны 101–150 из 230/)).toBeInTheDocument();
+      expect(router.state.location.search).toMatchObject({ page: 3 });
     });
 
     it('одна страница: переключателя нет', async () => {
