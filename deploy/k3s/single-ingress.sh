@@ -21,6 +21,19 @@ set_env() { # ключ, значение: дописать, если ключа 
   grep -q "^$1=" "$ENV_FILE" || { printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"; echo "$1 добавлен в .env"; }
 }
 domain="$(grep -E '^PROD_DOMAIN=' "$ENV_FILE" | cut -d= -f2-)"
+
+# Keycloak 26 не стартует с KC_BOOTSTRAP_ADMIN_USERNAME без пароля: непустой пароль генерируется на сервере.
+# Пустая строка `KC_ADMIN_PASSWORD=` заменяется (set_env пустые не трогает). Значения нет ни в логе, ни в репозитории.
+if ! grep -qE '^KC_ADMIN_PASSWORD=.+' "$ENV_FILE"; then
+  sed -i '/^KC_ADMIN_PASSWORD=/d' "$ENV_FILE"
+  (umask 077; printf 'KC_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 16)" >> "$ENV_FILE")
+  echo "KC_ADMIN_PASSWORD добавлен в .env"
+fi
+# Остальные ключи SSO не генерируются (значения совпадают с realm и секретом приложения): только имя в предупреждении.
+for key in KC_SECURE_PASSWORD KC_SECURE_TOTP_SECRET OIDC_CLIENT_SECRET; do
+  grep -qE "^$key=.+" "$ENV_FILE" || echo "::warning::в .env нет $key (SSO может не заработать)"
+done
+
 set_env COMPANIONS_BIND 172.17.0.1
 set_env METRICS_TARGET "$domain:443"
 set_env METRICS_SCHEME https
@@ -48,7 +61,7 @@ for _ in $(seq 1 36); do
   fi
   sleep 5
 done
-echo "::warning::Keycloak не ответил за 180 с; последние строки лога (без секретов):" >&2
+echo "::warning::Keycloak не ответил за 180 с; последние строки лога (значения у ключей password/secret/token/totp заменены на ***):" >&2
 "${COMPOSE[@]}" ps keycloak >&2 || true
-"${COMPOSE[@]}" logs --tail 60 keycloak 2>&1 | grep -v -i -E 'password|secret|token|totp' >&2 || true
+"${COMPOSE[@]}" logs --tail 60 keycloak 2>&1 | sed -E 's/((password|secret|token|totp)[A-Za-z_.-]*(=|: ))[^ ]+/\1***/gI' >&2 || true
 exit 0

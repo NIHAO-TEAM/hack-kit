@@ -4,9 +4,9 @@
 
 ## 1. Выкат
 
-- [ ] 1.1 `single-ingress.sh`: дописать непустой `KC_ADMIN_PASSWORD`, если нет (пустую строку заменить) — проверка: `bash -n`, `shellcheck`, прогон на копии `.env` без ключа и с `KC_ADMIN_PASSWORD=`
+- [x] 1.1 `single-ingress.sh`: дописать непустой `KC_ADMIN_PASSWORD`, если нет (пустую строку заменить) — проверка: `bash -n`, `shellcheck`, прогон на копии `.env` без ключа и с `KC_ADMIN_PASSWORD=`
 - [ ] 1.2 `docker-compose.prod.yml`: `KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_PASSWORD:+kcadmin}` — проверка: `docker compose config` с паролем и без
-- [ ] 1.3 Предупреждение по именам `KC_SECURE_PASSWORD`, `KC_SECURE_TOTP_SECRET`, `OIDC_CLIENT_SECRET` без значений — проверка: прогон на копии `.env`
+- [x] 1.3 Предупреждение по именам `KC_SECURE_PASSWORD`, `KC_SECURE_TOTP_SECRET`, `OIDC_CLIENT_SECRET` без значений — проверка: прогон на копии `.env`
 
 ## 2. Диагностика
 
