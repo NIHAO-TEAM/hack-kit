@@ -32,7 +32,7 @@ export function useChangedRows(
       .map((i) => i.id);
     if (ids.length === 0) return;
     setChanged(new Set(ids));
-  }, [items, version]);
+  }, [items, version, existingOnly]);
 
   useEffect(() => {
     if (changed.size === 0) return;
