@@ -14,7 +14,7 @@ mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({
-  viewport: { width: 1440, height: 900 },
+  viewport: { width: 1280, height: 800 },
   deviceScaleFactor: 2,
   colorScheme: 'light',
   locale: 'ru-RU',
@@ -27,7 +27,10 @@ async function shot(name, path, ready) {
   if (ready) await ready();
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(800);
-  await page.screenshot({ path: `${out}/${name}.png` });
+  // Только рабочая область без бокового меню и шапки: на слайде текст крупнее.
+  const main = page.locator('main').first();
+  if (await main.count()) await main.screenshot({ path: `${out}/${name}.png` });
+  else await page.screenshot({ path: `${out}/${name}.png` });
   console.log(`${out}/${name}.png`);
 }
 

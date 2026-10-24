@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // FieldError описывает ошибку одного поля запроса.
@@ -30,6 +31,7 @@ func WriteProblem(w http.ResponseWriter, r *http.Request, status int, detail str
 	if id == "" {
 		id = r.Header.Get("X-Request-Id")
 	}
+	detail = truncateDetail(detail)
 	p := Problem{
 		Type:          "about:blank",
 		Title:         http.StatusText(status),
@@ -48,4 +50,14 @@ func WriteProblem(w http.ResponseWriter, r *http.Request, status int, detail str
 // NotImplemented отвечает 501: модуль операции ещё не реализован.
 func NotImplemented(w http.ResponseWriter, r *http.Request) {
 	WriteProblem(w, r, http.StatusNotImplemented, "операция ещё не реализована")
+}
+
+// maxDetail — предел detail в байтах: ошибка разбора может цитировать присланное значение целиком.
+const maxDetail = 1000
+
+func truncateDetail(s string) string {
+	if len(s) <= maxDetail {
+		return s
+	}
+	return strings.ToValidUTF8(s[:maxDetail], "") + "…"
 }

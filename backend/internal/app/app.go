@@ -160,6 +160,12 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 		AuditAPI:     audit.NewAPI(journal),
 		TasksAPI:     retention.NewAPI(tasks),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
+	// Неизвестный путь или метод под /api/ — problem+json, а не текст mux.
+	for _, method := range []string{"POST", "PUT", "PATCH", "DELETE", "OPTIONS"} {
+		mux.HandleFunc(method+" /api/", func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteProblem(w, r, http.StatusNotFound, "путь не найден")
+		})
+	}
 	mux.Handle("GET /debug/pprof/", pprofHandler())
 	mux.Handle("GET /api/v1/docs/assets/", docs.Assets())
 	mux.Handle("GET /", webui.Handler())

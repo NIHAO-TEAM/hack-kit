@@ -964,6 +964,8 @@ export interface components {
              * @description Версия пересчёта, по которому построена страница.
              */
             version: number;
+            /** @description Курсор следующей страницы; нет, если страница последняя. */
+            nextCursor?: string;
         };
         /**
          * @description В работе, связались, отложено, закрыто.
@@ -1784,6 +1786,8 @@ export interface operations {
                 offset?: number;
                 /** @description Строки «к биллингу» (сбой автосписания): `exclude` — без них, `only` — только они, не задан — все. `total` считается после фильтра. */
                 billing?: "exclude" | "only";
+                /** @description Курсор следующей страницы из `nextCursor` предыдущего ответа. Заменяет `offset` (вместе с ним — 400); сортировка и порядок должны быть те же, что у страницы, из которой он получен. Курсор привязан к версии пересчёта: после нового пересчёта — 409, начните с первой страницы. */
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -1802,6 +1806,15 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            /** @description Курсор построен по другой версии пересчёта */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             501: components["responses"]["NotImplemented"];
         };
     };
