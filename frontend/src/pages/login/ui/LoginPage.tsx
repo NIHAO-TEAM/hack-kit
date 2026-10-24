@@ -5,13 +5,13 @@ import {
   Paper,
   PasswordInput,
   Stack,
+  Text,
   TextInput,
   Title,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useEffect, useState } from 'react';
 import { loginErrorText } from '@entities/session';
-import { AezaMark } from '@shared/ui';
 import classes from './LoginPage.module.css';
 
 const AUTH_CONFIG_URL = '/api/v1/auth/config';
@@ -61,16 +61,22 @@ export function LoginPage({
       <div className={classes.backdrop} aria-hidden="true">
         <div className={classes.planet} />
         <div className={classes.glow} />
+        <div className={classes.orbit}>
+          <svg className={classes.ring} viewBox="0 0 100 100" preserveAspectRatio="none">
+            <ellipse cx="50" cy="50" rx="49.5" ry="49" vectorEffect="non-scaling-stroke" />
+          </svg>
+          <div className={classes.satellite} />
+        </div>
       </div>
       <Container size={400} px="md" mt="8vh" component="main" className={classes.content}>
-        <div className={classes.mark}>
-          <AezaMark size={56} />
-        </div>
+        <Text component="div" ta="center" fw={700} size="xl" mb="lg">
+          Контур удержания
+        </Text>
         <Paper withBorder p="xl">
           <form onSubmit={form.onSubmit(submit)} noValidate>
             <Stack>
               <Title order={1} size="h3">
-                Контур удержания
+                Личный кабинет
               </Title>
               <TextInput
                 label="Логин"

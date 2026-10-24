@@ -1,4 +1,4 @@
-/* Фон входа (ADR-0003): размытая планета рисуется здесь, чужих картинок нет. Статично, без анимации. */
+/* Фон входа (ADR-0003): размытая планета рисуется здесь, чужих картинок нет. Планета статична, по орбите идёт спутник. */
 .backdrop {
   --planet-light: #4cc6f1;
   --planet-dark: #182d48;
@@ -36,7 +36,7 @@
     var(--planet-dark) 55%,
     transparent 72%
   );
-  filter: blur(48px);
+  filter: blur(30px);
   opacity: var(--planet-opacity);
 }
 
@@ -45,7 +45,7 @@
   right: 8vmax;
   bottom: 6vmax;
   background: var(--planet-rim);
-  filter: blur(80px);
+  filter: blur(56px);
   opacity: var(--glow-opacity);
 }
 
@@ -54,9 +54,48 @@
   z-index: 1;
 }
 
-/* Охранное поле значка по брендбуку: не меньше 30 px со всех сторон. */
-.mark {
-  display: flex;
-  justify-content: center;
-  padding: 30px;
+/* Орбита: центр совпадает с центром планеты (right 15vmax, bottom 7vmax), эллипс 1,3 от планеты. */
+.orbit {
+  position: absolute;
+  width: 91vmax;
+  height: 36.4vmax;
+  right: -30.5vmax;
+  bottom: -11.2vmax;
+  transform: rotate(-18deg);
+}
+
+.ring {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #4cc6f1;
+  stroke-opacity: 0.35;
+  stroke-width: 1.5;
+}
+
+.satellite {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4cc6f1;
+  box-shadow: 0 0 10px 3px rgb(76 198 241 / 55%);
+  offset-path: ellipse(49.5% 49% at 50% 50%);
+  offset-anchor: center;
+  offset-rotate: 0deg;
+  animation: orbit 45s linear infinite;
+}
+
+@keyframes orbit {
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .satellite {
+    animation: none;
+  }
 }
