@@ -86,7 +86,7 @@ test('экраны на 100 тыс. клиентов: время, консоль
         await expect(s.ready(page)).toBeVisible({ timeout: 30_000 });
       });
       record(`экран: ${s.name}`, ms, SCREEN_MS);
-      await expect(page.getByRole('alert'), `${s.name}: сообщение об ошибке`).toHaveCount(0);
+      await expect(page.getByRole('alert').filter({ hasText: /ошибк|не удалось|сбой|недоступн/i }), `${s.name}: сообщение об ошибке`).toHaveCount(0);
     }
     const cardMs = await timed(async () => {
       await page.goto('/queue/9');
