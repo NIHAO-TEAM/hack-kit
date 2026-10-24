@@ -107,7 +107,7 @@ docker compose --profile sso up -d
 
 ### Как добавить признак
 
-Файл `backend/internal/risk/feature_<имя>.go` с реализацией `Feature` и `Register` в `init()`, правило в `docs/model-rules.md` и оракуле. Пошагово — в [docs/model.md](docs/model.md#как-добавить-признак). Пример готового изменения — PR `feature-bonus-locked` (признак с весом 0 по умолчанию).
+Файл `backend/internal/risk/feature_<имя>.go` с реализацией `Feature` и `Register` в `init()`, правило в `docs/model-rules.md` и оракуле, тест признака и подпись в `featureInfo` (`frontend/src/entities/model-config/model/features.ts`) — «Модель» и «О модели» берут её оттуда. Пошагово — в [docs/model.md](docs/model.md#как-добавить-признак). Пример готового изменения — PR `feature-bonus-locked` (признак с весом 0 по умолчанию).
 
 ## Безопасность
 
