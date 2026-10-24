@@ -1086,3 +1086,6 @@ func ingest(ctx context.Context, pool *pgxpool.Pool, body io.Reader, now time.Ti
 	}
 	return acc, nil, nil
 }
+
+// queueLen — сколько событий сейчас ждёт в очереди приёма.
+func (g *eventWriter) queueLen() int { return len(g.in) }

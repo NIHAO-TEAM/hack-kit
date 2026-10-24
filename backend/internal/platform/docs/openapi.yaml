@@ -601,6 +601,42 @@ components:
           type: string
         report:
           $ref: "#/components/schemas/StreamReport"
+        window:
+          type: array
+          maxItems: 60
+          description: Секундные отсчёты за последние 60 с прогона, старые первыми; нет у прогона, который ещё не набрал первую секунду.
+          items:
+            $ref: "#/components/schemas/StreamWindowPoint"
+    StreamWindowPoint:
+      type: object
+      required: [t, accepted, applied, failed, queueDepth, batchSize, lagP95Ms, recalcs]
+      properties:
+        t:
+          type: integer
+          description: Секунда прогона, с которой отсчёт закончился (1 — первая).
+        accepted:
+          type: integer
+          description: Событий принято в очередь приёма за секунду.
+        applied:
+          type: integer
+          description: Событий записано в базу за секунду.
+        failed:
+          type: integer
+          description: Событий не применено за секунду.
+        queueDepth:
+          type: integer
+          description: Событий ждало в очереди приёма в конце секунды.
+        batchSize:
+          type: number
+          format: float
+          description: Средний размер записанной пачки за секунду; 0, если пачек не было.
+        lagP95Ms:
+          type: number
+          format: float
+          description: Задержка «событие → очередь маркетолога», p95 по событиям, учтённым за секунду, мс; 0, если таких не было.
+        recalcs:
+          type: integer
+          description: Пересчётов движка за секунду.
     RiskLevel:
       type: string
       enum: [high, medium, low, unscored, lost]
