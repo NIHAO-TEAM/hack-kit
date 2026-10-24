@@ -3,10 +3,13 @@
 package source_test
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"example.com/app/internal/apitest"
 	"example.com/app/internal/platform/api/gen"
+	"example.com/app/internal/source"
 )
 
 // Поток по умолчанию, 2 500 событий без пауз: отчёт заполнен, пересчёт с нуля совпал до цента.
@@ -37,5 +40,32 @@ func TestStreamReportOn2500Events(t *testing.T) {
 	}
 	if r.Recalcs < 1 || r.Recalcs > 2500 {
 		t.Errorf("пересчётов %d", r.Recalcs)
+	}
+}
+
+// Пересчёт не догнал снимок: состояние failed, а в причине — сколько событий успели применить и отклонить,
+// а не нули.
+func TestStreamFailureReportsProgress(t *testing.T) {
+	defer source.SetStreamSettleTimeout(source.SetStreamSettleTimeout(time.Nanosecond))
+	s := apitest.New(t) // срок ожидания пересчёта исчерпан сразу: итоговый снимок «не догнан»
+	s.StartRecalc(t)
+	c := s.As(t, "jury")
+	if res := put(t, c, organizers(t)); res.JSON200 == nil {
+		t.Fatalf("снимок: %s", res.Body)
+	}
+	if res := startStream(t, c, 200, 0, 1); res.JSON202 == nil {
+		t.Fatalf("запуск: %d %s", res.StatusCode(), res.Body)
+	}
+	st := waitStream(t, c)
+	if st.State != gen.Failed || st.Error == nil {
+		t.Fatalf("состояние %s, ошибка %v", st.State, st.Error)
+	}
+	for _, want := range []string{"не догнал", "применено 200, отклонено 0 из 200"} {
+		if !strings.Contains(*st.Error, want) {
+			t.Errorf("в причине сбоя нет %q: %s", want, *st.Error)
+		}
+	}
+	if st.Applied != 200 {
+		t.Errorf("обработано %d, ждали 200", st.Applied)
 	}
 }

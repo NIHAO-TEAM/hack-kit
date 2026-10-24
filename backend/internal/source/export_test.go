@@ -67,3 +67,10 @@ func BatchTxSyncCommit(ctx context.Context, pool *pgxpool.Pool) (inside, outside
 	err = pool.QueryRow(ctx, "SHOW synchronous_commit").Scan(&outside)
 	return inside, outside, err
 }
+
+// SetStreamSettleTimeout сокращает ожидание пересчёта в конце прогона; возвращает прежнее значение.
+func SetStreamSettleTimeout(d time.Duration) time.Duration {
+	old := streamSettleTimeout
+	streamSettleTimeout = d
+	return old
+}
