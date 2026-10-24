@@ -203,6 +203,7 @@ func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]T
 	for _, sv := range s.Services {
 		s.Transactions = append(s.Transactions, txByService[sv.ID]...)
 	}
+	ctx.Transactions = s.Transactions
 	for _, act := range as {
 		if !act.Applies(ctx) {
 			continue
