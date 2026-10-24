@@ -56,7 +56,12 @@ RC0=$(restart_count)
 curl_api -X POST "$API/source/emulator/stream" -H "$AUTH" -H 'Content-Type: application/json' \
   -d "{\"events\":$N,\"ratePerSecond\":0,\"seed\":$SEED}" -o /dev/null
 sleep "$OUTAGE_AFTER"
-curl_api "$API/customers?limit=1" -H "$AUTH" -o /dev/null # кэш прогрет прямо перед отказом: окно TTL считаем от паузы
+# Новый вход перед отказом: новый токен — гарантированный промах кэша и put, окно TTL считаем от паузы.
+TOKEN=$(curl_api -X POST "$API/auth/login" -H 'Content-Type: application/json' \
+  -d "{\"login\":\"$LOGIN\",\"password\":\"$ADMIN_PASSWORD\"}" | jq -r .token)
+echo "::add-mask::$TOKEN"
+AUTH="Authorization: Bearer $TOKEN"
+curl_api "$API/customers?limit=1" -H "$AUTH" -o /dev/null
 
 # Пробы пока базы нет: строка на пробу — время, healthz, readyz, чтение с кэшем, чтение без кэша.
 : >"$OUT/probes.tsv"
