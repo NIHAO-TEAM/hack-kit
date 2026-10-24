@@ -13,12 +13,12 @@
 
 ## 3. Параллельный расчёт
 
-- [ ] 3.1 `scoreWith` считает клиентов параллельно, итог собирается по порядку — проверка: golden-тесты и `oracle --check` без правок, `go test -race ./internal/risk ./internal/app`
-- [ ] 3.2 Тест: результат параллельного расчёта равен последовательному на снимке `tools/snapgen` (3 000 аккаунтов) — проверка: `reflect.DeepEqual`
+- [x] 3.1 `scoreWith` считает клиентов параллельно, итог собирается по порядку — проверка: golden-тесты и `oracle --check` без правок, `go test -race ./internal/risk ./internal/app`
+- [x] 3.2 Тест: результат параллельного расчёта равен последовательному на снимке `tools/snapgen` (3 000 аккаунтов) — проверка: `reflect.DeepEqual`
 
 ## 4. Измерение
 
-- [ ] 4.1 Метрика `churn_recalc_stage_seconds{stage}` и строка лога с тремя этапами — проверка: `TestMetricsLint`, `TestMetricsMatchSummary` зелёные
+- [x] 4.1 Метрика `churn_recalc_stage_seconds{stage}` и строка лога с тремя этапами — проверка: `TestMetricsLint`, `TestMetricsMatchSummary` зелёные
 - [ ] 4.2 `deploy-load` выводит этапы пересчёта в итог — проверка: итог запуска. Если для этого нужна правка `.github/workflows/deploy-load.yml`, исполнитель её не делает: пишет в «Найдено по ходу», правку пушит владелец
 
 ## 5. Готовность
