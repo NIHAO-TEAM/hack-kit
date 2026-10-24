@@ -27,12 +27,12 @@ echo "== Prometheus: targets =="
 bind="$(grep -E '^COMPANIONS_BIND=' "$HOME/churn/.env" 2>/dev/null | cut -d= -f2-)"
 curl -fsS --max-time 5 "http://${bind:-172.17.0.1}:19090/api/v1/targets" 2>/dev/null \
   | grep -o '"health":"[a-z]*"' | sort | uniq -c || echo "Prometheus не отвечает"
-echo "== Keycloak: контейнер, лог (без секретов), discovery с хоста =="
+echo "== Keycloak: контейнер, лог (значения секретов скрыты), discovery с хоста =="
 docker ps -a --filter name=keycloak --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}' 2>&1 || true
 kc="$(docker ps -aq --filter name=keycloak | head -n 1)"
 if [ -n "$kc" ]; then
-  # В логе Keycloak возможны значения переменных: отсекаем строки с секретами.
-  docker logs --tail 60 "$kc" 2>&1 | grep -v -i -E 'password|secret|token|totp' || true
+  # В логе Keycloak возможны значения переменных: значения у ключей password/secret/token/totp заменяем на ***.
+  docker logs --tail 60 "$kc" 2>&1 | sed -E 's/((password|secret|token|totp)[A-Za-z_.-]*(=|: ))[^ ]+/\1***/gI' || true
 else
   echo "контейнера Keycloak нет (профиль sso не поднят?)"
 fi
