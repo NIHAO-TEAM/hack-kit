@@ -129,6 +129,7 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 			tasks.WithAudit(rec)
 		}
 		analyticsAPI.WithTasks(tasks, auth.LoginFrom)
+		analyticsAPI.WithCollectors(tasks.Collector())
 	}
 	gen.HandlerWithOptions(server{
 		AuthAPI:      authAPI,
