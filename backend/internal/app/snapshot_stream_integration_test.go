@@ -267,3 +267,33 @@ func TestSnapshotIngestMetrics(t *testing.T) {
 		t.Errorf("пик кучи %s, ждали больше нуля", m[1])
 	}
 }
+
+// Клиент, который начал отдавать тело и замолчал, не держит таблицы дольше срока на тело:
+// ответ 400, прежние данные и версия на месте.
+func TestSnapshotIngestBodyTimeout(t *testing.T) {
+	t.Setenv("SNAPSHOT_BODY_TIMEOUT_SEC", "2")
+	r := newRig(t, true)
+	a0, s0, t0, v0 := tableCounts(t, r)
+
+	pr, pw := io.Pipe()
+	go func() {
+		_, _ = pw.Write([]byte(`{"accounts":[{"id":1,"email":"slow@x","balance":0,"withdrawBalance":0,"totalReplenished":0,"bonusBalance":0,"bonusState":"locked"},`))
+		// дальше тишина: клиент завис
+	}()
+	t.Cleanup(func() { _ = pw.Close() })
+
+	start := time.Now()
+	res, err := r.WithBearer(t, apitest.SourceToken).PutSnapshotWithBodyWithResponse(context.Background(), "application/json", pr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode() != 400 {
+		t.Fatalf("зависшее тело: %d %s, ждали 400", res.StatusCode(), res.Body)
+	}
+	if took := time.Since(start); took > 10*time.Second {
+		t.Errorf("ответ через %v, срок на тело 2 с", took)
+	}
+	if a, s, x, v := tableCounts(t, r); a != a0 || s != s0 || x != t0 || v != v0 {
+		t.Errorf("после таймаута строк %d/%d/%d версия %d, было %d/%d/%d версия %d", a, s, x, v, a0, s0, t0, v0)
+	}
+}

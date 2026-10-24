@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -29,11 +30,14 @@ type SourceAPI struct {
 	bus      *events.Bus
 	clk      clock.Clock
 	maxBytes int64
-	adapter  *Adapter
-	audit    audit.Recorder
-	checks   func(version int64) []gen.QualityCheck
-	observer StreamObserver
-	stream   *streamRun
+	// bodyTimeout — сколько времени у клиента на отдачу тела снимка: пока тело идёт, приём держит
+	// транзакцию с очищенными таблицами, и читатели пересчёта ждут.
+	bodyTimeout time.Duration
+	adapter     *Adapter
+	audit       audit.Recorder
+	checks      func(version int64) []gen.QualityCheck
+	observer    StreamObserver
+	stream      *streamRun
 }
 
 // WithAudit подключает журнал действий: загрузка снимка, правки и шаги эмулятора.
@@ -59,13 +63,21 @@ func (a *SourceAPI) WithChecks(f func(version int64) []gen.QualityCheck) *Source
 // defaultMaxBytes — лимит тела снимка по умолчанию (SNAPSHOT_MAX_BYTES), 512 МБ.
 const defaultMaxBytes = 512 << 20
 
+// defaultBodyTimeout — срок на приём тела снимка по умолчанию (SNAPSHOT_BODY_TIMEOUT_SEC).
+// 327 МБ (300k аккаунтов) укладываются при канале от ≈ 22 Мбит/с.
+const defaultBodyTimeout = 2 * time.Minute
+
 // New создаёт обработчик модуля; пул, шину и часы создаёт cmd/api.
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *SourceAPI {
 	max := int64(defaultMaxBytes)
 	if v, err := strconv.ParseInt(os.Getenv("SNAPSHOT_MAX_BYTES"), 10, 64); err == nil && v > 0 {
 		max = v
 	}
-	return &SourceAPI{pool: pool, bus: bus, clk: clk, maxBytes: max, stream: newStreamRun()}
+	timeout := defaultBodyTimeout
+	if v, err := strconv.Atoi(os.Getenv("SNAPSHOT_BODY_TIMEOUT_SEC")); err == nil && v > 0 {
+		timeout = time.Duration(v) * time.Second
+	}
+	return &SourceAPI{pool: pool, bus: bus, clk: clk, maxBytes: max, bodyTimeout: timeout, stream: newStreamRun()}
 }
 
 // WithAdapter подключает опрос REST-биллинга: ручная загрузка ставит его на паузу, статус его показывает.
@@ -78,6 +90,11 @@ func (a *SourceAPI) WithAdapter(ad *Adapter) *SourceAPI {
 // Тело разбирается потоком и сразу пишется в базу конвейером (ingest); при любой ошибке прежние данные остаются.
 func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, a.maxBytes)
+	// Срок на чтение тела: медленный клиент не держит таблицы заблокированными дольше. Сервер без
+	// поддержки дедлайнов (тестовый рекордер) ошибку вернёт, срок тогда не действует.
+	if a.bodyTimeout > 0 {
+		_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(a.bodyTimeout))
+	}
 	now := a.clk.Now()
 	// Запись и пауза под одним замком с опросом: опрос не затрёт ручной снимок.
 	acc, errs, err := ingest(r.Context(), a.pool, r.Body, now, OriginAPI, &emulatorMu, func(acc Accepted) {
