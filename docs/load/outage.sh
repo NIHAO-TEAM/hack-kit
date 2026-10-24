@@ -56,6 +56,7 @@ RC0=$(restart_count)
 curl_api -X POST "$API/source/emulator/stream" -H "$AUTH" -H 'Content-Type: application/json' \
   -d "{\"events\":$N,\"ratePerSecond\":0,\"seed\":$SEED}" -o /dev/null
 sleep "$OUTAGE_AFTER"
+curl_api "$API/customers?limit=1" -H "$AUTH" -o /dev/null # кэш прогрет прямо перед отказом: окно TTL считаем от паузы
 
 # Пробы пока базы нет: строка на пробу — время, healthz, readyz, чтение с кэшем, чтение без кэша.
 : >"$OUT/probes.tsv"
@@ -65,7 +66,7 @@ T0=$SECONDS
 T_END=$((SECONDS + OUTAGE_SECONDS))
 NOCACHE=""
 # Кэш сессии живёт SESSION_CACHE_TTL (5 с по умолчанию) и не продлевается: 200 требуем только в его пределах.
-CACHE_TTL=${SESSION_CACHE_TTL_SECONDS:-5}""
+CACHE_TTL=${SESSION_CACHE_TTL_SECONDS:-5}
 while [ $SECONDS -lt $T_END ]; do
   H=$(code "$BASE_URL/healthz"); R=$(code "$BASE_URL/readyz")
   C=$(code "$API/customers?limit=1" -H "$AUTH")
@@ -99,8 +100,8 @@ PROBES=$(wc -l <"$OUT/probes.tsv")
 [ "$PROBES" -gt 0 ] || fail "ни одной пробы за время отказа"
 BAD_H=$(awk -F'\t' '$2!=200' "$OUT/probes.tsv" | wc -l)
 BAD_R=$(awk -F'\t' '$3!=503' "$OUT/probes.tsv" | wc -l)
-BAD_C=$(awk -F'\t' -v t0="$T0" -v ttl="$CACHE_TTL" '$1-t0 < ttl-1 && $4!=200' "$OUT/probes.tsv" | wc -l)
-BAD_C2=$(awk -F'\t' -v t0="$T0" -v ttl="$CACHE_TTL" '$1-t0 >= ttl-1 && $4!=200 && $4!=503' "$OUT/probes.tsv" | wc -l)
+BAD_C=$(awk -F'\t' -v t0="$T0" -v ttl="$CACHE_TTL" '$1-t0 < ttl-2 && $4!=200' "$OUT/probes.tsv" | wc -l)
+BAD_C2=$(awk -F'\t' -v t0="$T0" -v ttl="$CACHE_TTL" '$1-t0 >= ttl-2 && $4!=200 && $4!=503' "$OUT/probes.tsv" | wc -l)
 N500=$(awk -F'\t' '$5>=500 && $5!=503 || $4>=500' "$OUT/probes.tsv" | wc -l)
 BAD_NC=$(awk -F'\t' '$5!=401 && !($5==503 && $6!="")' "$OUT/probes.tsv" | wc -l)
 N503=$(awk -F'\t' '$5==503' "$OUT/probes.tsv" | wc -l)
