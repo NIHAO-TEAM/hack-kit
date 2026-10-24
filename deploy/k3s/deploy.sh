@@ -22,6 +22,9 @@ echo "собираю образ churn-app:$SHA"
 docker build -q -t "churn-app:$SHA" "$SRC" >/dev/null
 docker save "churn-app:$SHA" | sudo_cmd k3s ctr images import - >/dev/null
 
+# Ключи SSO дописываются до values: приложение и Keycloak получают один OIDC_CLIENT_SECRET в одном выкате.
+"$(dirname "${BASH_SOURCE[0]}")/sso-env.sh" "$ENV_FILE" "$PROD_DOMAIN"
+
 values="$(mktemp)"; trap 'rm -f "$values"' EXIT
 chmod 600 "$values"
 {
@@ -29,8 +32,8 @@ chmod 600 "$values"
   echo "postgres:"
   echo "  password: \"$(grep -E '^POSTGRES_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)\""
   echo "secretEnv:"
-  # Всё, кроме POSTGRES_PASSWORD, PROD_DOMAIN и уже заданного в env чарта, идёт в Secret приложения.
-  grep -E '^[A-Z_]+_(PASSWORD|TOKEN)=|^ADMIN_LOGIN=|^OIDC_CLIENT_SECRET=' "$ENV_FILE" | grep -v '^POSTGRES_PASSWORD=' \
+  # Всё, кроме POSTGRES_PASSWORD, KC_* (ключи Keycloak, приложению не нужны) и уже заданного в env чарта, идёт в Secret приложения.
+  grep -E '^[A-Z_]+_(PASSWORD|TOKEN)=|^ADMIN_LOGIN=|^OIDC_CLIENT_SECRET=' "$ENV_FILE" | grep -vE '^(POSTGRES_PASSWORD|KC_[A-Z_]*)=' \
     | awk -F= '{ k=$1; sub(/^[^=]*=/, ""); printf "  %s: \"%s\"\n", k, $0 }'
   echo "env:"
   # OIDC: discovery читается из Keycloak по Service чарта (спутник за пределами k3s), а не по имени Compose.

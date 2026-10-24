@@ -5,8 +5,8 @@
 ## 1. Выкат
 
 - [x] 1.1 `deploy/k3s/sso-env.sh` — проверка: `shellcheck`, прогон на копии `.env` без ключей, с пустыми и с заполненными (заполненные не меняются, значения не в выводе)
-- [ ] 1.2 `deploy.sh` вызывает `sso-env.sh` до values — проверка: прогон `deploy.sh` до helm на копии `.env` (values содержат `OIDC_CLIENT_SECRET`)
-- [ ] 1.3 `KC_*` не в Secret приложения — проверка: values из 1.2 без `KC_`
+- [x] 1.2 `deploy.sh` вызывает `sso-env.sh` до values — проверка: прогон `deploy.sh` до helm на копии `.env` (values содержат `OIDC_CLIENT_SECRET`)
+- [x] 1.3 `KC_*` не в Secret приложения — проверка: values из 1.2 без `KC_`
 - [ ] 1.4 `single-ingress.sh` использует `sso-env.sh` — проверка: `bash -n`, `shellcheck`
 
 ## 2. Готовность
