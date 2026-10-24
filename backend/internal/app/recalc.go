@@ -218,3 +218,45 @@ func qualityChecks(in []risk.CheckResult) []gen.QualityCheck {
 	}
 	return out
 }
+
+// StreamLatest отдаёт потоку событий эмулятора последний готовый результат пересчёта.
+func (r *Recalc) StreamLatest() (source.StreamView, bool) {
+	c := r.Engine.Latest()
+	if c == nil {
+		return source.StreamView{}, false
+	}
+	v := streamView(c.Result)
+	v.DataVersion, v.Recalcs = c.DataVersion, c.Version
+	return v, true
+}
+
+// StreamFresh считает модель над снимком с нуля: свежий вызов ядра с текущими настройками,
+// без состояния воркера.
+func (r *Recalc) StreamFresh(ctx context.Context, s source.Snapshot) (source.StreamView, error) {
+	st, _, err := currentSettings(ctx, r.Settings)
+	if err != nil {
+		return source.StreamView{}, err
+	}
+	rs := ToRiskSnapshot(s)
+	return streamView(risk.Score(rs, st, rs.AsOf)), nil
+}
+
+var _ source.StreamObserver = (*Recalc)(nil)
+
+func streamView(res risk.Result) source.StreamView {
+	v := source.StreamView{
+		Levels:            res.Summary.Levels,
+		ExpectedLossCents: res.Summary.ExpectedLossCents,
+		ExposureCents:     res.Summary.ExposureCents,
+		LostCents:         res.Summary.LostCents,
+		Customers:         make(map[int64]string, len(res.Customers)),
+	}
+	for _, c := range res.Customers {
+		level := c.State
+		if c.Level != nil {
+			level = *c.Level
+		}
+		v.Customers[c.ID] = level
+	}
+	return v
+}

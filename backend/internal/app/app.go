@@ -110,6 +110,9 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	if c, ok := feed.(qualityChecker); ok {
 		src.WithChecks(c.QualityChecks)
 	}
+	if o, ok := feed.(source.StreamObserver); ok {
+		src.WithStreamObserver(o)
+	}
 	mod := model.New(settings, modelPorts(pool), clk)
 	if rec != nil {
 		src.WithAudit(rec)
@@ -120,6 +123,7 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	if c, ok := feed.(collectorsProvider); ok {
 		analyticsAPI.WithCollectors(c.Collectors()...)
 	}
+	analyticsAPI.WithCollectors(source.StreamCollectors()...)
 	if rec != nil {
 		analyticsAPI.WithAudit(rec)
 	}

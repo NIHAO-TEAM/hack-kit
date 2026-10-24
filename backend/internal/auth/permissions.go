@@ -66,6 +66,8 @@ var operations = map[string]struct {
 	"PATCH /api/v1/source/accounts/{id}":   {"patchAccount", accessStaff},
 	"POST /api/v1/source/emulator/tick":    {"emulatorTick", accessStaff},
 	"POST /api/v1/source/emulator/actions": {"emulatorActions", accessStaff},
+	"POST /api/v1/source/emulator/stream":  {"startEmulatorStream", accessStaff},
+	"GET /api/v1/source/emulator/stream":   {"getEmulatorStream", accessStaff},
 	"GET /api/v1/audit":                    {"listAudit", accessStaff},
 	"GET /api/v1/events":                   {"getEvents", accessAnyRole},
 	"GET /metrics":                         {"getMetrics", accessAnyRole},
