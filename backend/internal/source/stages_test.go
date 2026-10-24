@@ -2,9 +2,12 @@ package source
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil/promlint"
+	"github.com/prometheus/common/expfmt"
 )
 
 func TestStagesObserveAndLint(t *testing.T) {
@@ -16,10 +19,22 @@ func TestStagesObserveAndLint(t *testing.T) {
 	if len(st.names) != 2 {
 		t.Fatalf("этапов %d, ждали 2", len(st.names))
 	}
-	if n := testutil.CollectAndCount(ingestStage, "churn_snapshot_ingest_stage_seconds"); n == 0 {
-		t.Fatal("метрика этапов пуста")
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(IngestCollectors()...)
+	fams, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
 	}
-	problems, err := testutil.CollectAndLint(ingestStage, "churn_snapshot_ingest_stage_seconds")
+	var sb strings.Builder
+	for _, f := range fams {
+		if _, err := expfmt.MetricFamilyToText(&sb, f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !strings.Contains(sb.String(), `churn_snapshot_ingest_stage_seconds_count{stage="parse"}`) {
+		t.Fatalf("нет этапа parse в метрике:\n%s", sb.String())
+	}
+	problems, err := promlint.New(strings.NewReader(sb.String())).Lint()
 	if err != nil || len(problems) > 0 {
 		t.Fatalf("promlint: %v %v", err, problems)
 	}
