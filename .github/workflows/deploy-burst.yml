@@ -3,6 +3,7 @@
 # Залп событий под нагрузкой (изменение load-burst-proof): стенд Compose на раннере, снимок 100 000 клиентов,
 # залпы 3 000, 10 000 и 50 000 событий эмулятора «как можно быстрее» при 20 читателях очереди и 500 SSE-клиентах.
 # Ручной режим outage — отказ базы под залпом (docs/load/outage.sh), режим по умолчанию burst.
+# Ручной режим scale — 1 000 000 клиентов на одной машине: загрузка, пересчёт, чтение, залп 10 000 (docs/load/scale.sh, scale-1m).
 # Красный запуск — сигнал, а не гейт слияния: идёт после успешной дымовой проверки на main и вручную.
 # Проверки и отчёт — docs/load/burst.sh. По проду залп не гоняем: он сбрасывает данные эмулятора.
 
@@ -15,16 +16,21 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'burst — залпы; outage — база недоступна 10 с посреди залпа 10 000 (db-outage-recovery)'
+        description: 'burst — залпы; outage — база недоступна 10 с посреди залпа 10 000 (db-outage-recovery); scale — миллион клиентов (scale-1m)'
         type: choice
-        options: [burst, outage]
+        options: [burst, outage, scale]
         default: burst
+      accounts:
+        description: 'Только для scale: число клиентов (услуги и платежи генерирует snapgen)'
+        type: string
+        default: '1000000'
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-burst
+  # scale идёт в своей группе: в общей его вытесняют очередные запуски после слияний в main
+  group: deploy-burst${{ inputs.mode == 'scale' && '-scale' || '' }}
   cancel-in-progress: false
 
 jobs:
@@ -36,7 +42,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ inputs.mode == 'scale' && 300 || 60 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,10 +59,22 @@ jobs:
             sed -i "s|^$v=.*|$v=$val|" .env
           done
 
+      - uses: actions/setup-go@v5
+        if: inputs.mode == 'scale'
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+
+      # Снимок миллиона клиентов — около 3,3 ГБ: лимит тела поднимаем только на этом стенде, не на проде.
+      - name: Лимит снимка для scale
+        if: inputs.mode == 'scale'
+        run: sed -i "s|^SNAPSHOT_MAX_BYTES=.*|SNAPSHOT_MAX_BYTES=8589934592|" .env && grep -c "^SNAPSHOT_MAX_BYTES=8589934592$" .env
+
       - name: Стенд
         run: docker compose up -d --build --wait --wait-timeout 600
 
       - name: Данные 100k
+        if: inputs.mode != 'scale'
         run: |
           python3 cases/analizator/generate.py --accounts 100000 --services 300000 --transactions 1000000 --out "$RUNNER_TEMP/load"
           ls -l "$RUNNER_TEMP/load/data.json"
@@ -77,7 +95,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Залпы 3 000 / 10 000 / 50 000
-        if: inputs.mode != 'outage'
+        if: inputs.mode != 'outage' && inputs.mode != 'scale'
         run: |
           export APP_CONTAINER=$(docker compose ps -q app)
           export SNAPSHOT="$RUNNER_TEMP/load/data.json"
@@ -94,6 +112,19 @@ jobs:
           OUTAGE_MODE=pause docs/load/outage.sh 10000
           export OUT="$RUNNER_TEMP/burst-out/kill"
           OUTAGE_MODE=kill docs/load/outage.sh 10000
+
+      # Генерация (snapgen), загрузка, пересчёт, чтение, залп: красные числа идут в итог, а не роняют прогон (docs/load/scale.sh).
+      - name: Миллион клиентов
+        if: inputs.mode == 'scale'
+        env:
+          ACCOUNTS: ${{ inputs.accounts }}
+        run: |
+          export APP_CONTAINER=$(docker compose ps -q app)
+          export DB_CONTAINER=$(docker compose ps -q postgres)
+          export OUT="$RUNNER_TEMP/burst-out"
+          export DATA_DIR="$RUNNER_TEMP/scale-data"
+          df -h / >> "$GITHUB_STEP_SUMMARY"
+          docs/load/scale.sh "$ACCOUNTS"
 
       - uses: actions/upload-artifact@v4
         if: always()
