@@ -56,4 +56,4 @@
 
 - WHEN у клиента 5 набора организаторов два непрошедших продления при достаточном балансе
 - THEN заголовок «К биллингу: 2 продления не прошли при достаточном балансе»
-- Тест: `TestToBillingTitleCountsAttempts`, `TestPlural`
+- Тест: `TestToBillingTitleCountsAttempts`, `TestForm`, `TestExportCustomersJournalHasNoEmail`
