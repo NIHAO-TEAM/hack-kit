@@ -39,7 +39,11 @@ func TestLimitShedsFastAndServesAccepted(t *testing.T) {
 			}
 		}()
 	}
-	time.Sleep(200 * time.Millisecond) // лишние успевают получить отказ
+	// Отпускаем медленные запросы, только когда все лишние уже получили отказ: без гонки с таймером.
+	deadline := time.Now().Add(5 * time.Second)
+	for testutil.ToFloat64(shed.WithLabelValues(ClassRead))-before < total-limit && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
 	close(release)
 	wg.Wait()
 
