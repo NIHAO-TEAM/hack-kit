@@ -14,3 +14,5 @@
 ## Риски
 
 - Нет для приложения: вход по паролю работает и без Keycloak.
+- [ПРЕДПОЛОЖЕНО] Compose при пустом `KC_ADMIN_PASSWORD` передаёт `KC_BOOTSTRAP_ADMIN_USERNAME=""` (проверено `docker compose config`); Keycloak 26 считает пустую переменную незаданной — проверит `deploy-smoke.yml` после выката.
+- Маскировка уточнена: `sed -E 's/((password|secret|token|totp)[A-Za-z_.-]*(=|: ))[^ ]+/\1***/gI'` — маскирует значение только у ключа с таким словом; строка `ERROR: bootstrap-admin-username available only when bootstrap admin password is set` остаётся целой (общий `(=|: )` из первой версии съел бы её после `ERROR: `).

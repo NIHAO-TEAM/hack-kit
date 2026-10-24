@@ -71,3 +71,19 @@
 - WHEN запрошен `https://<домен>/sso/realms/churn/.well-known/openid-configuration`
 - THEN 200, JSON с `issuer` = `https://<домен>/sso/realms/churn`
 - Тест: `e2e/tests/smoke.spec.ts` («Keycloak: discovery на /sso»); выкат ждёт ответа до 180 с (`single-ingress.sh`)
+
+### Requirement: старт Keycloak без пароля админа в .env
+
+Выкат SHALL поднимать Keycloak, даже если в `.env` нет `KC_ADMIN_PASSWORD`.
+
+#### Scenario: ключа нет
+
+- WHEN в `.env` на сервере нет `KC_ADMIN_PASSWORD` (или он пустой) и запущен `deploy-ingress.yml`
+- THEN ключ дописан в `.env` без значения в логе, Keycloak отвечает discovery 200
+- Тест: прогон `single-ingress.sh` на копии `.env` (вручную); discovery — `e2e/tests/smoke.spec.ts`
+
+#### Scenario: ошибка старта видна
+
+- WHEN Keycloak падает на старте с сообщением, где есть слово `password`
+- THEN текст ошибки есть в логе выката, значения переменных заменены на `***`
+- Тест: проверка `sed` на строках ошибки и `KEY=value` (вручную, см. design.md)
