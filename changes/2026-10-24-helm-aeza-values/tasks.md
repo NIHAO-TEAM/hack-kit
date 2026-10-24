@@ -4,7 +4,7 @@
 
 ## 1. Чарт
 
-- [ ] 1.1 `values-aeza.example.yaml` (REST-источник, OIDC, Prometheus, внешняя база) — проверка: `helm template … -f values-aeza.example.yaml | kubeconform -strict`
+- [x] 1.1 `values-aeza.example.yaml` (REST-источник, OIDC, Prometheus, внешняя база) — проверка: `helm template … -f values-aeza.example.yaml | kubeconform -strict` (проверит CI: helm в среде нет)
 - [ ] 1.2 Пояснения в `values.yaml` — проверка: `helm lint` (job `lint` в `deploy-k8s.yml` на PR)
 
 ## 2. Документы
