@@ -2,7 +2,7 @@
 
 ## 1. Контракт и данные
 
-- [ ] 1.1 `CustomerRow.lostCents` в `api/openapi.yaml`, `make generate`, типы фронта — проверка: `make generate && git diff --exit-code` после коммита, `oasdiff` без breaking
+- [x] 1.1 `CustomerRow.lostCents` в `api/openapi.yaml`, `make generate`, типы фронта — проверка: `make generate && git diff --exit-code` после коммита, `oasdiff` без breaking
 - [ ] 1.2 `portfolio.go` передаёт `LostCents` в строку — проверка: тест `app`: клиент 7 = значение оракула, клиент 9 = 0
 
 ## 2. Экран
