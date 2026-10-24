@@ -9,12 +9,10 @@ export type TaskOutcome = components['schemas']['TaskOutcome'];
 export type TaskChannel = components['schemas']['TaskChannel'];
 export type TaskCreate = components['schemas']['TaskCreate'];
 export type TaskPatch = components['schemas']['TaskPatch'];
-export type TaskEventCreate = components['schemas']['TaskEventCreate'];
 
 /** Корень ключей запросов задач: по нему событие SSE `tasks` сбрасывает открытые задачи. */
 export const TASK_ROOT = 'task';
 export const taskKey = (id: number) => [TASK_ROOT, id] as const;
-export const assigneesKey = [TASK_ROOT, 'assignees'] as const;
 
 /** 409: задачу уже изменил другой сотрудник; `task` — её текущее состояние. */
 export class TaskConflictError extends ApiError {
@@ -58,17 +56,6 @@ export const taskQuery = (id: number) =>
     retry: false,
   });
 
-export const assigneesQuery = queryOptions({
-  queryKey: assigneesKey,
-  queryFn: async () => {
-    const { data, error, response } = await api.GET('/api/v1/tasks/assignees').catch(network);
-    if (error || !data) fail(response.status, error, response);
-    return data.items;
-  },
-  staleTime: 5 * 60_000,
-  retry: false,
-});
-
 export async function takeTask(customerId: number, body: TaskCreate): Promise<RetentionTask> {
   const { data, error, response } = await api
     .POST('/api/v1/customers/{id}/task', { params: { path: { id: customerId } }, body })
@@ -80,14 +67,6 @@ export async function takeTask(customerId: number, body: TaskCreate): Promise<Re
 export async function patchTask(id: number, body: TaskPatch): Promise<RetentionTask> {
   const { data, error, response } = await api
     .PATCH('/api/v1/tasks/{taskId}', { params: { path: { taskId: id } }, body })
-    .catch(network);
-  if (error || !data) fail(response.status, error, response);
-  return data;
-}
-
-export async function addTaskEvent(id: number, body: TaskEventCreate): Promise<RetentionTask> {
-  const { data, error, response } = await api
-    .POST('/api/v1/tasks/{taskId}/events', { params: { path: { taskId: id } }, body })
     .catch(network);
   if (error || !data) fail(response.status, error, response);
   return data;

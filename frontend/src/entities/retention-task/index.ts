@@ -1,6 +1,4 @@
 export {
-  addTaskEvent,
-  assigneesQuery,
   patchTask,
   takeTask,
   TASK_ROOT,
@@ -14,15 +12,5 @@ export {
   type TaskOutcome,
   type TaskStatus,
 } from './api/task';
-export {
-  channelLabel,
-  dueText,
-  fromLocalInput,
-  outcomeLabel,
-  statusLabel,
-  toLocalInput,
-} from './model/labels';
-export { isOpenTask, tasksQuery, TASKS_LIMIT, type TaskFilter } from './api/tasks';
+export { channelLabel, outcomeLabel, statusLabel } from './model/labels';
 export { OBSERVATION_NOTE, observations, suggestedOutcome } from './model/observation';
-export { dueSoon, endOfMskDay } from './model/reminder';
-export { CustomerLink } from './ui/CustomerLink';

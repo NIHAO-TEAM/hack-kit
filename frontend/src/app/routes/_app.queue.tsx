@@ -1,10 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import type {
-  CustomerOrder,
-  CustomerParams,
-  CustomerSort,
-  RiskLevel,
-} from '@entities/customer';
+import type { CustomerOrder, CustomerParams, CustomerSort, RiskLevel } from '@entities/customer';
 import { QueuePage } from '@pages/queue';
 import { RightGate } from '../layout/RightGate';
 
