@@ -489,6 +489,291 @@ func (a *Adapter) fetch(ctx context.Context) ([]byte, error) {
 	return body, nil
 }
 
+// Пределы приёма: событие ждёт пачку не дольше окна, пачка не больше ingestMaxBatch,
+// в очереди не больше ingestQueueSize событий (дальше отправитель ждёт — обратное давление).
+const (
+	ingestMaxBatch  = 1000
+	ingestWindow    = 5 * time.Millisecond
+	ingestQueueSize = 4096
+)
+
+var (
+	ingestBatchSize = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "churn_ingest_batch_size",
+		Help:    "Сколько событий потока в одной записанной пачке (штуки).",
+		Buckets: []float64{1, 2, 5, 10, 25, 50, 100, 250, 500, 1000},
+	})
+	ingestBatchSeconds = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "churn_ingest_batch_seconds",
+		Help:    "Время записи одной пачки событий потока одной транзакцией (секунды).",
+		Buckets: []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5},
+	})
+	ingestQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "churn_ingest_queue_depth",
+		Help: "Сколько событий потока ждёт записи в очереди приёма (штуки).",
+	})
+)
+
+// ingestItem — событие с номером в прогоне и моментом постановки в очередь.
+type ingestItem struct {
+	seq int
+	ev  StreamEvent
+	at  time.Time
+}
+
+// ingestResult — итог одного события: когда оно ушло в базу и с какой версией, либо причина отказа.
+type ingestResult struct {
+	seq     int
+	dur     time.Duration // от постановки в очередь до фиксации пачки
+	version int64         // версия данных после пачки; у отказа 0
+	err     error
+}
+
+// eventWriter пишет события прогона пачками. Отправитель кладёт события в ограниченный канал,
+// одна горутина забирает пачку (до ingestMaxBatch событий или ingestWindow, что раньше) и пишет
+// её одной транзакцией. Номер события в прогоне: повтор уже обработанного номера не применяется.
+type eventWriter struct {
+	pool    *pgxpool.Pool
+	state   *ingestState
+	publish func(version int64) // после фиксации пачки: одно source.changed
+	now     func() time.Time
+	// onBatch вызывается писателем после каждой пачки; итоги в порядке событий пачки.
+	onBatch func([]ingestResult)
+
+	in   chan ingestItem
+	done chan struct{}
+
+	mu   sync.Mutex
+	seen map[int]struct{} // номера, которые уже были приняты в обработку
+	dups int
+}
+
+func newEventWriter(pool *pgxpool.Pool, st *ingestState, now func() time.Time, publish func(int64), onBatch func([]ingestResult)) *eventWriter {
+	return &eventWriter{
+		pool: pool, state: st, now: now, publish: publish, onBatch: onBatch,
+		in: make(chan ingestItem, ingestQueueSize), done: make(chan struct{}),
+		seen: map[int]struct{}{},
+	}
+}
+
+// submit ставит событие в очередь; блокируется, пока очередь полна. false — прогон прерван.
+// Номер, который уже принимали, молча отбрасывается (идемпотентность).
+func (g *eventWriter) submit(ctx context.Context, seq int, ev StreamEvent) bool {
+	g.mu.Lock()
+	if _, dup := g.seen[seq]; dup {
+		g.dups++
+		g.mu.Unlock()
+		return true
+	}
+	g.seen[seq] = struct{}{}
+	g.mu.Unlock()
+	select {
+	case g.in <- ingestItem{seq: seq, ev: ev, at: g.now()}:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// duplicates — сколько повторов номеров отброшено.
+func (g *eventWriter) duplicates() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.dups
+}
+
+// start запускает писателя; он работает, пока канал не закрыт и не опустошён.
+func (g *eventWriter) start(ctx context.Context) { go g.run(ctx) }
+
+// finish закрывает очередь и ждёт, пока писатель допишет всё принятое.
+func (g *eventWriter) finish() {
+	close(g.in)
+	<-g.done
+}
+
+func (g *eventWriter) run(ctx context.Context) {
+	defer close(g.done)
+	batch := make([]ingestItem, 0, ingestMaxBatch)
+	for {
+		batch = batch[:0]
+		first, ok := <-g.in
+		if !ok {
+			return
+		}
+		batch = append(batch, first)
+		timer := time.NewTimer(ingestWindow)
+	fill:
+		for len(batch) < ingestMaxBatch {
+			select {
+			case it, ok := <-g.in:
+				if !ok {
+					break fill
+				}
+				batch = append(batch, it)
+			case <-timer.C:
+				break fill
+			}
+		}
+		timer.Stop()
+		ingestQueueDepth.Set(float64(len(g.in)))
+		g.onBatch(g.write(ctx, batch))
+	}
+}
+
+// write проверяет события пачки, пишет годные одной транзакцией и возвращает итог по каждому.
+// Ошибка базы на пачке: один повтор, затем все годные события пачки уходят в отказ.
+func (g *eventWriter) write(ctx context.Context, items []ingestItem) []ingestResult {
+	out := make([]ingestResult, len(items))
+	good := make([]int, 0, len(items))
+	for i, it := range items {
+		out[i].seq = it.seq
+		if err := g.state.check(it.ev); err != nil {
+			out[i].err = err
+			continue
+		}
+		good = append(good, i)
+	}
+	t0 := time.Now()
+	var version int64
+	var skipped map[int]error
+	var err error
+	if len(good) > 0 {
+		for attempt := 0; attempt < 2; attempt++ {
+			if version, skipped, err = g.commit(ctx, items, good); err == nil {
+				break
+			}
+			log.Printf("source: приём пачки из %d событий, попытка %d: %v", len(good), attempt+1, err)
+		}
+	}
+	end := g.now()
+	for _, i := range good {
+		switch {
+		case err != nil:
+			out[i].err = fmt.Errorf("пачка не записана: %w", err)
+		case skipped[i] != nil:
+			out[i].err = skipped[i]
+		default:
+			out[i].version = version
+		}
+	}
+	for i := range out {
+		out[i].dur = end.Sub(items[i].at)
+	}
+	if len(good) > 0 {
+		ingestBatchSize.Observe(float64(len(good)))
+		ingestBatchSeconds.Observe(time.Since(t0).Seconds())
+	}
+	if err == nil && version != 0 {
+		g.publish(version)
+	}
+	return out
+}
+
+// errIngestNoRow — запрос события не нашёл строку (её убрали, пока шёл прогон).
+var errIngestNoRow = notFound{errors.New("строка не найдена: данные изменились во время прогона")}
+
+// beginBatchTx открывает транзакцию пачки потока. Тот же ключ, что у replace: пачка не идёт
+// параллельно с загрузкой снимка. synchronous_commit off (ADR-0009, п. 5) — только здесь и
+// только на транзакцию (SET LOCAL): загрузка снимка, настройки, сессии и аудит фиксируются синхронно.
+func beginBatchTx(ctx context.Context, pool *pgxpool.Pool) (pgx.Tx, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockKey); err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, "SET LOCAL synchronous_commit = off"); err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, err
+	}
+	return tx, nil
+}
+
+// commit пишет события good одной транзакцией и заводит одну версию данных на пачку.
+// skipped — события, у которых запрос не затронул ни одной строки; они не записаны.
+func (g *eventWriter) commit(ctx context.Context, items []ingestItem, good []int) (int64, map[int]error, error) {
+	emulatorMu.Lock() // не пересекаться с шагами эмулятора и правками
+	defer emulatorMu.Unlock()
+
+	tx, err := beginBatchTx(ctx, g.pool)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var b pgx.Batch
+	kinds := make([][]stmtKind, len(good))
+	for k, i := range good {
+		kinds[k] = queueEvent(&b, items[i].ev)
+	}
+	skipped := map[int]error{}
+	res := tx.SendBatch(ctx, &b)
+	for k, i := range good {
+		for range kinds[k] {
+			tag, err := res.Exec()
+			if err != nil {
+				_ = res.Close()
+				return 0, nil, err
+			}
+			if tag.RowsAffected() == 0 {
+				skipped[i] = errIngestNoRow
+			}
+		}
+	}
+	if err := res.Close(); err != nil {
+		return 0, nil, err
+	}
+
+	var version int64
+	err = tx.QueryRow(ctx, `INSERT INTO snapshots (as_of, loaded_at, source)
+		SELECT as_of, $1, $2 FROM snapshots ORDER BY version DESC LIMIT 1 RETURNING version`,
+		g.now(), OriginEmulator).Scan(&version)
+	if err != nil {
+		return 0, nil, fmt.Errorf("snapshots: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, nil, err
+	}
+	return version, skipped, nil
+}
+
+// Точечные запросы события. Значения абсолютные, как в PATCH, поэтому повтор безвреден.
+const (
+	sqlSetBalance = `UPDATE accounts SET balance = $1 WHERE id = $2`
+	sqlPatchSvc   = `UPDATE services SET status = COALESCE($1, status), "autoProlong" = COALESCE($2, "autoProlong"),
+		"expiresAt" = COALESCE($3, "expiresAt") WHERE id = $4`
+)
+
+// stmtKind — что за запрос стоит в пачке; по нему результат сопоставляется с событием.
+type stmtKind uint8
+
+const (
+	stmtBalance stmtKind = iota + 1
+	stmtService
+)
+
+// queueEvent кладёт запросы события в пачку; возвращает, сколько запросов добавлено (в порядке
+// stmtBalance, stmtService). События потока — правка счёта и/или услуги; платежей они не создают,
+// как и applyStreamEvent.
+func queueEvent(b *pgx.Batch, ev StreamEvent) (kinds []stmtKind) {
+	if ev.Balance != nil {
+		b.Queue(sqlSetBalance, *ev.Balance, ev.AccountID)
+		kinds = append(kinds, stmtBalance)
+	}
+	if ev.Status != nil || ev.AutoProlong != nil || ev.ExpiresAt != nil {
+		var exp *time.Time
+		if ev.ExpiresAt != nil {
+			t := ev.ExpiresAt.UTC()
+			exp = &t
+		}
+		b.Queue(sqlPatchSvc, ev.Status, ev.AutoProlong, exp, ev.ServiceID)
+		kinds = append(kinds, stmtService)
+	}
+	return kinds
+}
+
 // ingester ведёт одну загрузку: разбор → проверка → запись COPY в транзакции.
 type ingester struct {
 	ctx    context.Context
