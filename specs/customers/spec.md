@@ -66,3 +66,38 @@
 - WHEN запрошено `billing=only`
 - THEN в списке только клиент 5, `total` = 1
 - Тест: `TestListCustomersBillingFilter`
+
+### Requirement: выгрузка очереди в CSV
+
+Сервис SHALL отдавать очередь целиком в CSV с теми же фильтрами и сортировкой, что список.
+
+#### Scenario: набор организаторов
+
+- WHEN `jury` скачивает `GET /api/v1/customers/export.csv` без параметров
+- THEN 10 строк и заголовок, порядок — по ожидаемой потере, сумма колонки «Ожидаемая потеря, €» — 3 599,07
+- Тест: `TestExportCustomersOrganizers`
+
+#### Scenario: Excel
+
+- WHEN файл открыт в Excel с русской локалью
+- THEN кириллица читается, суммы — числа (UTF-8 с BOM, `;`, десятичная запятая)
+- Тест: `TestExportCustomersOrganizers` (BOM, разделитель, запятая)
+
+#### Scenario: фильтры
+
+- WHEN заданы `level`, `billing` или `sort`/`order`
+- THEN в файле только подходящие строки в нужном порядке; неверное значение — 400
+- Тест: `TestExportCustomersFilters`
+
+#### Scenario: журнал
+
+- WHEN выгрузка выполнена
+- THEN в журнале запись `customersExported` со строками и фильтрами, без email и текста поиска
+- Тест: `TestExportCustomersJournalHasNoEmail`
+
+#### Scenario: без входа
+
+- WHEN запрос без сессии
+- THEN 401, маршрут не путается с `/customers/{id}`
+- Тест: cmd/api `TestExportRouteIsNotCustomerID` (нужна БД)
+

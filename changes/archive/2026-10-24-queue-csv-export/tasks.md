@@ -16,5 +16,5 @@
 
 ## 3. Готовность
 
-- [ ] 3.1 CI зелёный
-- [ ] 3.2 `specs/customers/spec.md` и `specs/queue-ui/spec.md` при архивации
+- [ ] 3.1 CI зелёный (проверит CI после снятия черновика)
+- [x] 3.2 `specs/customers/spec.md` и `specs/queue-ui/spec.md` при архивации
