@@ -177,4 +177,55 @@ describe('карточка: аналитик', () => {
     expect(await screen.findByText('Задачи по клиенту нет.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Взять в работу' })).toBeNull();
   });
+  describe('наблюдения биллинга', () => {
+    beforeEach(() => asRole('marketer'));
+
+    const observed = (id: number, text: string) => ({
+      id,
+      at: new Date().toISOString(),
+      actor: 'system',
+      kind: 'observed' as const,
+      text,
+      changes: [],
+    });
+
+    it('раздел «После взятия в работу» с подписью «после, а не благодаря»', async () => {
+      seedTask(9, { events: [observed(101, 'Баланс пополнен на 600,00 €')] });
+      await openCard();
+      const section = await screen.findByRole('region', { name: 'После взятия в работу' });
+      expect(within(section).getByText(/Баланс пополнен на 600,00 €/)).toBeVisible();
+      expect(
+        within(section).getByText(
+          'Это данные биллинга после контакта. Они не доказывают, что помог именно контакт.',
+        ),
+      ).toBeVisible();
+      // В истории действий сотрудников наблюдения не дублируются.
+      expect(screen.queryByRole('list', { name: 'История задачи' })).toBeNull();
+    });
+
+    it('без наблюдений раздела нет', async () => {
+      seedTask(9);
+      await openCard();
+      await screen.findByRole('region', { name: 'Работа с клиентом' });
+      expect(screen.queryByRole('region', { name: 'После взятия в работу' })).toBeNull();
+    });
+
+    it('продление в наблюдениях: итог «Продлил» предложен, закрытие всё равно кнопкой человека', async () => {
+      const user = userEvent.setup();
+      seedTask(9, { events: [observed(102, 'Услуга VPS-1 продлена до 01.12.2026')] });
+      await openCard();
+      await user.click(await screen.findByRole('button', { name: 'Закрыть' }));
+      expect(screen.getByRole('combobox', { name: 'Итог' })).toHaveValue('Продлил');
+      expect(screen.getByRole('button', { name: 'Закрыть задачу' })).toBeEnabled();
+    });
+
+    it('пополнение итог не предлагает', async () => {
+      const user = userEvent.setup();
+      seedTask(9, { events: [observed(103, 'Баланс пополнен на 600,00 €')] });
+      await openCard();
+      await user.click(await screen.findByRole('button', { name: 'Закрыть' }));
+      expect(screen.getByRole('combobox', { name: 'Итог' })).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Закрыть задачу' })).toBeDisabled();
+    });
+  });
 });

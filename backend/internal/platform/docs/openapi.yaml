@@ -632,7 +632,10 @@ components:
           type: string
         kind:
           type: string
-          enum: [created, changed, contact, note]
+          enum: [created, changed, contact, note, observed]
+          description: >-
+            observed — наблюдение сервера по данным биллинга после взятия в работу, actor — system.
+            Не доказывает, что помог именно контакт.
         channel:
           $ref: "#/components/schemas/TaskChannel"
         text:
@@ -690,6 +693,9 @@ components:
         closedAt:
           type: string
           format: date-time
+        lastObservation:
+          type: string
+          description: Текст последнего наблюдения по данным биллинга (kind observed); нет, пока наблюдений не было.
         events:
           type: array
           description: История по порядку, старые сверху. Есть в ответах по одной задаче, в списке нет.

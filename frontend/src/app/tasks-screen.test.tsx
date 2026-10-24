@@ -1,5 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { TASK_ROOT } from '@entities/retention-task';
+import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { server } from '../mocks/server';
 import { resetTasks, seedTask } from '../mocks/tasks';
@@ -90,5 +91,34 @@ describe('напоминание о сроках в шапке', () => {
     renderApp('/model');
     await screen.findByRole('navigation', { name: 'Разделы' });
     expect(screen.queryByRole('button', { name: /Сроки/ })).toBeNull();
+  });
+  it('колонка «Что изменилось»: последнее наблюдение; у закрытой — итог сотрудника рядом', async () => {
+    asRole('analyst');
+    const ev = (id: number, text: string) => ({
+      id,
+      at: new Date().toISOString(),
+      actor: 'system',
+      kind: 'observed' as const,
+      text,
+      changes: [],
+    });
+    seedTask(9, {
+      customerEmail: 'a@x.test',
+      events: [ev(1, 'Баланс пополнен на 600,00 €'), ev(2, 'Включено автопродление услуги VPS-1')],
+    });
+    seedTask(10, {
+      customerEmail: 'b@x.test',
+      status: 'closed',
+      outcome: 'renewed',
+      closedAt: new Date().toISOString(),
+      events: [ev(3, 'Услуга VPS-2 продлена до 01.12.2026')],
+    });
+    renderApp('/tasks');
+    expect(await screen.findByRole('columnheader', { name: 'Что изменилось' })).toBeVisible();
+    expect(await screen.findByText('Включено автопродление услуги VPS-1')).toBeVisible();
+    expect(screen.queryByText('Баланс пополнен на 600,00 €')).toBeNull();
+    await userEvent.click(screen.getByRole('radio', { name: 'Закрытые' }));
+    expect(await screen.findByText('Услуга VPS-2 продлена до 01.12.2026')).toBeVisible();
+    expect(screen.getByText('Итог сотрудника: Продлил')).toBeVisible();
   });
 });
