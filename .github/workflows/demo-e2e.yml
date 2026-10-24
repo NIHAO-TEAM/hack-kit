@@ -1,0 +1,87 @@
+# .github/workflows/demo-e2e.yml
+#
+# Демо-сценарий (e2e/tests/demo.spec.ts, docs/demo-script.md) на стенде Compose внутри раннера.
+# Прод не трогает: demo.spec сбрасывает эмулятор и создаёт задачи, поэтому ходит только по одноразовому стенду.
+# Не гейт слияния: падение виден в Actions, слияния не останавливает (как deploy-a11y и deploy-layout).
+# Секреты репозитория не нужны: пароли стенда одноразовые, генерируются в job и маскируются.
+
+name: Demo e2e
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'e2e/tests/demo.spec.ts'
+      - 'docs/demo-script.md'
+      - '.github/workflows/demo-e2e.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'e2e/tests/demo.spec.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # SEED_STAND=false (по умолчанию): суммы demo.spec (3 599,07 €, 3 189,10 €) верны только для сида организаторов.
+      - name: Секреты стенда
+        run: |
+          cp .env.example .env
+          for v in POSTGRES_PASSWORD ADMIN_PASSWORD METRICS_TOKEN SOURCE_TOKEN DEMO_MARKETER_PASSWORD DEMO_ANALYST_PASSWORD DEMO_JURY_PASSWORD; do
+            val=$(openssl rand -hex 16)
+            echo "::add-mask::$val"
+            echo "$v=$val" >> "$GITHUB_ENV"
+            sed -i "s|^$v=.*|$v=$val|" .env
+          done
+
+      - name: Стенд
+        run: docker compose up -d --build --wait --wait-timeout 600
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Playwright и Firefox
+        working-directory: e2e
+        run: |
+          npm install --no-save --no-package-lock @playwright/test@1.49.1
+          npx playwright install --with-deps firefox
+
+      - name: Демо-сценарий
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://localhost:8080
+          E2E_MARKETER_PASSWORD: ${{ env.DEMO_MARKETER_PASSWORD }}
+          E2E_ANALYST_PASSWORD: ${{ env.DEMO_ANALYST_PASSWORD }}
+          E2E_JURY_PASSWORD: ${{ env.DEMO_JURY_PASSWORD }}
+          CI: "true"
+        run: npx playwright test demo --retries=1 --reporter=list
+
+      - name: Скриншоты падения
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-screenshots
+          path: e2e/test-results/**/*.png
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Логи при падении
+        if: failure()
+        run: docker compose logs --tail 100 app
+
+      - name: Остановка
+        if: always()
+        run: docker compose down -v
