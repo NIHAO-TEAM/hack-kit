@@ -142,8 +142,8 @@
 #### Scenario: загрузка снимка
 
 - WHEN принят снимок
-- THEN `/metrics` содержит `churn_snapshot_ingest_stage_seconds` по этапам `parse`, `validate`, `lock`, `truncate`, `copy_accounts`, `copy_services`, `copy_transactions`, `sequences`, `commit`
-- Тест: `TestSnapshotIngestStagesAndSecondLoad` (метрики на стенде), `TestStagesObserveAndLint` (формат метрики)
+- THEN `/metrics` содержит `churn_snapshot_ingest_stage_seconds` по этапам `parse`, `validate`, `lock`, `truncate`, `copy_accounts`, `copy_services`, `copy_transactions`, `sequences`, `commit` и `churn_snapshot_ingest_peak_heap_bytes` (пик кучи за последнюю загрузку); этапы идут одновременно: `parse` и `validate` — время работы без ожиданий, `copy_*` — вместе с ожиданием разбора
+- Тест: `TestSnapshotIngestStagesAndSecondLoad`, `TestSnapshotIngestMetrics` (метрики на стенде), `TestStagesObserveAndLint` (формат метрики)
 
 ### Requirement: загрузка во время пересчёта
 
@@ -154,3 +154,31 @@
 - WHEN второй снимок загружается, пока идёт пересчёт по первому
 - THEN вторая загрузка принята, итоговая версия модели соответствует второму снимку
 - Тест: `TestSnapshotIngestStagesAndSecondLoad` (две загрузки подряд, версия сводки равна версии второго ответа); замер времени — `TestLargeSnapshotLoad` с `LOAD_REPEAT=1`
+
+### Requirement: снимок загружается потоком
+
+Приём снимка SHALL разбирать тело потоком и передавать записи в `COPY` через каналы с ограниченными буферами, не удерживая весь снимок в памяти; результат, проверки и коды ошибок не меняются.
+
+#### Scenario: большой снимок
+
+- WHEN загружен снимок на 100 000 аккаунтов (генератор организаторов)
+- THEN загрузка успешна, данные в таблицах совпадают со снимком, пик памяти на загрузку ниже записанной в тесте границы (32 МБ на 100k, 64 МБ на 300k аккаунтов)
+- Тест: `TestSnapshotIngestPeakMemory` (300k — при `LOAD_300K=1`)
+
+#### Scenario: порядок ключей
+
+- WHEN в теле массивы идут в порядке `transactions`, `services`, `accounts`
+- THEN загрузка успешна с тем же результатом
+- Тест: `TestSnapshotIngestAnyKeyOrder`, `TestParseStreamAnyKeyOrder`, `TestValidatorDeferredRefs`
+
+#### Scenario: битая запись
+
+- WHEN запись с ошибкой стоит в середине потока или тело оборвано
+- THEN ответ с прежним кодом ошибки (422 или 400), таблицы и версия остались прежними
+- Тест: `TestSnapshotIngestRollsBackMidStream`
+
+#### Scenario: зависший клиент
+
+- WHEN клиент начал отдавать тело снимка и замолчал дольше срока на тело (`SNAPSHOT_BODY_TIMEOUT_SEC`, по умолчанию 120 с)
+- THEN ответ 400, транзакция откатана, таблицы и версия прежние
+- Тест: `TestSnapshotIngestBodyTimeout`
