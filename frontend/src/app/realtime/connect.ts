@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { TASK_ROOT } from '@entities/retention-task';
+import { streamKey, type StreamState } from '@entities/stream-run';
 import type { RealtimeState } from '@shared/lib';
 
 export const EVENTS_URL = '/api/v1/events';
@@ -15,7 +15,7 @@ export const INVALIDATED_ROOTS = [
 ] as const;
 
 /** Корни ключей, которые перечитываются при изменении задачи на любом экране (SSE `tasks`). */
-export const TASK_ROOTS = ['customers', 'customer', 'summary', TASK_ROOT] as const;
+export const TASK_ROOTS = ['customers', 'customer', 'summary'] as const;
 
 type EventSourceLike = Pick<EventSource, 'close' | 'readyState' | 'addEventListener'> & {
   onopen: ((e: Event) => void) | null;
@@ -74,6 +74,17 @@ export function connectEvents(
       onState({ status: 'online', version });
     });
     es.addEventListener('tasks', invalidateTasks);
+    // Ход потока событий эмулятора: кадр целиком кладём в кэш, без перезапроса.
+    es.addEventListener('streamProgress', (e) => {
+      try {
+        queryClient.setQueryData(
+          streamKey,
+          JSON.parse((e as MessageEvent<string>).data) as StreamState,
+        );
+      } catch {
+        // Кадр не разобрали — состояние перечитает опрос раз в секунду.
+      }
+    });
     es.onerror = () => {
       lost = true;
       onState({ status: 'offline', version });

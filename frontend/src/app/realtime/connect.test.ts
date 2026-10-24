@@ -44,11 +44,32 @@ describe('connectEvents', () => {
     expect(states.at(-1)).toEqual({ status: 'online', version: 5 });
   });
 
-  it('на tasks сбрасывает очередь, карточку, сводку и задачи', () => {
+  it('на tasks сбрасывает очередь, карточку и сводку', () => {
     const { spy, sources } = setup();
     sources[0]!.onopen?.(new Event('open'));
     sources[0]!.emit('tasks', '{"type":"changed","taskId":3,"customerId":9}');
-    expect(roots(spy)).toEqual(['customers', 'customer', 'summary', 'task']);
+    expect(roots(spy)).toEqual(['customers', 'customer', 'summary']);
+  });
+
+  it('на streamProgress кладёт кадр хода потока в кэш и не перезапрашивает данные', () => {
+    const queryClient = new QueryClient();
+    const spy = vi.spyOn(queryClient, 'invalidateQueries');
+    const sources: FakeSource[] = [];
+    connectEvents(
+      queryClient,
+      () => undefined,
+      () => {
+        const s = new FakeSource();
+        sources.push(s);
+        return s as never;
+      },
+    );
+    const frame = { state: 'running', events: 2500, applied: 300 };
+    sources[0]!.emit('streamProgress', JSON.stringify(frame));
+    expect(queryClient.getQueryData(['stream'])).toEqual(frame);
+    sources[0]!.emit('streamProgress', 'не JSON');
+    expect(queryClient.getQueryData(['stream'])).toEqual(frame);
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('обрыв даёт offline, возврат связи — один перезапрос', () => {
