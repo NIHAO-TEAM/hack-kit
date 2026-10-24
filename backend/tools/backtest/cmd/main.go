@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"example.com/app/internal/source"
 	"example.com/app/tools/backtest"
@@ -24,15 +25,16 @@ func main() {
 	seed := flag.Uint64("seed", 1, "зерно поведения клиентов")
 	behaviorFile := flag.String("behavior", "", "файл допущений поведения (по умолчанию вшитый behavior.json)")
 	title := flag.String("title", "", "заголовок раздела")
+	asOf := flag.String("as-of", "", "момент T, RFC 3339, если в снимке нет asOf (у набора организаторов 2026-10-19T15:00:00Z)")
 	robust := flag.Bool("robust", true, "прогнать устойчивость ±50 %")
 	flag.Parse()
-	if err := run(*in, *accounts, *genSeed, *seed, *behaviorFile, *title, *robust); err != nil {
+	if err := run(*in, *accounts, *genSeed, *seed, *behaviorFile, *title, *asOf, *robust); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(in string, accounts int, genSeed, seed uint64, behaviorFile, title string, robust bool) error {
+func run(in string, accounts int, genSeed, seed uint64, behaviorFile, title, asOf string, robust bool) error {
 	var body []byte
 	var err error
 	switch {
@@ -49,6 +51,13 @@ func run(in string, accounts int, genSeed, seed uint64, behaviorFile, title stri
 	snap, ferrs, err := source.ParseSnapshot(bytes.NewReader(body))
 	if err != nil || len(ferrs) > 0 {
 		return fmt.Errorf("разбор снимка: %v %v", err, ferrs)
+	}
+	if snap.AsOf == nil && asOf != "" {
+		t, perr := time.Parse(time.RFC3339, asOf)
+		if perr != nil {
+			return fmt.Errorf("as-of: %w", perr)
+		}
+		snap.AsOf = &t
 	}
 	b, err := backtest.DefaultBehavior()
 	if behaviorFile != "" {

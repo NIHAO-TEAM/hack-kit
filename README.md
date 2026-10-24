@@ -30,7 +30,7 @@
 | Критерий (`docs/scale.md`) | На проде | В репозитории |
 |---|---|---|
 | Бизнес-польза: кому, почему, сколько евро | [/queue](https://nihao-churn.duckdns.org/queue), карточка клиента, [/tasks](https://nihao-churn.duckdns.org/tasks), [/summary](https://nihao-churn.duckdns.org/summary) | [docs/case.md](docs/case.md), [docs/model.md](docs/model.md), `backend/internal/risk`, `frontend/src` |
-| Обоснованность модели | [/about](https://nihao-churn.duckdns.org/about), [/model](https://nihao-churn.duckdns.org/model) | [docs/model.md](docs/model.md), [docs/model-rules.md](docs/model-rules.md), оракул `tools/oracle`, golden-тесты `testdata/golden` |
+| Обоснованность модели | [/about](https://nihao-churn.duckdns.org/about), [/model](https://nihao-churn.duckdns.org/model) | [docs/model.md](docs/model.md), [docs/model-rules.md](docs/model-rules.md), [docs/model-check.md](docs/model-check.md) (прокрутка 30 суток против простых правил, `make backtest`), оракул `tools/oracle`, golden-тесты `testdata/golden` |
 | Архитектура и расширяемость | Helm/k3s: домен с TLS; Swagger [/api/v1/docs](https://nihao-churn.duckdns.org/api/v1/docs) | [docs/architecture.md](docs/architecture.md), чарт [deploy/helm/churn](deploy/helm/churn), [values.yaml](deploy/helm/churn/values.yaml), [api/openapi.yaml](api/openapi.yaml) |
 | Метрики и нагрузка | [Grafana /grafana/](https://nihao-churn.duckdns.org/grafana/) (дашборд `churn`), `/metrics` по токену, Prometheus | [deploy/grafana](deploy/grafana), [deploy/prometheus](deploy/prometheus), замеры [docs/load/](docs/load/README.md) (цели частично не достигнуты, числа честные) |
 | Вход и роли | экран входа, «Войти через SSO» | [deploy/keycloak/churn-realm.json](deploy/keycloak/churn-realm.json), раздел «Вход через SSO» ниже |

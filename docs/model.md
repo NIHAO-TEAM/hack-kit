@@ -1,6 +1,6 @@
 # Модель риска оттока
 
-Одна страница для жюри. Полные правила и примеры — [model-rules.md](model-rules.md), эталонный расчёт — `tools/oracle/oracle.py`, числа — `testdata/golden/`. Все цифры ниже посчитаны оракулом на наборе организаторов (`cases/analizator/data.json`, `asOf = 2026-10-19T15:00:00Z`, настройки по умолчанию).
+Одна страница для жюри. Полные правила и примеры — [model-rules.md](model-rules.md), эталонный расчёт — `tools/oracle/oracle.py`, числа — `testdata/golden/`; проверка ранжирования на прокрутке 30 суток — [model-check.md](model-check.md). Все цифры ниже посчитаны оракулом на наборе организаторов (`cases/analizator/data.json`, `asOf = 2026-10-19T15:00:00Z`, настройки по умолчанию).
 
 ## Идея
 
