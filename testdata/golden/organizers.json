@@ -5,13 +5,13 @@
       "actions": [
         {
           "levelAfter": "low",
-          "lossDeltaCents": -36529,
-          "scoreAfter": 41.57,
-          "scoreBefore": 56.02,
+          "lossDeltaCents": -37508,
+          "scoreAfter": 40.0,
+          "scoreBefore": 54.84,
           "type": "enable_autoprolong"
         }
       ],
-      "expectedLossCents": 38315,
+      "expectedLossCents": 37508,
       "exposureCents": 68400,
       "features": {
         "1": {
@@ -35,7 +35,7 @@
       "id": 1,
       "level": "medium",
       "lostCents": 0,
-      "score": 56.02,
+      "score": 54.84,
       "state": "scored"
     },
     {
@@ -62,7 +62,7 @@
     },
     {
       "actions": [],
-      "expectedLossCents": 706,
+      "expectedLossCents": 699,
       "exposureCents": 1997,
       "features": {
         "14": {
@@ -88,20 +88,20 @@
       "id": 4,
       "level": "medium",
       "lostCents": 0,
-      "score": 61.22,
+      "score": 61.0,
       "state": "scored"
     },
     {
       "actions": [
         {
           "levelAfter": "high",
-          "lossDeltaCents": -79,
-          "scoreAfter": 88.48,
-          "scoreBefore": 91.36,
+          "lossDeltaCents": -83,
+          "scoreAfter": 88.0,
+          "scoreBefore": 91.0,
           "type": "enable_autoprolong"
         }
       ],
-      "expectedLossCents": 1472,
+      "expectedLossCents": 1463,
       "exposureCents": 1696,
       "features": {
         "15": {
@@ -127,20 +127,20 @@
       "id": 5,
       "level": "high",
       "lostCents": 0,
-      "score": 91.36,
+      "score": 91.0,
       "state": "scored"
     },
     {
       "actions": [
         {
           "levelAfter": "low",
-          "lossDeltaCents": -3,
-          "scoreAfter": 45.95,
-          "scoreBefore": 45.95,
+          "lossDeltaCents": -4,
+          "scoreAfter": 40.0,
+          "scoreBefore": 40.0,
           "type": "enable_autoprolong"
         }
       ],
-      "expectedLossCents": 220,
+      "expectedLossCents": 4,
       "exposureCents": 2188,
       "features": {
         "16": {
@@ -164,7 +164,7 @@
       "id": 6,
       "level": "low",
       "lostCents": 0,
-      "score": 45.95,
+      "score": 40.0,
       "state": "scored"
     },
     {
@@ -194,20 +194,20 @@
         {
           "amountCents": 52984,
           "levelAfter": "high",
-          "lossDeltaCents": -106748,
-          "scoreAfter": 83.46,
-          "scoreBefore": 88.14,
+          "lossDeltaCents": -102749,
+          "scoreAfter": 82.45,
+          "scoreBefore": 86.95,
           "type": "top_up"
         },
         {
           "levelAfter": "high",
-          "lossDeltaCents": -123,
-          "scoreAfter": 73.64,
-          "scoreBefore": 88.14,
+          "lossDeltaCents": -135,
+          "scoreAfter": 71.01,
+          "scoreBefore": 86.95,
           "type": "enable_autoprolong"
         }
       ],
-      "expectedLossCents": 345927,
+      "expectedLossCents": 318910,
       "exposureCents": 616450,
       "features": {
         "19": {
@@ -236,20 +236,20 @@
       "id": 9,
       "level": "high",
       "lostCents": 0,
-      "score": 88.14,
+      "score": 86.95,
       "state": "scored"
     },
     {
       "actions": [
         {
           "levelAfter": "high",
-          "lossDeltaCents": -62,
-          "scoreAfter": 88.62,
-          "scoreBefore": 94.88,
+          "lossDeltaCents": -64,
+          "scoreAfter": 88.0,
+          "scoreBefore": 94.6,
           "type": "enable_autoprolong"
         }
       ],
-      "expectedLossCents": 1333,
+      "expectedLossCents": 1323,
       "exposureCents": 1503,
       "features": {
         "10": {
@@ -276,7 +276,7 @@
       "id": 10,
       "level": "high",
       "lostCents": 0,
-      "score": 94.88,
+      "score": 94.6,
       "state": "scored"
     }
   ],
@@ -289,7 +289,7 @@
     "weights": {
       "bonus_locked": 0.0,
       "fail": 0.4,
-      "flight": 0.15,
+      "flight": 0.0,
       "funds": 0.7,
       "noauto": 0.55,
       "pwait": 0.8,
@@ -298,7 +298,7 @@
   },
   "source": "cases/analizator/data.json",
   "summary": {
-    "expectedLossCents": 387973,
+    "expectedLossCents": 359907,
     "exposureCents": 690046,
     "levels": {
       "high": 3,

@@ -696,6 +696,11 @@ export interface components {
             level: components["schemas"]["RiskLevel"];
             /** Format: int64 */
             expectedLossCents: number;
+            /**
+             * Format: int64
+             * @description Условная стоимость неживых услуг (deleted/blocked) за горизонт модели; 0 у клиентов без потерянных услуг. Расчёт по ценам услуг, не фактическая выручка.
+             */
+            lostCents?: number;
             /** @description Главная причина простыми словами; нет у unscored и lost. */
             topReason?: string;
             topAction?: components["schemas"]["ActionBrief"];

@@ -5,9 +5,14 @@ export function byContribution(features: readonly CustomerFeature[]): CustomerFe
   return [...features].sort((a, b) => b.contribution - a.contribution);
 }
 
-/** Формула вероятности срыва с числами ответа: `P = 1 − (1 − w·f)(…) = 0,87`. Сама вероятность — с сервера. */
-export function formulaText(features: readonly CustomerFeature[], score: number): string {
+/** Скор в шапке: целые проценты, как в очереди. Сервер отдаёт `score` в процентах 0..100. */
+export function scorePercentText(score: number): string {
+  return `скор ${Math.round(score)} %`;
+}
+
+/** Формула вероятности срыва с числами ответа: `P = 1 − (1 − w·f)(…) = 0,87`. Скор с сервера — в процентах, в формуле вероятность 0..1. */
+export function formulaText(features: readonly CustomerFeature[], scorePercent: number): string {
   const num = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
   const terms = byContribution(features).map((f) => `(1 − ${num(f.weight)}·${num(f.value)})`);
-  return `P = 1 − ${terms.join(' · ') || '1'} = ${num(score)}`;
+  return `P = 1 − ${terms.join(' · ') || '1'} = ${num(scorePercent / 100)}`;
 }

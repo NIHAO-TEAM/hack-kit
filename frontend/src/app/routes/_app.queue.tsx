@@ -23,6 +23,11 @@ function validateSearch(search: Record<string, unknown>): Partial<CustomerParams
     order,
     level: levels.find((l) => l === search.level),
     q: typeof search.q === 'string' && search.q ? search.q : undefined,
+    // Первая страница в адрес не пишется.
+    page:
+      Number.isInteger(Number(search.page)) && Number(search.page) > 1
+        ? Number(search.page)
+        : undefined,
   };
 }
 

@@ -12,10 +12,17 @@ describe('экран «Карточка клиента»', () => {
   it('клиент 9: потеря, главное действие с ценой и пояснение суммы', async () => {
     renderApp('/queue/9');
     expect(await screen.findByRole('heading', { name: 'Клиент 9' })).toBeInTheDocument();
-    expect(screen.getAllByText(/3\s459,27\s€/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/3\s189,10\s€/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Пополнить на 529,84/)).toBeInTheDocument();
-    expect(screen.getByText(/−1\s067,48\s€/)).toBeInTheDocument();
+    expect(screen.getByText(/−1\s027,49\s€/)).toBeInTheDocument();
     expect(screen.getByText(/платежи на 30 дней × вероятность срыва/i)).toBeInTheDocument();
+  });
+
+  it('клиент 9: скор в шапке «87 %», в формуле вероятность «0,87»', async () => {
+    renderApp('/queue/9');
+    expect(await screen.findByText('скор 87 %')).toBeInTheDocument();
+    expect(screen.queryByText(/8814/)).toBeNull();
+    expect(await screen.findByText(/^P = 1 − /)).toHaveTextContent(/= 0,87$/);
   });
 
   it('карточка клиента 9: признаки по убыванию вклада и формула с числами ответа', async () => {
@@ -27,7 +34,7 @@ describe('экран «Карточка клиента»', () => {
     expect(within(table).getByText('funds')).toBeInTheDocument();
     expect(within(table).getByText('susp')).toBeInTheDocument();
     expect(within(table).getByText('Вклад')).toBeInTheDocument();
-    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,88');
+    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,87');
   });
 
   it('раскрытая услуга не выдаёт признаки клиента за свои', async () => {
@@ -45,10 +52,25 @@ describe('экран «Карточка клиента»', () => {
     expect(await screen.findByText('Такого клиента нет')).toBeInTheDocument();
   });
 
-  it('клиент 2: «потерян», сумма «уже потеряно»', async () => {
-    renderApp('/queue/2');
-    expect(await screen.findByText(/потерян: все услуги заблокированы/)).toBeInTheDocument();
-    expect(screen.getByText('Уже потеряно')).toBeInTheDocument();
+  it('клиент 7: «потерян», сумма потерянных услуг, а не 0 €', async () => {
+    renderApp('/queue/7');
+    expect(await screen.findByText(/потерян: живых услуг не осталось/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Стоимость потерянных услуг за горизонт модели \(расчёт\)/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/6\s808,74\s€/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/не фактическая выручка/)).toBeInTheDocument();
+  });
+
+  it('скор карточки совпадает со скором очереди для каждого клиента мока', async () => {
+    const { rows } = await import('../mocks/queue');
+    const { server } = await import('../mocks/server');
+    expect(server).toBeDefined();
+    for (const row of rows()) {
+      const res = await fetch(`/api/v1/customers/${row.id}`);
+      const detail = (await res.json()) as CustomerDetail;
+      expect(detail.customer.score ?? null, `клиент ${row.id}`).toBe(row.score ?? null);
+    }
   });
 
   it('несуществующий клиент — «Такого клиента нет»', async () => {
@@ -109,7 +131,7 @@ describe('экран «Карточка клиента»', () => {
               email: 'c9@example.com',
               balance: 0,
               totalReplenished: 0,
-              score: 0.88,
+              score: 88,
               level: 'high',
               expectedLossCents: 100,
             },

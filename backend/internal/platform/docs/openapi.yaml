@@ -464,6 +464,10 @@ components:
         expectedLossCents:
           type: integer
           format: int64
+        lostCents:
+          type: integer
+          format: int64
+          description: Условная стоимость неживых услуг (deleted/blocked) за горизонт модели; 0 у клиентов без потерянных услуг. Расчёт по ценам услуг, не фактическая выручка.
         topReason:
           type: string
           description: Главная причина простыми словами; нет у unscored и lost.
