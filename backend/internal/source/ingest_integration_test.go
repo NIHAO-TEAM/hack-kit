@@ -166,3 +166,18 @@ func TestStreamBigSnapshotConsistent(t *testing.T) {
 	}
 	runBench(t, 10000, 10000)
 }
+
+// 2.6: synchronous_commit off стоит только в транзакции пачки, на остальных соединениях — по умолчанию.
+func TestBatchTxSynchronousCommitOffOnlyInBatch(t *testing.T) {
+	s := apitest.New(t)
+	inside, outside, err := source.BatchTxSyncCommit(context.Background(), s.Pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inside != "off" {
+		t.Errorf("в транзакции пачки synchronous_commit = %q, ждали off", inside)
+	}
+	if outside != "on" {
+		t.Errorf("вне пачки synchronous_commit = %q, ждали on", outside)
+	}
+}

@@ -45,3 +45,21 @@ func RunIngest(ctx context.Context, pool *pgxpool.Pool, base Snapshot, seqs []in
 	run.Duplicates = g.duplicates()
 	return run
 }
+
+// BatchTxSyncCommit открывает транзакцию пачки и возвращает synchronous_commit внутри неё и на
+// обычном соединении того же пула после отката.
+func BatchTxSyncCommit(ctx context.Context, pool *pgxpool.Pool) (inside, outside string, err error) {
+	tx, err := beginBatchTx(ctx, pool)
+	if err != nil {
+		return "", "", err
+	}
+	if err = tx.QueryRow(ctx, "SHOW synchronous_commit").Scan(&inside); err != nil {
+		_ = tx.Rollback(ctx)
+		return "", "", err
+	}
+	if err = tx.Rollback(ctx); err != nil {
+		return "", "", err
+	}
+	err = pool.QueryRow(ctx, "SHOW synchronous_commit").Scan(&outside)
+	return inside, outside, err
+}

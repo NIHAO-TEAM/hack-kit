@@ -72,6 +72,28 @@
 - THEN `/metrics` содержит `churn_emulator_stream_events_total{result}` и гистограмму `churn_emulator_stream_apply_seconds`
 - Тест: `TestStreamMetrics`
 
+### Requirement: поток событий применяется точечно и пачками
+
+Поток эмулятора SHALL применять каждое событие точечной записью в БД, группируя события в пачки одной транзакцией, и не переписывать снимок целиком. Транзакция пачки SHALL идти с `SET LOCAL synchronous_commit = off` (ADR-0009, п. 5); загрузка снимка, настройки, сессии и аудит фиксируются синхронно.
+
+#### Scenario: 10 000 событий на 100 000 клиентов
+
+- WHEN на снимке 100 000 клиентов запущен поток 10 000 событий со скоростью «как можно быстрее»
+- THEN все события применены или отмечены `failed` с причиной, потерянных нет, согласованность с пересчётом с нуля — 0 центов
+- Тест: `TestStreamBigSnapshotConsistent` (в CI — на 10 000 клиентов), `TestIngestRowsMatchFullSnapshot`, `TestIngestBatchesAndVersions`
+
+#### Scenario: повтор события
+
+- WHEN событие с тем же номером прогона приходит второй раз
+- THEN оно не применяется повторно
+- Тест: `TestIngestFailedEventAndDuplicate`
+
+#### Scenario: асинхронная фиксация только у пачки потока
+
+- WHEN открыта транзакция пачки потока
+- THEN внутри неё `synchronous_commit = off`, на остальных соединениях — `on`
+- Тест: `TestBatchTxSynchronousCommitOffOnlyInBatch`
+
 ### Requirement: панель потока на экране «Источник»
 
 Экран «Источник» SHALL показывать аналитику и `jury` панель с запуском потока, ходом выполнения и итоговой таблицей; маркетолог экрана не видит.

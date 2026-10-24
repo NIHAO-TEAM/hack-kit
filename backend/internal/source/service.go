@@ -672,21 +672,36 @@ func (g *eventWriter) write(ctx context.Context, items []ingestItem) []ingestRes
 // errIngestNoRow — запрос события не нашёл строку (её убрали, пока шёл прогон).
 var errIngestNoRow = notFound{errors.New("строка не найдена: данные изменились во время прогона")}
 
+// beginBatchTx открывает транзакцию пачки потока. Тот же ключ, что у replace: пачка не идёт
+// параллельно с загрузкой снимка. synchronous_commit off (ADR-0009, п. 5) — только здесь и
+// только на транзакцию (SET LOCAL): загрузка снимка, настройки, сессии и аудит фиксируются синхронно.
+func beginBatchTx(ctx context.Context, pool *pgxpool.Pool) (pgx.Tx, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockKey); err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, "SET LOCAL synchronous_commit = off"); err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, err
+	}
+	return tx, nil
+}
+
 // commit пишет события good одной транзакцией и заводит одну версию данных на пачку.
 // skipped — события, у которых запрос не затронул ни одной строки; они не записаны.
 func (g *eventWriter) commit(ctx context.Context, items []ingestItem, good []int) (int64, map[int]error, error) {
 	emulatorMu.Lock() // не пересекаться с шагами эмулятора и правками
 	defer emulatorMu.Unlock()
 
-	tx, err := g.pool.Begin(ctx)
+	tx, err := beginBatchTx(ctx, g.pool)
 	if err != nil {
 		return 0, nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	// Тот же ключ, что у replace: пачка не идёт параллельно с загрузкой снимка.
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockKey); err != nil {
-		return 0, nil, err
-	}
 
 	var b pgx.Batch
 	kinds := make([][]stmtKind, len(good))

@@ -18,3 +18,9 @@
 ## Риски
 
 - `snapshot-stream-parse` правит приём снимка в том же пакете: `replace` и `snapshot.go` здесь не трогаем, конфликт по `service.go` — слиянием `main`.
+
+## Решения по ходу
+
+- Перехват у exec-4 (сессия умерла). Слияние `main`: в `service.go` оба PR дописали конец файла, а имя `ingester` занято загрузчиком снимка из `snapshot-stream-parse` — мой писатель пачек переименован в `eventWriter` (`newEventWriter`). Влитое главнее, поведение не менялось.
+- `synchronous_commit off` ([lead] 24.10, ADR-0009 п. 5): `beginBatchTx` в `service.go` выставляет `SET LOCAL` только в транзакции пачки; тест `TestBatchTxSynchronousCommitOffOnlyInBatch`. Потеря при падении Postgres — хвост последних пачек потока; снимок и настройки не затронуты.
+- Эффект `synchronous_commit off` в замере: на локальном Postgres в контейнере выигрыша не видно (разброс от прогона к прогону больше разницы), в отчёте — как есть.
