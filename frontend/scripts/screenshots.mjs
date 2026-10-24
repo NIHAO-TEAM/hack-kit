@@ -40,9 +40,14 @@ for (const route of routes) {
         colorScheme: theme,
       });
       // Тему читает theme-init.js из localStorage до загрузки приложения.
-      await context.addInitScript((t) => localStorage.setItem('mantine-color-scheme-value', t), theme);
+      await context.addInitScript(
+        (t) => localStorage.setItem('mantine-color-scheme-value', t),
+        theme,
+      );
       if (password) {
-        const res = await context.request.post(new URL('/api/v1/auth/login', base).href, { data: { login, password } });
+        const res = await context.request.post(new URL('/api/v1/auth/login', base).href, {
+          data: { login, password },
+        });
         if (!res.ok()) throw new Error(`вход ${login}: ${res.status()}`);
       }
       const page = await context.newPage();
