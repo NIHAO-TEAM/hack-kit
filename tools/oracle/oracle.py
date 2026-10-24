@@ -126,7 +126,8 @@ def score_customer(a, svc, tx, as_of, st):
         if s['status'] == 'prolong_wait':
             left = (exp + timedelta(days=5) - as_of).total_seconds() / 86400
             f['pwait'] = 1.0 if left <= 0 else min(1.0, max(0.0, 1 - left / 5))
-        f['funds'] = ffunds
+        if s['status'] == 'prolong_wait' or charges(s, as_of, st['fundsHours']) > 0:
+            f['funds'] = ffunds
         if not s['autoProlong']:
             days = (exp - as_of).total_seconds() / 86400
             f['noauto'] = 0.0 if days > 7 else min(1.0, 1 - days / 7)
@@ -197,7 +198,7 @@ def actions(snap, as_of, st, base):
             d['costCents'] = amount_cents or 0
             return d
 
-        if any(f['funds'] > 0 for f in feats.values()):
+        if any(f.get('funds', 0) > 0 for f in feats.values()):
             top = r['_need'] - r['_have']
             acts.append(effect('top_up', top, dict(a, balance=a['balance'] + top), svc))
         if any(f.get('noauto', 0) > 0 for f in feats.values()):
