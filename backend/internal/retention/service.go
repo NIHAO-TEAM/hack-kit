@@ -84,7 +84,8 @@ func (s *Service) login(ctx context.Context) string {
 }
 
 const taskColumns = `id, customer_id, customer_email, status, outcome, assignee, due_at, note, version,
-	baseline, created_by, created_at, updated_by, updated_at, closed_at`
+	baseline, created_by, created_at, updated_by, updated_at, closed_at,
+	(SELECT e.text FROM retention_task_events e WHERE e.task_id = retention_tasks.id AND e.kind = 'observed' ORDER BY e.id DESC LIMIT 1)`
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -95,7 +96,7 @@ func scanTask(row scanner) (gen.RetentionTask, error) {
 	var status string
 	var baseline []byte
 	if err := row.Scan(&t.Id, &t.CustomerId, &email, &status, &outcome, &t.Assignee, &t.DueAt, &t.Note, &t.Version,
-		&baseline, &t.CreatedBy, &t.CreatedAt, &t.UpdatedBy, &t.UpdatedAt, &t.ClosedAt); err != nil {
+		&baseline, &t.CreatedBy, &t.CreatedAt, &t.UpdatedBy, &t.UpdatedAt, &t.ClosedAt, &t.LastObservation); err != nil {
 		return t, err
 	}
 	t.CustomerEmail = &email

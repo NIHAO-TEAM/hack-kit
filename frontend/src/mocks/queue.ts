@@ -92,6 +92,28 @@ const sortKey: Record<string, (r: CustomerRow) => number | string> = {
   expectedLoss: (r) => r.expectedLossCents,
 };
 
+/** Блок «Работа с клиентами»: считается из открытых задач моков, как на сервере. */
+function retention(all: ReturnType<typeof rows>) {
+  const tasks = all.map((r) => ({ r, task: openTaskBrief(r.id) }));
+  const inWork = tasks.filter((t) => t.task);
+  const without = (level: RiskLevel) =>
+    all.filter((r) => r.level === level && !openTaskBrief(r.id));
+  const loss = (list: typeof all) => list.reduce((s, r) => s + r.expectedLossCents, 0);
+  const count = (status: string) => inWork.filter((t) => t.task?.status === status).length;
+  return {
+    tasksInWork: count('in_work'),
+    tasksContacted: count('contacted'),
+    tasksPostponed: count('postponed'),
+    tasksOverdue: inWork.filter((t) => t.task?.overdue).length,
+    customersInWork: inWork.length,
+    lossInWorkCents: loss(inWork.map((t) => t.r)),
+    highWithoutTask: without('high').length,
+    highWithoutTaskLossCents: loss(without('high')),
+    mediumWithoutTask: without('medium').length,
+    mediumWithoutTaskLossCents: loss(without('medium')),
+  };
+}
+
 export const queueHandlers = [
   http.get(`${API}/customers`, ({ request }) => {
     const url = new URL(request.url);
@@ -138,6 +160,7 @@ export const queueHandlers = [
       atRiskCents: 359907,
       lostCents: 120450,
       asOf: MOCK_AS_OF,
+      retention: retention(all),
       version: 1,
     });
   }),

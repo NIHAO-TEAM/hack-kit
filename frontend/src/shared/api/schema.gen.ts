@@ -902,8 +902,11 @@ export interface components {
             /** Format: date-time */
             at: string;
             actor: string;
-            /** @enum {string} */
-            kind: "created" | "changed" | "contact" | "note";
+            /**
+             * @description observed — наблюдение сервера по данным биллинга после взятия в работу, actor — system. Не доказывает, что помог именно контакт.
+             * @enum {string}
+             */
+            kind: "created" | "changed" | "contact" | "note" | "observed";
             channel?: components["schemas"]["TaskChannel"];
             text: string;
             /** @description Что поменялось в задаче; пусто у контакта и заметки. */
@@ -939,6 +942,8 @@ export interface components {
             updatedBy: string;
             /** Format: date-time */
             closedAt?: string;
+            /** @description Текст последнего наблюдения по данным биллинга (kind observed); нет, пока наблюдений не было. */
+            lastObservation?: string;
             /** @description История по порядку, старые сверху. Есть в ответах по одной задаче, в списке нет. */
             events?: components["schemas"]["TaskEvent"][];
         };
@@ -1085,8 +1090,32 @@ export interface components {
             qualityCounts?: {
                 [key: string]: number;
             };
+            retention?: components["schemas"]["SummaryRetention"];
             /** Format: int64 */
             version: number;
+        };
+        /** @description Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics. */
+        SummaryRetention: {
+            /** @description Открытые задачи в статусе in_work */
+            tasksInWork: number;
+            tasksContacted: number;
+            tasksPostponed: number;
+            /** @description Открытые задачи с прошедшим сроком */
+            tasksOverdue: number;
+            /** @description Клиенты с открытой задачей, которые есть в текущем снимке */
+            customersInWork: number;
+            /**
+             * Format: int64
+             * @description Ожидаемая потеря клиентов в работе (центы евро)
+             */
+            lossInWorkCents: number;
+            /** @description Клиенты высокого риска без открытой задачи */
+            highWithoutTask: number;
+            /** Format: int64 */
+            highWithoutTaskLossCents: number;
+            mediumWithoutTask: number;
+            /** Format: int64 */
+            mediumWithoutTaskLossCents: number;
         };
         ChurnPoint: {
             /** Format: date */

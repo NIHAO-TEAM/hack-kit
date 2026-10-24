@@ -632,7 +632,10 @@ components:
           type: string
         kind:
           type: string
-          enum: [created, changed, contact, note]
+          enum: [created, changed, contact, note, observed]
+          description: >-
+            observed — наблюдение сервера по данным биллинга после взятия в работу, actor — system.
+            Не доказывает, что помог именно контакт.
         channel:
           $ref: "#/components/schemas/TaskChannel"
         text:
@@ -690,6 +693,9 @@ components:
         closedAt:
           type: string
           format: date-time
+        lastObservation:
+          type: string
+          description: Текст последнего наблюдения по данным биллинга (kind observed); нет, пока наблюдений не было.
         events:
           type: array
           description: История по порядку, старые сверху. Есть в ответах по одной задаче, в списке нет.
@@ -947,7 +953,42 @@ components:
           description: Сколько услуг и клиентов отмечено каждой проверкой качества данных
           additionalProperties:
             type: integer
+        retention:
+          $ref: "#/components/schemas/SummaryRetention"
         version:
+          type: integer
+          format: int64
+    SummaryRetention:
+      type: object
+      description: Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics.
+      required: [tasksInWork, tasksContacted, tasksPostponed, tasksOverdue, customersInWork, lossInWorkCents, highWithoutTask, highWithoutTaskLossCents, mediumWithoutTask, mediumWithoutTaskLossCents]
+      properties:
+        tasksInWork:
+          type: integer
+          description: Открытые задачи в статусе in_work
+        tasksContacted:
+          type: integer
+        tasksPostponed:
+          type: integer
+        tasksOverdue:
+          type: integer
+          description: Открытые задачи с прошедшим сроком
+        customersInWork:
+          type: integer
+          description: Клиенты с открытой задачей, которые есть в текущем снимке
+        lossInWorkCents:
+          type: integer
+          format: int64
+          description: Ожидаемая потеря клиентов в работе (центы евро)
+        highWithoutTask:
+          type: integer
+          description: Клиенты высокого риска без открытой задачи
+        highWithoutTaskLossCents:
+          type: integer
+          format: int64
+        mediumWithoutTask:
+          type: integer
+        mediumWithoutTaskLossCents:
           type: integer
           format: int64
     ChurnPoint:

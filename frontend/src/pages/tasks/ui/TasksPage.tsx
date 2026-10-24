@@ -6,6 +6,7 @@ import { customersOptions, type CustomerRow } from '@entities/customer';
 import {
   CustomerLink,
   dueText,
+  outcomeLabel,
   statusLabel,
   tasksQuery,
   TASKS_LIMIT,
@@ -98,8 +99,10 @@ function Risk({ task, listed }: { task: RetentionTask; listed?: CustomerRow }) {
   );
 }
 
-export function TasksPage({ role }: { role: Role }) {
-  const [filter, setFilter] = useState<TaskFilter>(role === 'marketer' ? 'mine' : 'open');
+export function TasksPage({ role, initialFilter }: { role: Role; initialFilter?: TaskFilter }) {
+  const [filter, setFilter] = useState<TaskFilter>(
+    initialFilter ?? (role === 'marketer' ? 'mine' : 'open'),
+  );
   const tasks = useQuery(tasksQuery(filter));
   const customers = useQuery(customersOptions({ sort: 'id', order: 'asc' }));
   const now = useNow();
@@ -138,7 +141,7 @@ export function TasksPage({ role }: { role: Role }) {
             Показаны первые {TASKS_LIMIT} из {tasks.data.total}, новые правки сверху.
           </Text>
         ) : null}
-        <Table.ScrollContainer minWidth={760}>
+        <Table.ScrollContainer minWidth={920}>
           <Table aria-label="Задачи удержания" verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
@@ -147,6 +150,7 @@ export function TasksPage({ role }: { role: Role }) {
                 <Table.Th>Ответственный</Table.Th>
                 <Table.Th>{filter === 'closed' ? 'Закрыта' : 'Срок'}</Table.Th>
                 <Table.Th>Скор и потеря</Table.Th>
+                <Table.Th>Что изменилось</Table.Th>
                 <Table.Th>Последнее событие</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -163,6 +167,16 @@ export function TasksPage({ role }: { role: Role }) {
                   </Table.Td>
                   <Table.Td>
                     <Risk task={t} listed={byId.get(t.customerId)} />
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c={t.lastObservation ? undefined : 'dimmed'}>
+                      {t.lastObservation ?? '—'}
+                    </Text>
+                    {t.status === 'closed' && t.outcome ? (
+                      <Text size="xs" c="dimmed">
+                        Итог сотрудника: {outcomeLabel[t.outcome]}
+                      </Text>
+                    ) : null}
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">{exact(t.updatedAt)}</Text>

@@ -95,3 +95,29 @@
 
 - WHEN загружен снимок без клиента, по которому открыта задача, или у того же ID другой email
 - THEN задача сохранилась с отметкой `customerMissing` и не привязана к другому клиенту
+
+### Requirement: наблюдение биллинга после взятия в работу
+
+Сервис SHALL записывать в историю открытой задачи изменения данных клиента относительно момента взятия.
+
+#### Scenario: пополнение
+
+Тест: `TestTaskObservations` (internal/app/task_observations_integration_test.go), `TestObserve` (internal/retention/observe_test.go)
+
+- WHEN клиент 9 в работе, эмулятор пополнил ему баланс на 600 €
+- THEN в истории задачи одно наблюдение «Баланс пополнен на 600,00 €», в карточке — с подписью, что это данные биллинга, а не доказательство эффекта контакта
+
+#### Scenario: повторный пересчёт
+
+Тест: `TestTaskObservations` (internal/app/task_observations_integration_test.go)
+
+- WHEN после пополнения прошёл ещё один пересчёт без изменений клиента
+- THEN новых наблюдений нет
+
+#### Scenario: закрытая задача
+
+Тест: `TestTaskObservations` (internal/app/task_observations_integration_test.go)
+
+- WHEN задача закрыта, а клиент потом продлил услугу
+- THEN наблюдение в закрытую задачу не дописано
+
