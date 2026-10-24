@@ -32,6 +32,22 @@ describe('очередь удержания', () => {
     );
   });
 
+  it('блок «Сортировка» для узкого экрана: «Баланс» и «по возрастанию» уходят в адрес', async () => {
+    signedIn();
+    const user = userEvent.setup();
+    const { router } = renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+
+    await user.selectOptions(screen.getByLabelText('Сортировать по'), 'balance');
+    await waitFor(() =>
+      expect(router.state.location.search).toMatchObject({ sort: 'balance', order: 'desc' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'по убыванию' }));
+    await waitFor(() =>
+      expect(router.state.location.search).toMatchObject({ sort: 'balance', order: 'asc' }),
+    );
+  });
+
   it('по умолчанию сортировка по ожидаемой потере, «Потеря» помечена убыванием', async () => {
     signedIn();
     renderApp('/queue');

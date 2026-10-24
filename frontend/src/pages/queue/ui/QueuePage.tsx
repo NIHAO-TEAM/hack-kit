@@ -40,6 +40,7 @@ import { summaryOptions } from '@entities/summary';
 import { BillingGroup } from './BillingGroup';
 import { DeletionStrip } from './DeletionStrip';
 import { QueueTable } from './QueueTable';
+import { SortControl } from './SortControl';
 import { SummaryCards } from './SummaryCards';
 import { WhatIfPanel } from './WhatIfPanel';
 
@@ -139,6 +140,9 @@ export function QueuePage({
       }),
     );
 
+  const onToggleOrder = () =>
+    onParams(withView({ ...params, order: params.order === 'asc' ? 'desc' : 'asc' }));
+
   const error = customers.error ?? summary.error;
   // Время — время стенда из сводки; часы браузера не подставляем.
   const asOf = summary.data?.asOf ?? null;
@@ -175,6 +179,14 @@ export function QueuePage({
   } else if (customers.data) {
     body = (
       <Stack gap="sm" style={{ opacity: customers.isPlaceholderData ? 0.6 : 1 }}>
+        <SortControl
+          sort={params.sort}
+          order={params.order}
+          onField={(column) =>
+            onParams(withView({ ...params, sort: column, order: firstOrder[column] }))
+          }
+          onToggleOrder={onToggleOrder}
+        />
         <QueueTable
           rows={customers.data.items}
           version={customers.data.version}
