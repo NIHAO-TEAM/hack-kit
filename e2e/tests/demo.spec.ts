@@ -15,9 +15,19 @@ interface Row {
   expectedLossCents: number;
 }
 
+// Сессия по cookie: каждый запрос с изменением требует заголовок X-CSRF-Token (токен приходит при входе).
+const csrfTokens = new WeakMap<APIRequestContext, string>();
+
 async function apiLogin(request: APIRequestContext, login: string, password: string) {
   const res = await request.post('/api/v1/auth/login', { data: { login, password } });
   expect(res.ok(), `вход ${login}`).toBeTruthy();
+  const { csrfToken } = (await res.json()) as { csrfToken?: string };
+  expect(csrfToken, `CSRF-токен ${login}`).toBeTruthy();
+  csrfTokens.set(request, csrfToken ?? '');
+}
+
+function mutate(request: APIRequestContext, method: 'post' | 'patch', url: string, data: unknown) {
+  return request[method](url, { data, headers: { 'X-CSRF-Token': csrfTokens.get(request) ?? '' } });
 }
 
 async function uiLogin(page: Page, login: string, password: string) {
@@ -35,7 +45,7 @@ async function customers(request: APIRequestContext): Promise<Row[]> {
 }
 
 async function setNoauto(request: APIRequestContext, value: number) {
-  const res = await request.patch('/api/v1/model/settings', { data: { weights: { noauto: value } } });
+  const res = await mutate(request, 'patch', '/api/v1/model/settings', { weights: { noauto: value } });
   expect(res.ok(), 'правка веса noauto').toBeTruthy();
 }
 
@@ -52,9 +62,7 @@ test('демо: очередь → карточка → вес → автопр�
   try {
     // Сброс стенда: данные эмулятора и вес noauto в начальное состояние.
     await apiLogin(analyst, 'analyst', analystPassword);
-    const reset = await analyst.post('/api/v1/source/emulator/actions', {
-      data: { actions: [{ customerId: 0, actionId: 'reset' }] },
-    });
+    const reset = await mutate(analyst, 'post', '/api/v1/source/emulator/actions', { actions: [{ customerId: 0, actionId: 'reset' }] });
     expect(reset.ok(), 'reset эмулятора').toBeTruthy();
     await setNoauto(analyst, 0.55);
 
@@ -101,9 +109,7 @@ test('демо: очередь → карточка → вес → автопр�
       })
       .toBe('medium');
     const raised = (await customers(marketerCtx.request)).find((r) => r.id === 1)!;
-    const act = await analyst.post('/api/v1/source/emulator/actions', {
-      data: { actions: [{ customerId: 1, actionId: 'enable_autoprolong' }] },
-    });
+    const act = await mutate(analyst, 'post', '/api/v1/source/emulator/actions', { actions: [{ customerId: 1, actionId: 'enable_autoprolong' }] });
     expect(act.ok(), 'enable_autoprolong').toBeTruthy();
     await expect
       .poll(async () => (await customers(marketerCtx.request)).find((r) => r.id === 1)?.level, {
@@ -124,10 +130,7 @@ test('демо: очередь → карточка → вес → автопр�
     );
   } finally {
     // Возврат стенда в начальное состояние, чтобы следующий прогон начинался чисто.
-    await analyst
-      .post('/api/v1/source/emulator/actions', {
-        data: { actions: [{ customerId: 0, actionId: 'reset' }] },
-      })
+    await mutate(analyst, 'post', '/api/v1/source/emulator/actions', { actions: [{ customerId: 0, actionId: 'reset' }] })
       .catch(() => undefined);
     await setNoauto(analyst, 0.55).catch(() => undefined);
     await marketerCtx.close();
@@ -157,14 +160,10 @@ test('демо: взять в работу → пополнение → набл
   const api = ctx.request;
   try {
     await apiLogin(api, 'jury', juryPassword);
-    const reset = await api.post('/api/v1/source/emulator/actions', {
-      data: { actions: [{ customerId: 0, actionId: 'reset' }] },
-    });
+    const reset = await mutate(api, 'post', '/api/v1/source/emulator/actions', { actions: [{ customerId: 0, actionId: 'reset' }] });
     expect(reset.ok(), 'reset эмулятора').toBeTruthy();
     for (const t of (await tasksOf(api, 9)).filter((x) => x.status !== 'closed')) {
-      const closed = await api.patch(`/api/v1/tasks/${t.id}`, {
-        data: { version: t.version, status: 'closed', outcome: 'not_needed' },
-      });
+      const closed = await mutate(api, 'patch', `/api/v1/tasks/${t.id}`, { version: t.version, status: 'closed', outcome: 'not_needed' });
       expect(closed.ok(), 'закрытие старой задачи клиента 9').toBeTruthy();
     }
     const lossTaken = (await customers(api)).find((r) => r.id === 9)!.expectedLossCents;
@@ -202,10 +201,7 @@ test('демо: взять в работу → пополнение → набл
     const last = (await tasksOf(api, 9)).find((t) => t.status === 'closed' && t.outcome === 'renewed');
     expect(last, 'закрытая задача с итогом renewed').toBeTruthy();
   } finally {
-    await api
-      .post('/api/v1/source/emulator/actions', {
-        data: { actions: [{ customerId: 0, actionId: 'reset' }] },
-      })
+    await mutate(api, 'post', '/api/v1/source/emulator/actions', { actions: [{ customerId: 0, actionId: 'reset' }] })
       .catch(() => undefined);
     await ctx.close();
   }
