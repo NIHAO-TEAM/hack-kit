@@ -1,0 +1,44 @@
+# .github/workflows/deploy-readme-check.yml
+#
+# Проверка README буквально: после успешного выката на main и вручную, на чистом раннере.
+# Скрипт scripts/readme-quickstart.sh берёт блок между метками quickstart в README,
+# выполняет его как написано (пароли — случайные), затем проверяет эндпоинты кейса.
+# Не гейт слияния. Итог — таблица в сводке запуска.
+
+name: Deploy README check
+
+on:
+  workflow_run:
+    workflows: [Deploy, Deploy k8s]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-readme-check
+  cancel-in-progress: false
+
+jobs:
+  readme:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Шаги README и проверка эндпоинтов
+        run: bash scripts/readme-quickstart.sh
+      - name: Логи приложения при падении
+        if: failure()
+        run: docker compose logs --no-color --tail 100 app || true
+      - name: Остановка стенда
+        if: always()
+        run: docker compose down -v || true

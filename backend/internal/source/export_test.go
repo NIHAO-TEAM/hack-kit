@@ -29,7 +29,7 @@ type IngestRun struct {
 // RunIngest прогоняет события с заданными номерами через приёмник и ждёт записи всех.
 func RunIngest(ctx context.Context, pool *pgxpool.Pool, base Snapshot, seqs []int, evs []StreamEvent) IngestRun {
 	var run IngestRun
-	g := newIngester(pool, newIngestState(&base), time.Now,
+	g := newEventWriter(pool, newIngestState(&base), time.Now,
 		func(v int64) { run.Published = append(run.Published, v) },
 		func(res []ingestResult) {
 			run.BatchSizes = append(run.BatchSizes, len(res))

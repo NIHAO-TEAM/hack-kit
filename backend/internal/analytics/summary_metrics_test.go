@@ -27,6 +27,11 @@ func fixture() *analytics.Overview {
 		Levels:            map[string]int{"high": 3, "medium": 2, "low": 1, "unscored": 0, "lost": 4},
 		ExpectedLossCents: 359907, AtRiskCents: 690046, LostCents: 736834,
 		QualityCounts: map[string]int{"stale": 2},
+		LossByFeature: []analytics.FeatureLoss{
+			{ID: "susp", LossCents: 184419, Customers: 2}, {ID: "funds", LossCents: 134738, Customers: 1},
+			{ID: "noauto", LossCents: 38321, Customers: 5}, {ID: "pwait", LossCents: 2003, Customers: 2},
+			{ID: "fail", LossCents: 426, Customers: 3},
+		},
 	}
 }
 
@@ -188,5 +193,33 @@ func TestMetricsBeforeFirstRecalc(t *testing.T) {
 	rec := get(newAPI(nil).GetMetrics, "/metrics")
 	if rec.Code != 200 || strings.Contains(rec.Body.String(), "churn_customers") {
 		t.Fatalf("до первого расчёта ждали 200 без churn_*, получили %d", rec.Code)
+	}
+}
+
+func TestSummaryLossByFeature(t *testing.T) {
+	rec := get(newAPI(fixture()).GetSummary, "/api/v1/analytics/summary")
+	var got struct {
+		LossByFeature []struct {
+			FeatureID    string  `json:"featureId"`
+			LossCents    int64   `json:"lossCents"`
+			Customers    int     `json:"customers"`
+			SharePercent float64 `json:"sharePercent"`
+		} `json:"lossByFeature"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.LossByFeature) != 5 || got.LossByFeature[0].FeatureID != "susp" || got.LossByFeature[0].SharePercent != 51.24 {
+		t.Fatalf("причины: %+v", got.LossByFeature)
+	}
+	var sum int64
+	for i, f := range got.LossByFeature {
+		sum += f.LossCents
+		if i > 0 && f.LossCents > got.LossByFeature[i-1].LossCents {
+			t.Errorf("не по убыванию: %+v", got.LossByFeature)
+		}
+	}
+	if sum != 359907 {
+		t.Errorf("сумма по причинам %d, ждали 359907", sum)
 	}
 }
