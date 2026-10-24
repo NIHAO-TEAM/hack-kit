@@ -24,7 +24,7 @@
 - frontend: нет
 - контракт `api/openapi.yaml`: нет
 - защищённые пути: нет
-- зависит от: `recalc-concurrency`, `read-model-index`, `snapshot-stream-parse`
+- зависит от: `recalc-concurrency`, `read-model-index`, `snapshot-stream-parse`, `event-ingest-delta`
 
 ## Связанные решения
 
