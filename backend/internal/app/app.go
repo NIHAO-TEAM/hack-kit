@@ -193,7 +193,7 @@ func WithRequestID(next http.Handler) http.Handler {
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed, opts ...Option) http.Handler {
 	mux := Routes(pool, bus, clk, authAPI, feed, opts...)
 	// Предел запросов в работе стоит до проверки сессии: перегрузка не доходит до базы сессий.
-	var h http.Handler = httpx.Instrument(mux)
+	h := httpx.Instrument(mux)
 	if c, ok := feed.(interface{ CalculatedAt() time.Time }); ok {
 		h = httpx.DataAge(c.CalculatedAt, clk.Now, h)
 	}
