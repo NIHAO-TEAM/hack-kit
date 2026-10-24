@@ -102,8 +102,9 @@ func (a *AuthAPI) Middleware(mux *http.ServeMux, next http.Handler) http.Handler
 		}
 
 		bearer := bearerToken(r)
-		// Служебные токены открывают ровно одну операцию и не дают сессии.
-		if known && ((op.id == "putSnapshot" && tokenEquals(bearer, a.cfg.SourceToken)) ||
+		// Служебные токены открывают свои операции и не дают сессии: токен источника — загрузку снимка
+		// и приём событий, токен сборщика — метрики и pprof.
+		if known && (((op.id == "putSnapshot" || op.id == "postSourceEvents") && tokenEquals(bearer, a.cfg.SourceToken)) ||
 			((op.id == "getMetrics" || op.id == "getMetricsAlias" || op.id == "pprof") && tokenEquals(bearer, a.cfg.MetricsToken))) {
 			next.ServeHTTP(w, r)
 			return
