@@ -2,7 +2,9 @@
 package model
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
@@ -196,4 +198,66 @@ func (a *ModelAPI) PatchModelSettings(w http.ResponseWriter, r *http.Request, pa
 		saved = Record{Version: version, UpdatedBy: by, UpdatedAt: a.clk.Now()}
 	}
 	writeJSON(w, toAPI(next, saved))
+}
+
+// GetModelSensitivity — GET /api/v1/model/sensitivity. Только чтение: настройки не пишутся.
+func (a *ModelAPI) GetModelSensitivity(w http.ResponseWriter, r *http.Request) {
+	if a.store == nil || a.ports.Sensitivity == nil {
+		httpx.NotImplemented(w, r)
+		return
+	}
+	s, rec, err := a.current(r)
+	if err != nil {
+		fail(w, r, err)
+		return
+	}
+	body, err := s.Marshal()
+	if err != nil {
+		fail(w, r, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), SensitivityTimeout)
+	defer cancel()
+	snap, err := a.ports.SnapshotVersion(ctx)
+	if err == nil {
+		var res Sensitivity
+		res, err = a.sens.get(ctx, sensKey{snap, rec.Version}, func() (Sensitivity, error) {
+			// расчёт живёт дольше запроса: его контекст не привязан к запросу
+			out, err := a.ports.Sensitivity(context.Background(), body)
+			out.SettingsVersion = rec.Version
+			return out, err
+		})
+		if err == nil {
+			writeJSON(w, toAPISensitivity(res))
+			return
+		}
+	}
+	switch {
+	case errors.Is(err, ErrNoData):
+		httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "нет снимка данных: считать чувствительность не на чем")
+	case errors.Is(err, context.DeadlineExceeded):
+		httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "чувствительность считается дольше 10 секунд, повторите запрос позже")
+	case errors.Is(err, context.Canceled):
+		// клиент ушёл, отвечать некому
+	default:
+		fail(w, r, err)
+	}
+}
+
+func toAPISensitivity(s Sensitivity) gen.ModelSensitivity {
+	shift := func(x ShiftResult) gen.WeightShift {
+		return gen.WeightShift{LevelChanges: x.LevelChanges, TopThreeChanged: x.TopThreeChanged, LossDeltaCents: x.LossDeltaCents}
+	}
+	out := gen.ModelSensitivity{
+		Features:        make([]gen.FeatureSensitivity, len(s.Features)),
+		ShiftPercent:    20,
+		Sampled:         s.Sampled,
+		Customers:       s.Customers,
+		SnapshotVersion: s.SnapshotVersion,
+		SettingsVersion: s.SettingsVersion,
+	}
+	for i, f := range s.Features {
+		out.Features[i] = gen.FeatureSensitivity{Id: f.ID, Weight: f.Weight, Down: shift(f.Down), Up: shift(f.Up)}
+	}
+	return out
 }
