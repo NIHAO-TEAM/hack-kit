@@ -92,7 +92,7 @@ for (const { w, h } of widths) {
 
         if (w < 768) {
           const burger = p.getByRole('button', { name: 'Меню' });
-          const candidates = screen.anon ? [] : [burger];
+          const candidates = screen.anon ? [] : [burger, ...(await p.locator('header').getByRole('button').all())];
           if (screen.action) candidates.push(screen.action(p).first());
           for (const loc of candidates) {
             if (!(await loc.count())) continue;
@@ -102,18 +102,22 @@ for (const { w, h } of widths) {
             }
           }
         } else {
+          let checked = 0;
           for (const { what, loc } of touchTargets(p)) {
             for (const el of await loc.all()) {
               if (!(await el.isVisible())) continue;
               const box = await el.boundingBox();
               // Заголовки таблицы на планшете спрятаны (строки стали карточками): их кнопки не мишень.
               if (!box || box.width <= 2 || box.height <= 2) continue;
+              checked++;
               if (box.width < MIN_TARGET - 0.5 || box.height < MIN_TARGET - 0.5) {
                 const label = (await el.innerText().catch(() => '')).trim() || (await el.getAttribute('aria-label')) || '—';
                 bad.push(`${what} «${label.slice(0, 40)}»: ${Math.round(box.width)}×${Math.round(box.height)} px`);
               }
             }
           }
+          // Ни одной цели не нашлось — селекторы устарели, зелёный прогон был бы ложным.
+          if (!screen.anon && checked === 0) bad.push('не найдено ни одной цели касания');
         }
 
         for (const b of bad) failures.push(`${screen.name} · ${w}px · ${b}`);

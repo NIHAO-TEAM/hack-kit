@@ -12,14 +12,14 @@ body {
   color: var(--text);
 }
 
-/* Касание на планшете и телефоне (шкала 5.9): кнопки, пункты меню, страницы и темы — не меньше 44 × 44 px. */
+/* Касание на планшете и телефоне (шкала 5.9): кнопки, пункты меню, страницы и темы — не ниже 44 px.
+   Ширина 44 px только на планшете: на телефоне она выталкивает шапку за край экрана. */
 @media (width <= 64em) {
   [class~='mantine-Button-root'],
   [class~='mantine-NavLink-root'],
   [class~='mantine-Pagination-control'],
   [class~='mantine-SegmentedControl-label'] {
     min-height: 44px;
-    min-width: 44px;
   }
 
   [class~='mantine-SegmentedControl-label'] {
@@ -27,9 +27,13 @@ body {
     align-items: center;
     justify-content: center;
   }
+}
 
-  [class~='mantine-Burger-root'] {
-    width: 44px;
-    height: 44px;
+@media (48em <= width <= 64em) {
+  [class~='mantine-Button-root'],
+  [class~='mantine-NavLink-root'],
+  [class~='mantine-Pagination-control'],
+  [class~='mantine-SegmentedControl-label'] {
+    min-width: 44px;
   }
 }
