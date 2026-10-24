@@ -29,7 +29,7 @@ function BackLink() {
 
 /** Скор в шапке: «нет оценки» и «потерян» вместо числа, с причиной. */
 function scoreText(customer: CustomerDetail['customer']): string {
-  if (customer.level === 'lost') return 'потерян: все услуги заблокированы';
+  if (customer.level === 'lost') return 'потерян: живых услуг не осталось';
   if (customer.score == null) return 'нет оценки';
   return scorePercentText(customer.score);
 }
@@ -124,11 +124,20 @@ export function CustomerPage({ id }: { id: number }) {
                 </Text>
               </Group>
               <Text size="sm" c="dimmed">
-                {lost ? 'Уже потеряно' : 'Ожидаемая потеря'}
+                {lost ? 'Стоимость потерянных услуг за 30 дней (расчёт)' : 'Ожидаемая потеря'}
               </Text>
               <Text fz="xl" fw={600}>
-                <Money cents={customer.expectedLossCents} tone={lost ? 'lost' : 'default'} />
+                <Money
+                  cents={lost ? (customer.lostCents ?? 0) : customer.expectedLossCents}
+                  tone={lost ? 'lost' : 'default'}
+                />
               </Text>
+              {lost ? (
+                <Text size="xs" c="dimmed" maw={320} ta="right">
+                  Расчёт по ценам услуг, а не фактическая выручка за прошлый месяц: дат удаления в
+                  данных нет.
+                </Text>
+              ) : null}
             </Stack>
           </Changed>
         </Group>
