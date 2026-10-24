@@ -1,4 +1,4 @@
-Статус: в работе
+Статус: на ревью
 
 # Убрать из интерфейса всё, что похоже на CRM
 
@@ -45,3 +45,6 @@
 - ADR-0001: роль маркетолога — очередь и карточка клиента; задачи в ADR-0001 никогда не входили.
 
 ## Найдено по ходу
+- Список мест в коде: маршрут `app/routes/_app.tasks.tsx` (теперь редирект), `pages/tasks`, `widgets/task-reminder`, `AppShell` (меню, шапка), `pages/queue` (`WorkCell`, фильтр, «Взять в работу» в строке), `pages/summary/ui/RetentionBlock`, `pages/customer/ui/TaskPanel`, `entities/retention-task` (список, напоминание, срок), `entities/customer` (`TaskFilter`).
+- Чекбокс-пункты сценариев `e2e/tests/layout.spec.ts` и `a11y.spec.ts` для `/tasks` убраны вместе с экраном (`e2e/` защищён, причина — это изменение).
+- Серверный фильтр `GET /customers?task=…` остаётся в контракте, клиент его не использует.

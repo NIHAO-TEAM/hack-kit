@@ -17,5 +17,5 @@
 
 ## 3. Готовность
 
-- [ ] 3.1 `pnpm check` зелёный
-- [ ] 3.2 `main` после слияния: CI, `Deploy k8s`, ingress, smoke, a11y, layout, `Demo e2e` зелёные — проверка: логи прогонов
+- [x] 3.1 `pnpm check` зелёный
+- [ ] 3.2 `main` после слияния: CI, `Deploy k8s`, ingress, smoke, a11y, layout, `Demo e2e` зелёные — проверка: логи прогонов (после слияния)
