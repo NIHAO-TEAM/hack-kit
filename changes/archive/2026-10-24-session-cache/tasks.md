@@ -20,5 +20,5 @@
 
 ## 4. Готовность
 
-- [ ] 4.1 `make check` (`-race`) зелёный
+- [x] 4.1 `make check` (`-race`) зелёный
 - [ ] 4.2 `main` после слияния: CI, `Deploy k8s`, ingress, smoke, `Demo e2e` зелёные — проверка: логи прогонов
