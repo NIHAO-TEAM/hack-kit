@@ -3,7 +3,6 @@ package analytics
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 )
 
@@ -18,9 +17,7 @@ func (a *AnalyticsAPI) GetEvents(w responseWriter, r *request) {
 	defer cancelTasks()
 
 	// Поток живёт дольше ReadTimeout/IdleTimeout сервера: дедлайны с него снимаются.
-	rc := http.NewResponseController(w)
-	_ = rc.SetReadDeadline(time.Time{})
-	_ = rc.SetWriteDeadline(time.Time{})
+	clearDeadlines(w)
 
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
