@@ -61,7 +61,8 @@ func (a *AnalyticsAPI) ExportCustomers(w responseWriter, r *request, p gen.Expor
 
 	asOf := "v" + strconv.FormatInt(pf.Version, 10)
 	modelTime := ""
-	if o := a.latest(); o != nil && !o.AsOf.IsZero() {
+	// Сводка берётся только от того же пересчёта, что и портфель: имя файла и колонки не расходятся.
+	if o := a.latest(); o != nil && o.Version == pf.Version && !o.AsOf.IsZero() {
 		asOf = o.AsOf.UTC().Format("2006-01-02T15-04")
 		modelTime = o.AsOf.UTC().Format("02.01.2006 15:04")
 	}
@@ -136,7 +137,7 @@ func replacePoint(s string) string {
 
 // safeCell не даёт Excel исполнить текст ячейки как формулу (email и подписи приходят извне).
 func safeCell(s string) string {
-	if s != "" && (s[0] == '=' || s[0] == '+' || s[0] == '-' || s[0] == '@') {
+	if s != "" && (s[0] == '=' || s[0] == '+' || s[0] == '-' || s[0] == '@' || s[0] == '\t' || s[0] == '\r') {
 		return "'" + s
 	}
 	return s
