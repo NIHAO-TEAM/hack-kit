@@ -16,6 +16,11 @@ type ingestState struct {
 	owner    map[int64]int64     // номер услуги → владелец
 }
 
+// newOpenIngestState — состояние без списка счетов и услуг: проверяются только значения, а
+// существование строки решает запрос записи (ни одной затронутой строки — отказ). Для приёма
+// извне, где снимок может смениться между проверкой и записью.
+func newOpenIngestState() *ingestState { return &ingestState{} }
+
 func newIngestState(s *Snapshot) *ingestState {
 	st := &ingestState{
 		accounts: make(map[int64]struct{}, len(s.Accounts)),
@@ -47,8 +52,9 @@ func (st *ingestState) accountsOf(ev StreamEvent) []int64 {
 // check проверяет событие теми же правилами, что patchAccount, patchService и Validate: счёт и
 // услуга существуют, сумма в пределах, статус известен, срок не раньше создания.
 func (st *ingestState) check(ev StreamEvent) error {
+	open := st.accounts == nil
 	if ev.Balance != nil {
-		if _, ok := st.accounts[ev.AccountID]; !ok {
+		if _, ok := st.accounts[ev.AccountID]; !ok && !open {
 			return notFound{fmt.Errorf("счёт %d не найден", ev.AccountID)}
 		}
 		if *ev.Balance < 0 {
@@ -60,13 +66,13 @@ func (st *ingestState) check(ev StreamEvent) error {
 	}
 	if ev.Status != nil || ev.AutoProlong != nil || ev.ExpiresAt != nil {
 		created, ok := st.created[ev.ServiceID]
-		if !ok {
+		if !ok && !open {
 			return notFound{fmt.Errorf("услуга %d не найдена", ev.ServiceID)}
 		}
 		if ev.Status != nil && !serviceStates[*ev.Status] {
 			return badRequest{fmt.Errorf("services.status: неизвестный статус %q", *ev.Status)}
 		}
-		if ev.ExpiresAt != nil && ev.ExpiresAt.UTC().Before(created) {
+		if ev.ExpiresAt != nil && ok && ev.ExpiresAt.UTC().Before(created) {
 			return badRequest{errors.New("services.expiresAt: раньше createdAt")}
 		}
 	}

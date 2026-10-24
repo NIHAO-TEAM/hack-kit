@@ -18,7 +18,7 @@ var implemented = map[string]bool{
 	"healthz": true, "version": true, "ping": true, "pingHead": true,
 	"docs": true, "openapiYaml": true, "openapiJson": true,
 	"login": true, "getMe": true, "logout": true, "getAuthConfig": true,
-	"putSnapshot": true, "getSourceStatus": true, "getEvents": true,
+	"putSnapshot": true, "postSourceEvents": true, "getSourceStatus": true, "getEvents": true,
 	"getModelSettings": true, "patchModelSettings": true, "getModelSensitivity": true,
 	"listCustomers": true, "exportCustomers": true, "getCustomer": true,
 	"getSummary": true, "getChurnChart": true, "getMetrics": true, "getMetricsAlias": true,

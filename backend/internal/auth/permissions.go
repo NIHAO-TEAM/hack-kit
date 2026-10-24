@@ -61,6 +61,7 @@ var operations = map[string]struct {
 	"PATCH /api/v1/model/settings":         {"patchModelSettings", accessStaff},
 	"GET /api/v1/model/sensitivity":        {"getModelSensitivity", accessStaff},
 	"PUT /api/v1/source/snapshot":          {"putSnapshot", accessStaff},
+	"POST /api/v1/source/events":           {"postSourceEvents", accessStaff},
 	"GET /api/v1/source/status":            {"getSourceStatus", accessAnyRole},
 	"PUT /api/v1/source/polling":           {"setSourcePolling", accessStaff},
 	"PATCH /api/v1/source/services/{id}":   {"patchService", accessStaff},

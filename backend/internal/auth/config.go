@@ -12,7 +12,7 @@ type Config struct {
 	AdminPassword string
 	// DemoPasswords — пароли демо-учёток по роли (marketer, analyst, jury); пустой — учётки нет.
 	DemoPasswords map[string]string
-	// MetricsToken открывает только /metrics, SourceToken — только PUT /source/snapshot.
+	// MetricsToken открывает только /metrics, SourceToken — только PUT /source/snapshot и POST /source/events.
 	MetricsToken string
 	SourceToken  string
 	// CookieSecure ставит флаг Secure на cookie сессии.

@@ -29,6 +29,9 @@ func TestMetricsToken(t *testing.T) {
 	if resp := do(t, s, http.MethodPut, "/api/v1/source/snapshot", func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+apitest.MetricsToken) }); resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("токен сборщика открыл snapshot: %d", resp.StatusCode)
 	}
+	if resp := do(t, s, http.MethodPost, "/api/v1/source/events", func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+apitest.MetricsToken) }); resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("токен сборщика открыл events: %d", resp.StatusCode)
+	}
 }
 
 func TestSourceTokenOpensOnlySnapshot(t *testing.T) {
@@ -36,6 +39,9 @@ func TestSourceTokenOpensOnlySnapshot(t *testing.T) {
 	bearer := func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+apitest.SourceToken) }
 	if resp := do(t, s, http.MethodPut, "/api/v1/source/snapshot", bearer); resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		t.Errorf("snapshot с сервисным токеном: %d", resp.StatusCode)
+	}
+	if resp := do(t, s, http.MethodPost, "/api/v1/source/events", bearer); resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		t.Errorf("events с сервисным токеном: %d", resp.StatusCode)
 	}
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodGet, "/api/v1/customers"}, {http.MethodGet, "/api/v1/analytics/summary"},

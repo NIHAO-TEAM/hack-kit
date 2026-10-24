@@ -92,6 +92,11 @@ type Snapshot struct {
 	Source   string
 }
 
+type SourceEventID struct {
+	EventID string
+	SeenAt  time.Time
+}
+
 type Transaction struct {
 	ID          int64
 	Amount      int32
