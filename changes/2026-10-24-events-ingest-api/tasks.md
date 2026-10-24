@@ -20,5 +20,5 @@
 
 ## 4. Готовность
 
-- [ ] 4.1 `make check`, `make test-int` зелёные
+- [x] 4.1 `make check`, `make test-int` зелёные (локально: gofmt, vet, golangci-lint — 0 замечаний, `go test -race -p 1 ./...` зелёный; тесты с БД пропущены — нет PostgreSQL, `make test-int` прогонит CI)
 - [ ] 4.2 `main` после слияния: CI, `Deploy k8s`, smoke зелёные — проверка: логи прогонов

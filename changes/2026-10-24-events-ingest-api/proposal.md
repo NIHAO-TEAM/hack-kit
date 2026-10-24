@@ -32,3 +32,9 @@ ADR-0009, п. 4: свою шину не поднимаем, внешний ис�
 - ADR-0009, п. 4; ADR-0001: права по роли на сервере.
 - Гейт не ослабляется: табличный тест «операция × роль» дополняется новой операцией.
 - Зависимость от `burst-live-panel` — общие `internal/source` и `api/openapi.yaml`.
+
+## Найдено по ходу
+
+- `.github/workflows/deploy-burst.yml` не запускает `docs/load/k6/ingest.js`: шаг добавляет человек (`.github/` исполнителю закрыт). Пока замер `docs/load/2026-10-24-ingest-api.md` без чисел.
+- `internal/source`: код с `net/http` и `pgx` по depguard живёт только в `service.go` и `http.go`, поэтому приём разложен по ним, а чистая часть — в `events_ingest.go`.
+- Событие «платёж» из текста изменения в эмуляторе отдельного вида не имеет (платежей поток не создаёт): принимаются семь видов эмулятора — `top_up`, `autoprolong_on`, `autoprolong_off`, `service_stop`, `service_resume`, `renewal_failed`, `prolong_wait`.

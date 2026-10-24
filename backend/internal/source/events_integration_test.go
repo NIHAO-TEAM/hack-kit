@@ -135,3 +135,36 @@ func TestPostSourceEventsJSONArray(t *testing.T) {
 		t.Fatalf("массив: %d %s", res.StatusCode(), res.Body)
 	}
 }
+
+// Та же пачка из 500 событий дважды: первый ответ accepted = 500, второй duplicate = 500, данные изменились один раз.
+func TestPostSourceEventsRepeatedBatch(t *testing.T) {
+	s := apitest.New(t)
+	c := s.As(t, "analyst")
+	if res := put(t, c, organizers(t)); res.JSON200 == nil {
+		t.Fatalf("снимок: %s", res.Body)
+	}
+	var account int64
+	if err := s.Pool.QueryRow(context.Background(), "SELECT id FROM accounts ORDER BY id LIMIT 1").Scan(&account); err != nil {
+		t.Fatal(err)
+	}
+	lines := make([]string, 500)
+	for i := range lines {
+		lines[i] = topUp(fmt.Sprintf("batch-%d", i), account, int64(100+i))
+	}
+	body := strings.Join(lines, "\n")
+	first := postNDJSON(t, c, body)
+	if first.JSON202 == nil || first.JSON202.Accepted != 500 || first.JSON202.Duplicate != 0 {
+		t.Fatalf("первая отправка: %d %s", first.StatusCode(), first.Body)
+	}
+	second := postNDJSON(t, c, body)
+	if second.JSON202 == nil || second.JSON202.Accepted != 0 || second.JSON202.Duplicate != 500 {
+		t.Fatalf("повтор: %d %s", second.StatusCode(), second.Body)
+	}
+	var ids int
+	if err := s.Pool.QueryRow(context.Background(), "SELECT count(*) FROM source_event_ids WHERE event_id LIKE 'batch-%'").Scan(&ids); err != nil {
+		t.Fatal(err)
+	}
+	if ids != 500 {
+		t.Errorf("в окне %d id, ждали 500", ids)
+	}
+}
