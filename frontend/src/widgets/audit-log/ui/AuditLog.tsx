@@ -1,8 +1,8 @@
-import { Group, Pagination, Paper, Stack, Text, Title } from '@mantine/core';
+import { Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { PAGE_SIZE, auditQuery } from '../api/audit';
 import { changeText, clampPage } from '../model/labels';
-import { StateEmpty, StateError, StateLoading } from '@shared/ui';
+import { Pagination, StateEmpty, StateError, StateLoading } from '@shared/ui';
 import { useState } from 'react';
 
 const when = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'medium' });

@@ -189,7 +189,7 @@ describe('очередь удержания', () => {
       const user = userEvent.setup();
       const { router } = renderApp('/queue');
       expect(await screen.findByText(/Показаны 1–50 из 230/)).toBeInTheDocument();
-      await user.click(screen.getByRole('button', { name: '5' }));
+      await user.click(screen.getByRole('button', { name: 'Страница 5' }));
       expect(await screen.findByText(/Показаны 201–230 из 230/)).toBeInTheDocument();
       expect(await screen.findByText('c201@example.test')).toBeInTheDocument();
       expect(router.state.location.search).toMatchObject({ page: 5 });

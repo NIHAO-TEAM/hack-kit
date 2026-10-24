@@ -1,4 +1,4 @@
-import { Button, Group, Pagination, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Button, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
@@ -16,6 +16,7 @@ import type { Role } from '@entities/session';
 import {
   IconDownload,
   IconSearch,
+  Pagination,
   StateEmpty,
   StateError,
   StateForbidden,
