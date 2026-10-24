@@ -12,6 +12,9 @@ export const meOptions = queryOptions({
     });
     if (response.status === 401) return null;
     if (error) throw toApiError(response.status, error, response);
+    // сервер отдаёт токен CSRF сессии заголовком ответа; пустой заголовок прежний токен не стирает
+    const csrfToken = response.headers.get('X-CSRF-Token');
+    if (csrfToken) setCsrfToken(csrfToken);
     return data;
   },
   staleTime: 60_000,

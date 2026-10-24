@@ -34,7 +34,12 @@ export class ApiError extends Error {
 export function toApiError(status: number, body: unknown, response?: Response): ApiError {
   const problem = (body && typeof body === 'object' ? body : {}) as Partial<Problem>;
   const retryAfter = Number(response?.headers.get('Retry-After'));
-  return new ApiError(status, problem.title ?? problem.detail ?? 'Ошибка запроса', {
+  // сервер пишет причину в detail, а в title — «Forbidden»: для CSRF показываем понятную фразу
+  const csrfRejected = status === 403 && /X-CSRF-Token/i.test(problem.detail ?? '');
+  const message = csrfRejected
+    ? 'Сессия устарела, обновите страницу'
+    : (problem.title ?? problem.detail ?? 'Ошибка запроса');
+  return new ApiError(status, message, {
     retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
     fieldErrors: Object.fromEntries((problem.errors ?? []).map((e) => [e.field, e.message])),
     requestId: problem.correlation_id ?? response?.headers.get('X-Request-Id') ?? null,
