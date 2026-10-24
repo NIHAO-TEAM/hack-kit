@@ -45,6 +45,7 @@ var operations = map[string]struct {
 	"GET /api/v1/auth/me":                  {"getMe", accessAnyRole},
 	"POST /api/v1/auth/logout":             {"logout", accessAnyRole},
 	"GET /api/v1/customers":                {"listCustomers", accessAnyRole},
+	"GET /api/v1/customers/export.csv":     {"exportCustomers", accessAnyRole},
 	"GET /api/v1/customers/{id}":           {"getCustomer", accessAnyRole},
 	"POST /api/v1/customers/{id}/task":     {"takeCustomerTask", accessWork},
 	"GET /api/v1/tasks":                    {"listTasks", accessAnyRole},

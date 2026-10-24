@@ -49,6 +49,20 @@ describe('очередь удержания', () => {
     ).toBeInTheDocument();
   });
 
+  it('«Скачать CSV» ведёт на выгрузку с текущей сортировкой', async () => {
+    signedIn();
+    const user = userEvent.setup();
+    renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    await user.click(screen.getByRole('button', { name: 'Email' }));
+    await waitFor(() => {
+      const href = screen.getByRole('link', { name: 'Скачать CSV' }).getAttribute('href') ?? '';
+      expect(href).toContain('/api/v1/customers/export.csv?');
+      expect(href).toContain('sort=email');
+      expect(href).toContain('order=asc');
+    });
+  });
+
   it('пусто: «Сегодня некого спасать»', async () => {
     signedIn();
     server.use(http.get('/api/v1/customers', () => HttpResponse.json({ items: [], total: 0 })));

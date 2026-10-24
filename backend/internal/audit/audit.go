@@ -9,18 +9,19 @@ import (
 
 // Действия журнала; значения совпадают с enum AuditEntry.action в контракте.
 const (
-	ActionLogin          = "login"
-	ActionLoginFailed    = "loginFailed"
-	ActionLogout         = "logout"
-	ActionSettingsChange = "settingsChanged"
-	ActionSnapshotLoaded = "snapshotLoaded"
-	ActionServiceChange  = "serviceChanged"
-	ActionAccountChange  = "accountChanged"
-	ActionEmulatorTick   = "emulatorTick"
-	ActionEmulatorAction = "emulatorActions"
-	ActionTaskCreated    = "taskCreated"
-	ActionTaskChanged    = "taskChanged"
-	ActionTaskRecorded   = "taskRecorded"
+	ActionLogin             = "login"
+	ActionLoginFailed       = "loginFailed"
+	ActionLogout            = "logout"
+	ActionSettingsChange    = "settingsChanged"
+	ActionSnapshotLoaded    = "snapshotLoaded"
+	ActionServiceChange     = "serviceChanged"
+	ActionAccountChange     = "accountChanged"
+	ActionEmulatorTick      = "emulatorTick"
+	ActionEmulatorAction    = "emulatorActions"
+	ActionCustomersExported = "customersExported"
+	ActionTaskCreated       = "taskCreated"
+	ActionTaskChanged       = "taskChanged"
+	ActionTaskRecorded      = "taskRecorded"
 )
 
 // Change — одна правка значения: было → стало, текстом.
