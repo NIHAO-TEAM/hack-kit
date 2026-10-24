@@ -1,4 +1,4 @@
-Статус: черновик
+Статус: в работе
 
 # Пересчёт без лишней памяти: выделения на клиента в разы меньше
 
@@ -30,3 +30,20 @@ ADR-0004, п. 6 и ADR-0009: выжимаем один процесс. Заме�
 - ADR-0009.
 - Гейт не ослабляется: golden и parity — проверка, что числа те же.
 - Возможен конфликт с `funds-window` и `incremental-recalc` по `risk/score.go` — разрешается слиянием `main`, формулы здесь не меняются.
+
+## Найдено по ходу
+
+Профиль выделений `BenchmarkRecalc10k` (`-memprofilerate=64`, `main`): 854 695 выделений, 90 МБ на прогон. Топ мест (доля от `alloc_objects`, учитывая разбор снимка в setup):
+
+1. `scoreService` — 13,8 % (срез `Features` растёт append-ом, `FeatureHit` по услуге).
+2. `reflectlite.Swapper` — 12,5 % (`sort.Slice`/`SliceStable` в `scoreCustomer`, `scoreService`, `actionResults`: рефлексия выделяет на каждый вызов).
+3. `scoreCustomer` — 11,4 % (`live`, `c.Services`, `Actions: []ActionResult{}` на клиента).
+4. `fmt.Sprintf` — 9,9 % (причины `funds`, `bonus_locked`, `fail`, `pwait`, `noauto`, заголовок `top_up`).
+5. `reflect.New` — 7,6 % (разбор JSON в setup бенчмарка, не расчёт).
+6. `euros` — 6,7 % (`[]byte` + `Sprintf` на сумму).
+7. `scoreOne` — 6,0 % (карта `txByService` строится заново на каждое действие каждого клиента).
+8. `scoreCtx` — 5,9 % (карты `svcByOwner`/`txByService` на прогон, копии услуг).
+9. `actionResults` — 5,1 % (копия услуг и транзакций клиента, `ActionResult` на действие).
+10. `AllocateLoss` — 3,7 %.
+
+Причины пересчёта «после действия» (`scoreOne`) отбрасываются: нужны только потеря, скор и уровень.
