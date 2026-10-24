@@ -1,6 +1,10 @@
 package risk
 
-import "fmt"
+import (
+	"fmt"
+
+	"example.com/app/internal/platform/plural"
+)
 
 // titledCheck — проверка, которая сама подписывает результат: Subject продолжает фразу
 // «N услуг …» («в ожидании оплаты дольше 5 дней»). Без него в тексте остаётся идентификатор.
@@ -21,4 +25,4 @@ func checkMessage(c Check, count int) string {
 	return fmt.Sprintf("%d %s %s", count, servicesWord(count), subject)
 }
 
-func servicesWord(n int) string { return plural(n, "услуга", "услуги", "услуг") }
+func servicesWord(n int) string { return plural.Form(n, "услуга", "услуги", "услуг") }

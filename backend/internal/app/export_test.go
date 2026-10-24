@@ -121,8 +121,13 @@ func TestExportCustomersJournalHasNoEmail(t *testing.T) {
 		t.Fatalf("журнал: %+v", j.es)
 	}
 	e := j.es[0]
-	if !strings.Contains(e.Summary, "строк") || len(recs) < 2 {
-		t.Errorf("запись %+v, строк в файле %d", e, len(recs))
+	n := len(recs) - 1
+	want := map[int]string{1: "1 строка", 2: "2 строки"}[n]
+	if want == "" {
+		want = fmt.Sprintf("%d строк", n)
+	}
+	if !strings.Contains(e.Summary, want) || n < 1 {
+		t.Errorf("запись %+v, ждали %q, строк в файле %d", e, want, n)
 	}
 	all := e.Actor + e.Summary
 	for _, c := range e.Changes {
