@@ -21,6 +21,7 @@ import (
 	"example.com/app/internal/platform/events"
 	"example.com/app/internal/platform/httpx"
 	"example.com/app/internal/platform/webui"
+	"example.com/app/internal/retention"
 	"example.com/app/internal/source"
 )
 
@@ -59,6 +60,7 @@ type server struct {
 	*model.ModelAPI
 	*docs.DocsAPI
 	*audit.AuditAPI
+	*retention.TasksAPI
 }
 
 // Healthz, Version, Ping и PingHead — служебные операции платформы без префикса /api/v1.
@@ -120,6 +122,14 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 		src.WithAdapter(o.billing)
 		analyticsAPI.WithCollectors(o.billing.Collectors()...)
 	}
+	var tasks *retention.Service
+	if pool != nil {
+		tasks = retention.New(pool, bus, clk, feed).WithActor(auth.LoginFrom)
+		if rec != nil {
+			tasks.WithAudit(rec)
+		}
+		analyticsAPI.WithTasks(tasks, auth.LoginFrom)
+	}
 	gen.HandlerWithOptions(server{
 		AuthAPI:      authAPI,
 		SourceAPI:    src,
@@ -127,6 +137,7 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 		ModelAPI:     mod,
 		DocsAPI:      docs.New(),
 		AuditAPI:     audit.NewAPI(journal),
+		TasksAPI:     retention.NewAPI(tasks),
 	}, gen.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: problemOnBadRequest})
 	mux.Handle("GET /api/v1/docs/assets/", docs.Assets())
 	mux.Handle("GET /", webui.Handler())

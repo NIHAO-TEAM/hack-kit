@@ -19,6 +19,9 @@ const (
 	ActionEmulatorTick      = "emulatorTick"
 	ActionEmulatorAction    = "emulatorActions"
 	ActionCustomersExported = "customersExported"
+	ActionTaskCreated       = "taskCreated"
+	ActionTaskChanged       = "taskChanged"
+	ActionTaskRecorded      = "taskRecorded"
 )
 
 // Change — одна правка значения: было → стало, текстом.

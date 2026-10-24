@@ -3,6 +3,7 @@
 package analytics
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -31,6 +32,9 @@ type AnalyticsAPI struct {
 	clk   clock.Clock
 	feed  Feed
 	audit audit.Recorder
+	// tasks и login — задачи удержания для поля task и фильтра; nil, пока сервер не подключил модуль.
+	tasks TaskSource
+	login func(context.Context) string
 	// overview отдаёт последний результат пересчёта; nil, пока сервер не подключил воркер.
 	overview OverviewFunc
 

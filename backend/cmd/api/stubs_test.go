@@ -24,6 +24,7 @@ var implemented = map[string]bool{
 	"getSummary": true, "getChurnChart": true, "getMetrics": true, "getMetricsAlias": true,
 	"emulatorTick": true, "emulatorActions": true,
 	"patchService": true, "patchAccount": true, "setSourcePolling": true, "listAudit": true,
+	"takeCustomerTask": true, "listTasks": true, "listTaskAssignees": true, "getTask": true, "patchTask": true, "addTaskEvent": true,
 }
 
 func TestEveryUnimplementedPathAnswers501(t *testing.T) {
