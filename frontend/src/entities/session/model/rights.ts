@@ -3,15 +3,22 @@ import type { components } from '@shared/api';
 export type Role = components['schemas']['Role'];
 
 export type Right =
-  'queue.view' | 'summary.view' | 'customer.view' | 'model.view' | 'model.edit' | 'source.view';
+  | 'queue.view'
+  | 'summary.view'
+  | 'customer.view'
+  | 'tasks.edit'
+  | 'model.view'
+  | 'model.edit'
+  | 'source.view';
 
 const marketer: readonly Right[] = ['queue.view', 'summary.view', 'customer.view'];
-const staff: readonly Right[] = [...marketer, 'model.view', 'model.edit', 'source.view'];
+const analyst: readonly Right[] = [...marketer, 'model.view', 'model.edit', 'source.view'];
+const staff: readonly Right[] = [...analyst, 'tasks.edit'];
 
 /** Права для вида. Настоящую проверку делает сервер для каждой операции. */
 const matrix: Record<Role, readonly Right[]> = {
-  marketer,
-  analyst: staff,
+  marketer: [...marketer, 'tasks.edit'],
+  analyst,
   admin: staff,
   jury: staff,
 };
