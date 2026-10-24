@@ -58,30 +58,24 @@ type ref struct {
 // иначе откладывает до finish: массивы в теле идут в любом порядке.
 type validator struct {
 	e        errList
-	accounts map[int64]struct{}
+	accounts idSet
 	emails   map[string]struct{}
-	services map[int64]struct{}
-	txs      map[int64]struct{}
+	services idSet
+	txs      idSet
 	done     [3]bool
 	owners   []ref // услуги, чьи аккаунты ещё не закончились
 	svcRefs  []ref // платежи, чьи услуги ещё не закончились
 }
 
-func newValidator(accounts, services, txs int) *validator {
-	return &validator{
-		accounts: make(map[int64]struct{}, accounts),
-		emails:   make(map[string]struct{}, accounts),
-		services: make(map[int64]struct{}, services),
-		txs:      make(map[int64]struct{}, txs),
-	}
+func newValidator(accounts int) *validator {
+	return &validator{emails: make(map[string]struct{}, accounts)}
 }
 
 func (v *validator) account(i int, a Account) {
 	p := fmt.Sprintf("accounts[%d]", i)
-	if _, dup := v.accounts[a.ID]; dup {
+	if v.accounts.add(a.ID) {
 		v.e.add(p+".id", "повтор id %d", a.ID)
 	}
-	v.accounts[a.ID] = struct{}{}
 	if a.Email == "" {
 		v.e.add(p+".email", "пустой email")
 	} else if _, dup := v.emails[a.Email]; dup {
@@ -108,15 +102,14 @@ func (v *validator) account(i int, a Account) {
 
 func (v *validator) service(i int, s Service) {
 	p := fmt.Sprintf("services[%d]", i)
-	if _, dup := v.services[s.ID]; dup {
+	if v.services.add(s.ID) {
 		v.e.add(p+".id", "повтор id %d", s.ID)
 	}
-	v.services[s.ID] = struct{}{}
 	if !serviceName.MatchString(s.Name) {
 		v.e.add(p+".name", "допустимы латиница, цифры и дефис")
 	}
 	if v.done[tableAccounts] {
-		if _, ok := v.accounts[s.OwnerID]; !ok {
+		if !v.accounts.has(s.OwnerID) {
 			v.e.add(p+".ownerId", "аккаунт %d не найден", s.OwnerID)
 		}
 	} else {
@@ -140,10 +133,9 @@ func (v *validator) service(i int, s Service) {
 
 func (v *validator) transaction(i int, t Transaction) {
 	p := fmt.Sprintf("transactions[%d]", i)
-	if _, dup := v.txs[t.ID]; dup {
+	if v.txs.add(t.ID) {
 		v.e.add(p+".id", "повтор id %d", t.ID)
 	}
-	v.txs[t.ID] = struct{}{}
 	if t.Amount < 0 || t.Amount > 1000 {
 		v.e.add(p+".amount", "сумма %d вне 0..1000", t.Amount)
 	}
@@ -154,7 +146,7 @@ func (v *validator) transaction(i int, t Transaction) {
 		v.e.add(p+".type", "неизвестное значение %q", t.Type)
 	}
 	if v.done[tableServices] {
-		if _, ok := v.services[t.ServiceID]; !ok {
+		if !v.services.has(t.ServiceID) {
 			v.e.add(p+".serviceId", "услуга %d не найдена", t.ServiceID)
 		}
 	} else {
@@ -176,14 +168,14 @@ func (v *validator) endTable(t table) {
 	switch t {
 	case tableAccounts:
 		for _, r := range v.owners {
-			if _, ok := v.accounts[r.id]; !ok {
+			if !v.accounts.has(r.id) {
 				v.e.add(fmt.Sprintf("services[%d].ownerId", r.index), "аккаунт %d не найден", r.id)
 			}
 		}
 		v.owners = nil
 	case tableServices:
 		for _, r := range v.svcRefs {
-			if _, ok := v.services[r.id]; !ok {
+			if !v.services.has(r.id) {
 				v.e.add(fmt.Sprintf("transactions[%d].serviceId", r.index), "услуга %d не найдена", r.id)
 			}
 		}
@@ -204,7 +196,7 @@ func (v *validator) finish() []FieldError {
 // Validate проверяет связи и значения снимка до записи. Возвращает не более maxErrors ошибок.
 // Чистая функция: ввода-вывода нет.
 func Validate(s *Snapshot) []FieldError {
-	v := newValidator(len(s.Accounts), len(s.Services), len(s.Transactions))
+	v := newValidator(len(s.Accounts))
 	for i, a := range s.Accounts {
 		v.account(i, a)
 	}
@@ -223,26 +215,40 @@ func Validate(s *Snapshot) []FieldError {
 // (services.createdAt, transactions.createdAt, transactions.performedAt); у пустого снимка
 // без asOf — время приёма now.
 func ModelTime(s *Snapshot, now time.Time) time.Time {
-	if s.AsOf != nil {
-		return s.AsOf.UTC()
-	}
-	var latest time.Time
-	bump := func(t time.Time) {
-		if t.After(latest) {
-			latest = t
-		}
-	}
+	var l latest
 	for _, v := range s.Services {
-		bump(v.CreatedAt)
+		l.service(v)
 	}
 	for _, t := range s.Transactions {
-		bump(t.CreatedAt)
-		if t.PerformedAt != nil {
-			bump(*t.PerformedAt)
-		}
+		l.transaction(t)
 	}
-	if latest.IsZero() {
+	return l.modelTime(s.AsOf, now)
+}
+
+// latest копит самую позднюю дату события, пока записи идут мимо.
+type latest struct{ t time.Time }
+
+func (l *latest) bump(t time.Time) {
+	if t.After(l.t) {
+		l.t = t
+	}
+}
+
+func (l *latest) service(v Service) { l.bump(v.CreatedAt) }
+
+func (l *latest) transaction(t Transaction) {
+	l.bump(t.CreatedAt)
+	if t.PerformedAt != nil {
+		l.bump(*t.PerformedAt)
+	}
+}
+
+func (l *latest) modelTime(asOf *time.Time, now time.Time) time.Time {
+	switch {
+	case asOf != nil:
+		return asOf.UTC()
+	case l.t.IsZero():
 		return now.UTC()
 	}
-	return latest.UTC()
+	return l.t.UTC()
 }

@@ -75,53 +75,34 @@ func (a *SourceAPI) WithAdapter(ad *Adapter) *SourceAPI {
 }
 
 // PutSnapshot — PUT /api/v1/source/snapshot. Права проверяет auth.Middleware.
+// Тело разбирается потоком и сразу пишется в базу конвейером (ingest); при любой ошибке прежние данные остаются.
 func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, a.maxBytes)
-	// Тело читается потоком внутри разбора, поэтому этапы read и parse слиты в parse.
-	var st stages
-	defer st.log()
-	var (
-		s    *Snapshot
-		errs []FieldError
-		err  error
-	)
-	_ = st.run(stageParse, func() error {
-		s, errs, err = ParseSnapshot(r.Body)
-		return err
-	})
-	if err != nil {
-		httpx.WriteProblem(w, r, http.StatusBadRequest, "тело не разобрано: "+err.Error())
-		return
-	}
-	_ = st.run(stageValidate, func() error {
-		errs = append(errs, Validate(s)...)
-		return nil
-	})
-	if len(errs) > 0 {
-		if len(errs) > maxErrors {
-			errs = errs[:maxErrors]
+	now := a.clk.Now()
+	// Запись и пауза под одним замком с опросом: опрос не затрёт ручной снимок.
+	acc, errs, err := ingest(r.Context(), a.pool, r.Body, now, OriginAPI, &emulatorMu, func(acc Accepted) {
+		if a.adapter != nil {
+			a.adapter.Pause() // ручной снимок главнее опроса, пока его не включат на экране «Источник»
 		}
+		a.bus.Publish(TopicChanged, acc.Version)
+	})
+	var bodyErr *BodyError
+	switch {
+	case errors.As(err, &bodyErr):
+		httpx.WriteProblem(w, r, http.StatusBadRequest, "тело не разобрано: "+bodyErr.Error())
+		return
+	case len(errs) > 0:
 		fe := make([]httpx.FieldError, len(errs))
 		for i, e := range errs {
 			fe[i] = httpx.FieldError{Field: e.Field, Message: e.Message}
 		}
 		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "снимок не прошёл проверку", fe...)
 		return
-	}
-	// Запись и пауза под одним замком с опросом: опрос не затрёт ручной снимок.
-	emulatorMu.Lock()
-	defer emulatorMu.Unlock()
-	now := a.clk.Now()
-	acc, err := replace(r.Context(), a.pool, s, ModelTime(s, now), now, OriginAPI)
-	if err != nil {
+	case err != nil:
 		log.Printf("source: запись снимка: %v", err)
 		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не записан, прежние данные сохранены")
 		return
 	}
-	if a.adapter != nil {
-		a.adapter.Pause() // ручной снимок главнее опроса, пока его не включат на экране «Источник»
-	}
-	a.bus.Publish(TopicChanged, acc.Version)
 	a.record(r, audit.ActionSnapshotLoaded,
 		fmt.Sprintf("Загружен снимок данных, версия %d: счетов %d, услуг %d, операций %d", acc.Version, acc.Accounts, acc.Services, acc.Transactions), nil)
 	writeJSON(w, gen.SnapshotAccepted{

@@ -221,8 +221,7 @@ func TestParseStreamAnyKeyOrder(t *testing.T) {
 	keys := []string{"asOf", "accounts", "services", "transactions"}
 	var perm func(k int)
 	n := 0
-	var try func(order []string)
-	try = func(order []string) {
+	try := func(order []string) {
 		body := "{"
 		for i, k := range order {
 			if i > 0 {
@@ -277,7 +276,7 @@ func TestValidatorDeferredRefs(t *testing.T) {
 	}
 	acc := Account{ID: 1, Email: "a@x", BonusState: "locked"}
 
-	v := newValidator(0, 0, 0)
+	v := newValidator(0)
 	v.service(0, svc(1, 1)) // услуга раньше аккаунтов
 	v.service(1, svc(2, 9)) // владельца нет вовсе
 	v.account(0, acc)
@@ -289,7 +288,7 @@ func TestValidatorDeferredRefs(t *testing.T) {
 	}
 
 	// Массив services не пришёл: платёж ссылается в пустоту.
-	v = newValidator(0, 0, 0)
+	v = newValidator(0)
 	v.account(0, acc)
 	v.endTable(tableAccounts)
 	v.transaction(0, Transaction{ID: 1, Status: "not_performed", Type: "order", ServiceID: 5, CreatedAt: now})

@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -79,7 +80,7 @@ func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedA
 
 	if err := st.run(stageCopyAccounts, func() error {
 		_, err := tx.CopyFrom(ctx, pgx.Identifier{"accounts"},
-			[]string{"id", "email", "balance", "withdrawBalance", "totalReplenished", "bonusBalance", "bonusState"},
+			accountCols,
 			pgx.CopyFromSlice(len(s.Accounts), func(i int) ([]any, error) {
 				a := s.Accounts[i]
 				return []any{a.ID, a.Email, a.Balance, a.WithdrawBalance, a.TotalReplenished, a.BonusBalance, a.BonusState}, nil
@@ -91,7 +92,7 @@ func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedA
 
 	if err := st.run(stageCopyServices, func() error {
 		_, err := tx.CopyFrom(ctx, pgx.Identifier{"services"},
-			[]string{"id", "name", "ownerId", "paymentTerm", "autoProlong", "createdAt", "expiresAt", "status", "price"},
+			serviceCols,
 			pgx.CopyFromSlice(len(s.Services), func(i int) ([]any, error) {
 				v := s.Services[i]
 				return []any{v.ID, v.Name, v.OwnerID, v.PaymentTerm, v.AutoProlong, v.CreatedAt, v.ExpiresAt, v.Status, v.Price}, nil
@@ -103,7 +104,7 @@ func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedA
 
 	if err := st.run(stageCopyTransactions, func() error {
 		_, err := tx.CopyFrom(ctx, pgx.Identifier{"transactions"},
-			[]string{"id", "amount", "status", "performedAt", "createdAt", "type", "serviceId"},
+			transactionCols,
 			pgx.CopyFromSlice(len(s.Transactions), func(i int) ([]any, error) {
 				x := s.Transactions[i]
 				return []any{x.ID, x.Amount, x.Status, x.PerformedAt, x.CreatedAt, x.Type, x.ServiceID}, nil
@@ -115,15 +116,7 @@ func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedA
 
 	// Идентификаторы заданы снимком; последовательности подтягиваем, чтобы последующие
 	// вставки (правки, эмулятор) не упёрлись в занятые id.
-	if err := st.run(stageSequences, func() error {
-		for _, t := range []string{"accounts", "services", "transactions"} {
-			q := fmt.Sprintf(`SELECT setval(pg_get_serial_sequence('%[1]s', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM %[1]s`, t)
-			if _, err := tx.Exec(ctx, q); err != nil {
-				return fmt.Errorf("sequence %s: %w", t, err)
-			}
-		}
-		return nil
-	}); err != nil {
+	if err := st.run(stageSequences, func() error { return setSequences(ctx, tx) }); err != nil {
 		return Accepted{}, err
 	}
 
@@ -137,6 +130,25 @@ func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedA
 		return Accepted{}, err
 	}
 	return Accepted{Version: version, AsOf: asOf, Accounts: len(s.Accounts), Services: len(s.Services), Transactions: len(s.Transactions)}, nil
+}
+
+// Столбцы COPY трёх таблиц организаторов.
+var (
+	accountCols     = []string{"id", "email", "balance", "withdrawBalance", "totalReplenished", "bonusBalance", "bonusState"}
+	serviceCols     = []string{"id", "name", "ownerId", "paymentTerm", "autoProlong", "createdAt", "expiresAt", "status", "price"}
+	transactionCols = []string{"id", "amount", "status", "performedAt", "createdAt", "type", "serviceId"}
+)
+
+// setSequences подтягивает последовательности: идентификаторы заданы снимком, а последующие
+// вставки (правки, эмулятор) не должны упереться в занятые id.
+func setSequences(ctx context.Context, tx pgx.Tx) error {
+	for _, t := range []string{"accounts", "services", "transactions"} {
+		q := fmt.Sprintf(`SELECT setval(pg_get_serial_sequence('%[1]s', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM %[1]s`, t)
+		if _, err := tx.Exec(ctx, q); err != nil {
+			return fmt.Errorf("sequence %s: %w", t, err)
+		}
+	}
+	return nil
 }
 
 // currentStatus читает последнюю версию снимка; ok=false, если снимков ещё нет.
@@ -475,4 +487,317 @@ func (a *Adapter) fetch(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("ответ биллинга больше %d байт", a.maxBytes)
 	}
 	return body, nil
+}
+
+// ingester ведёт одну загрузку: разбор → проверка → запись COPY в транзакции.
+type ingester struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	pool   *pgxpool.Pool
+	lock   sync.Locker
+	locked bool
+	st     stages
+	tx     pgx.Tx
+	in     <-chan item // после проверки
+	bad    atomic.Bool // проверка нашла ошибку: писать дальше незачем, но собрать остальные ошибки надо
+
+	discard bool  // запись прекращена: ошибка проверки или базы; поток дочитывается впустую
+	dbErr   error // первая ошибка базы
+	copied  [3]bool
+	early   struct { // массивы, пришедшие раньше тех, на которые ссылаются внешние ключи
+		services     []Service
+		transactions []Transaction
+	}
+	counts [3]int
+}
+
+func (w *ingester) beginTx() error {
+	if w.tx != nil {
+		return nil
+	}
+	w.lock.Lock() // не пересекаться с опросом биллинга, эмулятором и правками
+	w.locked = true
+	tx, err := w.pool.Begin(w.ctx)
+	if err != nil {
+		return err
+	}
+	w.tx = tx
+	if err := w.st.run(stageLock, func() error {
+		_, err := tx.Exec(w.ctx, "SELECT pg_advisory_xact_lock($1)", lockKey)
+		return err
+	}); err != nil {
+		return err
+	}
+	// Порядок таблиц как у Reader.Load, см. replace.
+	if err := w.st.run(stageTruncate, func() error {
+		_, err := tx.Exec(w.ctx, "TRUNCATE accounts, services, transactions")
+		return err
+	}); err != nil {
+		return fmt.Errorf("очистка: %w", err)
+	}
+	return nil
+}
+
+// fail запоминает первую ошибку базы и останавливает разбор и проверку.
+func (w *ingester) fail(err error) {
+	if w.dbErr == nil {
+		w.dbErr = err
+	}
+	w.discard = true
+	w.cancel()
+}
+
+// skipArray дочитывает текущий массив впустую.
+func (w *ingester) skipArray() {
+	for it := range w.in {
+		if it.kind == itemEnd {
+			return
+		}
+	}
+}
+
+var copyStage = [3]string{stageCopyAccounts, stageCopyServices, stageCopyTransactions}
+
+// table забирает из канала один массив целиком: пишет его COPY, а если таблица, на которую
+// ссылается внешний ключ, ещё не записана, откладывает до её конца.
+func (w *ingester) table(t table) {
+	if w.discard {
+		w.skipArray()
+		return
+	}
+	if err := w.beginTx(); err != nil {
+		w.fail(err)
+		w.skipArray()
+		return
+	}
+	if dep, ok := dependsOn(t); ok && !w.copied[dep] {
+		w.hold(t)
+		return
+	}
+	src := &chanSource{w: w, tbl: t}
+	err := w.st.run(copyStage[t], func() error {
+		_, err := w.tx.CopyFrom(w.ctx, pgx.Identifier{t.String()}, columns[t], src)
+		return err
+	})
+	switch {
+	case src.aborted:
+		w.discard = true // проверка нашла ошибку, транзакция откатится
+		w.skipArray()
+		return
+	case err != nil:
+		w.fail(fmt.Errorf("%s: %w", t, err))
+		w.skipArray()
+		return
+	}
+	w.counts[t] += src.n
+	w.written(t)
+}
+
+// hold откладывает массив в память до записи того, от чего зависит его внешний ключ.
+// Тело в «естественном» порядке (accounts, services, transactions) до сюда не доходит.
+func (w *ingester) hold(t table) {
+	for it := range w.in {
+		if it.kind == itemEnd {
+			return
+		}
+		switch t {
+		case tableServices:
+			w.early.services = append(w.early.services, it.svc)
+		case tableTransactions:
+			w.early.transactions = append(w.early.transactions, it.tx)
+		}
+	}
+}
+
+// written отмечает таблицу записанной и дописывает отложенные массивы, которые ждали её.
+func (w *ingester) written(t table) {
+	w.copied[t] = true
+	var err error
+	switch {
+	case t == tableAccounts && len(w.early.services) > 0:
+		svcs := w.early.services
+		w.early.services = nil
+		err = w.st.run(stageCopyServices, func() error {
+			_, err := w.tx.CopyFrom(w.ctx, pgx.Identifier{"services"}, serviceCols,
+				pgx.CopyFromSlice(len(svcs), func(i int) ([]any, error) { return serviceRow(&svcs[i]), nil }))
+			return err
+		})
+		if err == nil {
+			w.counts[tableServices] += len(svcs)
+			w.written(tableServices)
+		}
+	case t == tableServices && len(w.early.transactions) > 0:
+		txs := w.early.transactions
+		w.early.transactions = nil
+		err = w.st.run(stageCopyTransactions, func() error {
+			_, err := w.tx.CopyFrom(w.ctx, pgx.Identifier{"transactions"}, transactionCols,
+				pgx.CopyFromSlice(len(txs), func(i int) ([]any, error) { return transactionRow(&txs[i]), nil }))
+			return err
+		})
+		if err == nil {
+			w.counts[tableTransactions] += len(txs)
+		}
+	}
+	if err != nil {
+		w.fail(err)
+	}
+}
+
+var columns = [3][]string{accountCols, serviceCols, transactionCols}
+
+func accountRow(a *Account) []any {
+	return []any{a.ID, a.Email, a.Balance, a.WithdrawBalance, a.TotalReplenished, a.BonusBalance, a.BonusState}
+}
+
+func serviceRow(v *Service) []any {
+	return []any{v.ID, v.Name, v.OwnerID, v.PaymentTerm, v.AutoProlong, v.CreatedAt, v.ExpiresAt, v.Status, v.Price}
+}
+
+func transactionRow(x *Transaction) []any {
+	return []any{x.ID, x.Amount, x.Status, x.PerformedAt, x.CreatedAt, x.Type, x.ServiceID}
+}
+
+// chanSource отдаёт COPY записи одного массива прямо из канала, до метки конца массива.
+type chanSource struct {
+	w       *ingester
+	tbl     table
+	cur     []any
+	n       int
+	aborted bool
+}
+
+func (s *chanSource) Next() bool {
+	if s.w.bad.Load() {
+		s.aborted = true
+		return false
+	}
+	it, ok := <-s.w.in
+	if !ok || it.kind == itemEnd {
+		return false
+	}
+	switch s.tbl {
+	case tableAccounts:
+		s.cur = accountRow(&it.acc)
+	case tableServices:
+		s.cur = serviceRow(&it.svc)
+	default:
+		s.cur = transactionRow(&it.tx)
+	}
+	s.n++
+	return true
+}
+
+func (s *chanSource) Values() ([]any, error) { return s.cur, nil }
+func (s *chanSource) Err() error {
+	if s.aborted {
+		return errors.New("загрузка прервана: снимок не прошёл проверку")
+	}
+	return nil
+}
+
+// ingest принимает снимок потоком и заменяет им данные в одной транзакции.
+//
+// Три горутины на каналах с ограниченными буферами: разбор тела по токенам → проверка записей →
+// запись COPY (эта же горутина держит транзакцию). Запись, разобранная и проверенная, сразу уходит в
+// базу; пока база занята, буферы заполняются и разбор ждёт. Тело и снимок целиком в памяти не лежат,
+// растут только множества id для проверки повторов и ссылок.
+//
+// Результат: *BodyError — тело не разобрано (400); непустой []FieldError — снимок не прошёл
+// проверку (422); иная ошибка — база (500). При любой ошибке транзакция откатывается и прежние данные
+// остаются. lock берётся при первой записи (не раньше) и держится до конца вместе с after, которая
+// вызывается после коммита.
+func ingest(ctx context.Context, pool *pgxpool.Pool, body io.Reader, now time.Time, origin string,
+	lock sync.Locker, after func(Accepted)) (Accepted, []FieldError, error) {
+	peak := startPeakSampler()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	parsed := make(chan item, pipeBuffer)
+	checked := make(chan item, pipeBuffer)
+	w := &ingester{ctx: ctx, cancel: cancel, pool: pool, lock: lock, in: checked}
+	defer func() {
+		if w.tx != nil {
+			_ = w.tx.Rollback(context.Background())
+		}
+		if w.locked {
+			lock.Unlock()
+		}
+	}()
+
+	var (
+		asOf     *time.Time
+		fieldErr []FieldError
+		parseErr error
+		ph       = &sendHandler{sender{ctx: ctx, ch: parsed}}
+		val      = &validateStage{v: newValidator(0), bad: &w.bad, in: parsed, sender: sender{ctx: ctx, ch: checked}}
+		parseDur time.Duration
+		wg       sync.WaitGroup
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		defer close(parsed)
+		start := time.Now()
+		asOf, fieldErr, parseErr = parseStream(body, ph, maxErrors)
+		parseDur = time.Since(start) - ph.blocked
+	}()
+	go func() {
+		defer wg.Done()
+		defer close(checked)
+		val.run()
+	}()
+
+	for it := range checked {
+		if it.kind == itemBegin {
+			w.table(it.tbl)
+		}
+	}
+	wg.Wait()
+	heap := peak.finish()
+
+	w.st.add(stageParse, parseDur)
+	w.st.add(stageValidate, val.busy)
+	defer func() {
+		w.st.log()
+		log.Printf("source: куча при загрузке: до %d МБ, пик %d МБ", peak.start>>20, heap>>20)
+	}()
+
+	// Приоритет ошибок: тело не разобрано, затем проверка, затем база.
+	if parseErr != nil && (w.dbErr == nil || !errors.Is(parseErr, context.Canceled)) {
+		return Accepted{}, nil, &BodyError{parseErr}
+	}
+	errs := append(fieldErr, val.v.finish()...)
+	if len(errs) > maxErrors {
+		errs = errs[:maxErrors]
+	}
+	if len(errs) > 0 {
+		return Accepted{}, errs, nil
+	}
+	if w.dbErr != nil {
+		return Accepted{}, nil, w.dbErr
+	}
+	if val.fatal != nil {
+		return Accepted{}, nil, val.fatal
+	}
+
+	modelAt := val.latest.modelTime(asOf, now)
+	if err := w.st.run(stageSequences, func() error { return setSequences(ctx, w.tx) }); err != nil {
+		return Accepted{}, nil, err
+	}
+	var version int64
+	if err := w.tx.QueryRow(ctx,
+		"INSERT INTO snapshots (as_of, loaded_at, source) VALUES ($1, $2, $3) RETURNING version",
+		modelAt, now, origin).Scan(&version); err != nil {
+		return Accepted{}, nil, fmt.Errorf("snapshots: %w", err)
+	}
+	if err := w.st.run(stageCommit, func() error { return w.tx.Commit(ctx) }); err != nil {
+		return Accepted{}, nil, err
+	}
+	w.tx = nil
+	acc := Accepted{Version: version, AsOf: modelAt,
+		Accounts: w.counts[tableAccounts], Services: w.counts[tableServices], Transactions: w.counts[tableTransactions]}
+	if after != nil {
+		after(acc)
+	}
+	return acc, nil, nil
 }
