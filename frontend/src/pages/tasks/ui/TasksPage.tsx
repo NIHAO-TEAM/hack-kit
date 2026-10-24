@@ -1,6 +1,7 @@
 import { Group, SegmentedControl, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { customerQuery } from '@entities/customer-detail';
 import { customersOptions, type CustomerRow } from '@entities/customer';
 import {
   CustomerLink,
@@ -75,7 +76,13 @@ function Due({ task, now }: { task: RetentionTask; now: number }) {
   );
 }
 
-function Risk({ task, current }: { task: RetentionTask; current?: CustomerRow }) {
+function Risk({ task, listed }: { task: RetentionTask; listed?: CustomerRow }) {
+  // Список клиентов — одна страница; клиента за её пределами берём из карточки, а не показываем «—».
+  const detail = useQuery({
+    ...customerQuery(task.customerId),
+    enabled: !listed && !task.customerMissing,
+  });
+  const current = listed ?? detail.data?.customer;
   const then = task.baseline.score != null ? Math.round(task.baseline.score) : null;
   const now = current?.score != null ? Math.round(current.score) : null;
   return (
@@ -155,7 +162,7 @@ export function TasksPage({ role }: { role: Role }) {
                     <Due task={t} now={now} />
                   </Table.Td>
                   <Table.Td>
-                    <Risk task={t} current={byId.get(t.customerId)} />
+                    <Risk task={t} listed={byId.get(t.customerId)} />
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">{exact(t.updatedAt)}</Text>

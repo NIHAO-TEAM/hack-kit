@@ -1,5 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { TASK_ROOT } from '@entities/retention-task';
+import { HttpResponse, http } from 'msw';
+import { server } from '../mocks/server';
 import { resetTasks, seedTask } from '../mocks/tasks';
 import { renderApp } from './render-app';
 
@@ -42,6 +44,14 @@ describe('экран «Задачи»', () => {
     renderApp('/tasks');
     expect(await screen.findByText('клиента нет в текущем снимке')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /gone@x.test/ })).toBeNull();
+  });
+
+  it('клиент за пределами страницы списка: «сейчас» берётся из карточки, а не «—»', async () => {
+    asRole('marketer');
+    server.use(http.get('/api/v1/customers', () => HttpResponse.json({ items: [], total: 0 })));
+    seedTask(9, { customerEmail: 'a@x.test' });
+    renderApp('/tasks');
+    expect(await screen.findByText(/сейчас: 87/)).toBeInTheDocument();
   });
 
   it('пусто: объясняет, что делать', async () => {
