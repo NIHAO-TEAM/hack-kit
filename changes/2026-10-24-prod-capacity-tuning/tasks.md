@@ -10,7 +10,7 @@
 
 - [ ] 2.1 Лимиты и `requests` приложения и PostgreSQL в Helm и Compose по замеру — проверка: `helm template`
 - [ ] 2.2 Параметры PostgreSQL (`shared_buffers`, `max_wal_size`, `checkpoint_completion_target`, `wal_compression`, `effective_cache_size`) — проверка: `SHOW` в поде после выката
-- [ ] 2.3 `DB_MAX_CONNS` и `max_connections` — проверка: тест конфигурации пула
+- [x] 2.3 `DB_MAX_CONNS` и `max_connections` — проверка: тест конфигурации пула
 - [ ] 2.4 Шаг выката: allocatable память узла, «нужен человек», если не вмещается — проверка: лог `Deploy k8s`
 
 ## 3. Готовность
