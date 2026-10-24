@@ -91,18 +91,9 @@
 
 /* Планшет и телефон: строка становится карточкой, подписи полей — из data-label. */
 @media (width <= 64em) {
+  /* Заголовки не нужны: сортировку даёт SortControl. display: none — вне Tab и вне дерева доступности. */
   .table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-
-  .table thead th {
-    display: block;
-    width: 1px;
-    overflow: hidden;
+    display: none;
   }
 
   .table,
@@ -194,10 +185,6 @@
 
 /* Касание на планшете и телефоне: кнопки не меньше 44 px. */
 @media (width <= 64em) {
-  .sort {
-    min-height: 44px;
-  }
-
   .take {
     min-height: 44px;
   }
