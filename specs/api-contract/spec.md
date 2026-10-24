@@ -84,3 +84,12 @@
 - THEN `404` в `application/problem+json` с `correlation_id`
 - Тест: `TestNegativeSweep`
 
+### Requirement: перегрузка даёт быстрый 503
+
+Сервер SHALL отвечать `503` с `Retry-After` на запросы сверх предела одновременных запросов своего класса не позже чем через 150 мс, обслуживая принятые запросы.
+
+#### Scenario: читателей в 10 раз больше предела
+
+- WHEN одновременно приходят запросы чтения в 10 раз сверх предела
+- THEN лишние получают `503` с `Retry-After` быстрее 150 мс, принятые — `200`, `/readyz` отвечает
+- Тест: `TestLimitShedsFastAndServesAccepted`, `TestLimitClasses` (`internal/platform/httpx/limit_test.go`)

@@ -36,9 +36,12 @@ export function toApiError(status: number, body: unknown, response?: Response): 
   const retryAfter = Number(response?.headers.get('Retry-After'));
   // сервер пишет причину в detail, а в title — «Forbidden»: для CSRF показываем понятную фразу
   const csrfRejected = status === 403 && /X-CSRF-Token/i.test(problem.detail ?? '');
+  // 503 — перегрузка сервера (быстрый отказ): title «Service Unavailable» человеку ничего не говорит
   const message = csrfRejected
     ? 'Сессия устарела, обновите страницу'
-    : (problem.title ?? problem.detail ?? 'Ошибка запроса');
+    : status === 503
+      ? 'Сервис перегружен, повторите через несколько секунд'
+      : (problem.title ?? problem.detail ?? 'Ошибка запроса');
   return new ApiError(status, message, {
     retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
     fieldErrors: Object.fromEntries((problem.errors ?? []).map((e) => [e.field, e.message])),
