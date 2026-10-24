@@ -305,7 +305,7 @@ export interface paths {
         get?: never;
         /**
          * Загрузка или полная замена снимка данных с пересчётом (аналитик или сервисный токен)
-         * @description Принимаются также написания из текста кейса: поля pice, paymentTem, autoprolong и значения quater_year, pefomed, not_pefomed; в ответах — имена схемы.
+         * @description Принимаются также написания из текста кейса: поля pice, paymentTem, autoprolong и значения quater_year, pefomed, not_pefomed; в ответах — имена схемы. Тело больше лимита (SNAPSHOT_MAX_BYTES, по умолчанию 512 МБ) отклоняется ответом 400.
          */
         put: operations["putSnapshot"];
         post?: never;
@@ -924,9 +924,20 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Роли не хватает для операции */
+        /** @description Роли не хватает для операции; либо запрос, меняющий данные, пришёл по cookie без заголовка X-CSRF-Token (нужен csrfToken из ответа входа) */
         Forbidden: {
             headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Слишком много попыток входа; повторить можно через Retry-After секунд */
+        TooManyRequests: {
+            headers: {
+                /** @description Через сколько секунд окно попыток освободится. */
+                "Retry-After"?: number;
                 [name: string]: unknown;
             };
             content: {
@@ -1174,6 +1185,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
             501: components["responses"]["NotImplemented"];
         };
     };
@@ -1216,6 +1228,7 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             501: components["responses"]["NotImplemented"];
         };
     };

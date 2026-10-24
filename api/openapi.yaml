@@ -22,7 +22,11 @@ components:
       type: apiKey
       in: cookie
       name: session
-      description: Сессия, выданная POST /api/v1/auth/login.
+      description: >-
+        Сессия, выданная POST /api/v1/auth/login. Запросы, меняющие данные (POST, PUT, PATCH),
+        по cookie требуют заголовок X-CSRF-Token со значением csrfToken из ответа входа (после
+        перезагрузки страницы — из заголовка X-CSRF-Token ответа GET /api/v1/auth/me); без него
+        сервер отвечает 403. Запросы с Authorization: Bearer заголовок не требуют.
     bearerAuth:
       type: http
       scheme: bearer
@@ -79,7 +83,20 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
     Forbidden:
-      description: Роли не хватает для операции
+      description: >-
+        Роли не хватает для операции; либо запрос, меняющий данные, пришёл по cookie без
+        заголовка X-CSRF-Token (нужен csrfToken из ответа входа)
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    TooManyRequests:
+      description: Слишком много попыток входа; повторить можно через Retry-After секунд
+      headers:
+        Retry-After:
+          description: Через сколько секунд окно попыток освободится.
+          schema:
+            type: integer
       content:
         application/problem+json:
           schema:
@@ -968,6 +985,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/auth/me:
@@ -1002,6 +1021,8 @@ paths:
           description: Сессия завершена
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/auth/config:
@@ -1243,7 +1264,8 @@ paths:
       summary: Загрузка или полная замена снимка данных с пересчётом (аналитик или сервисный токен)
       description: >-
         Принимаются также написания из текста кейса: поля pice, paymentTem, autoprolong и
-        значения quater_year, pefomed, not_pefomed; в ответах — имена схемы.
+        значения quater_year, pefomed, not_pefomed; в ответах — имена схемы. Тело больше лимита
+        (SNAPSHOT_MAX_BYTES, по умолчанию 512 МБ) отклоняется ответом 400.
       security:
         - cookieAuth: []
         - bearerAuth: []
