@@ -367,6 +367,8 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		LossBeforeCents: before.ExpectedLossCents, LossAfterCents: after.ExpectedLossCents,
 		Consistency: cons,
 	}
+	p99 := ms(percentile(applyDur, 99))
+	rep.ApplyP99Ms = &p99
 	if p95 := percentile(lag.lags, 95); len(lag.lags) > 0 {
 		v := ms(p95)
 		rep.QueueLagP95Ms = &v

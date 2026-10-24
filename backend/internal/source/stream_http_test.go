@@ -70,6 +70,9 @@ func TestStreamRunsAndReportsConsistency(t *testing.T) {
 	if r.ApplyP50Ms <= 0 || r.ApplyP95Ms < r.ApplyP50Ms || r.ApplyMaxMs < r.ApplyP95Ms {
 		t.Errorf("задержки применения p50 %v p95 %v max %v", r.ApplyP50Ms, r.ApplyP95Ms, r.ApplyMaxMs)
 	}
+	if r.ApplyP99Ms == nil || *r.ApplyP99Ms < r.ApplyP95Ms || *r.ApplyP99Ms > r.ApplyMaxMs {
+		t.Errorf("p99 применения %v при p95 %v и max %v", r.ApplyP99Ms, r.ApplyP95Ms, r.ApplyMaxMs)
+	}
 	if r.QueueLagP95Ms == nil || *r.QueueLagP95Ms <= 0 {
 		t.Errorf("задержка до очереди %v", r.QueueLagP95Ms)
 	}

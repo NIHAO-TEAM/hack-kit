@@ -882,6 +882,8 @@ export interface components {
             eventsPerSecond: number;
             applyP50Ms: number;
             applyP95Ms: number;
+            /** @description p99 длительности применения одного события */
+            applyP99Ms?: number;
             applyMaxMs: number;
             /** @description Сколько пересчётов выполнил движок за прогон (пересчёт склеивает пачки событий) */
             recalcs: number;
