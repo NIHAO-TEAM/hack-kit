@@ -1,5 +1,6 @@
 import {
   AppShell as MantineShell,
+  Box,
   Burger,
   Button,
   Group,
@@ -76,11 +77,14 @@ export function AppShell() {
                   href="/grafana/"
                   target="_blank"
                   rel="noopener"
+                  aria-label="Мониторинг"
                   variant="default"
                   size="compact-md"
                   rightSection={<IconExternalLink size={16} aria-hidden />}
                 >
-                  Мониторинг
+                  <Box component="span" visibleFrom="sm">
+                    Мониторинг
+                  </Box>
                 </Button>
               </Tooltip>
             )}
@@ -93,8 +97,11 @@ export function AppShell() {
               size="compact-md"
               leftSection={<IconLogout size={16} aria-hidden />}
               onClick={exit}
+              aria-label="Выйти"
             >
-              Выйти
+              <Box component="span" visibleFrom="sm">
+                Выйти
+              </Box>
             </Button>
           </Group>
         </Group>
