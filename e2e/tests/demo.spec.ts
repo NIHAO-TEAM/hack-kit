@@ -152,12 +152,9 @@ test('демо: очередь → карточка → потеря по при
         timeout: 180_000,
       });
       await expect(panel.getByRole('region', { name: 'Итог прогона' })).toContainText('Применено событий');
+      // Кнопка «Мониторинг» есть только у ролей с правом source.view: маркетологу её не показывают.
+      await expect(analystPage.getByRole('link', { name: 'Мониторинг' })).toHaveAttribute('href', '/grafana/');
       await analystPage.close();
-    });
-
-    // Шаг 7. Инженерия: ссылка «Мониторинг» ведёт на Grafana (сама Grafana на стенде раннера может отсутствовать).
-    await test.step('Ссылка «Мониторинг» ведёт на /grafana/', async () => {
-      await expect(page.getByRole('link', { name: 'Мониторинг' })).toHaveAttribute('href', '/grafana/');
     });
 
     // Шаг 7. /metrics = сводка.
