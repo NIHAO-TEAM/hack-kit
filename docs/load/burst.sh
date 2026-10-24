@@ -100,11 +100,15 @@ for N in "${SIZES[@]}"; do
   RC1=$(restart_count)
   jq . <<<"$STATE" >"$OUT/stream-$N.json"
 
-  [ "$S" = done ] || fail "залп $N: состояние прогона «$S», ошибка: $(jq -r '.error // ""' <<<"$STATE")"
   APPLIED=$(jq -r '.report.applied // 0' <<<"$STATE"); FAILED=$(jq -r '.report.failed // 0' <<<"$STATE")
-  [ $((APPLIED + FAILED)) -eq "$N" ] || fail "залп $N: применено $APPLIED + отклонено $FAILED ≠ $N"
-  [ "$(jq -r '.report.consistency.ok // false' <<<"$STATE")" = true ] || fail "залп $N: согласованность не сошлась"
-  [ "$(jq -r '.report.consistency.diffCents // -1' <<<"$STATE")" = 0 ] || fail "залп $N: разница с пересчётом с нуля не 0 центов"
+  if [ "$S" = done ]; then
+    [ $((APPLIED + FAILED)) -eq "$N" ] || fail "залп $N: применено $APPLIED + отклонено $FAILED ≠ $N"
+    [ "$(jq -r '.report.consistency.ok // false' <<<"$STATE")" = true ] || fail "залп $N: согласованность не сошлась"
+    [ "$(jq -r '.report.consistency.diffCents // -1' <<<"$STATE")" = 0 ] || fail "залп $N: разница с пересчётом с нуля не 0 центов"
+  else
+    # итога нет: сводку по нулям не печатаем, показываем причину и то, сколько событий успели обработать
+    fail "залп $N: состояние прогона «$S», обработано $(jq -r '.applied // 0' <<<"$STATE") из $N, причина сбоя: $(jq -r '.error // "не указана"' <<<"$STATE")"
+  fi
   [ "$FIVE1" = "$FIVE0" ] || fail "залп $N: ответов 5xx за залп: $((FIVE1 - FIVE0))"
   [ "$START0" = "$START1" ] || fail "залп $N: процесс перезапускался (process_start_time_seconds изменился)"
   [ -z "$RC0$RC1" ] || [ "$RC0" = "$RC1" ] || fail "залп $N: restartCount $RC0 → $RC1"

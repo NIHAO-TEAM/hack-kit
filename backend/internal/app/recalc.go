@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -26,6 +27,8 @@ type Recalc struct {
 	Settings *model.Store
 	snaps    *snapshots
 	cache    cacheHolder
+	buildMu  sync.Mutex                                                   // одна сборка портфеля за раз (Portfolio)
+	build    func(risk.Result, risk.Snapshot, int64) *analytics.Portfolio // nil — buildPortfolio; подмена в тесте
 	observer *retention.Service
 	bus      *events.Bus
 	reads    *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
