@@ -106,7 +106,8 @@ for (const { w, h } of widths) {
             for (const el of await loc.all()) {
               if (!(await el.isVisible())) continue;
               const box = await el.boundingBox();
-              if (!box) continue;
+              // Заголовки таблицы на планшете спрятаны (строки стали карточками): их кнопки не мишень.
+              if (!box || box.width <= 2 || box.height <= 2) continue;
               if (box.width < MIN_TARGET - 0.5 || box.height < MIN_TARGET - 0.5) {
                 const label = (await el.innerText().catch(() => '')).trim() || (await el.getAttribute('aria-label')) || '—';
                 bad.push(`${what} «${label.slice(0, 40)}»: ${Math.round(box.width)}×${Math.round(box.height)} px`);
