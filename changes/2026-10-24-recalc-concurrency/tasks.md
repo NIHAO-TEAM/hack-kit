@@ -4,7 +4,7 @@
 
 ## 1. Измерение
 
-- [ ] 1.1 `BenchmarkRecalc10k` и `BenchmarkRecalc100k`, профиль cpu и alloc до правки — проверка: вывод `go test -bench -benchmem` и три главных места профиля в «Найдено по ходу»
+- [x] 1.1 `BenchmarkRecalc10k` и `BenchmarkRecalc100k`, профиль cpu и alloc до правки — проверка: вывод `go test -bench -benchmem` и три главных места профиля в «Найдено по ходу»
 
 ## 2. Конвейер и отмена
 
