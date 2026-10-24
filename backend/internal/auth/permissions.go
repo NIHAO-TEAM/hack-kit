@@ -18,6 +18,8 @@ const (
 	accessAnyRole
 	// accessStaff — аналитик, jury, администратор: операции, которые меняют модель и данные.
 	accessStaff
+	// accessWork — работа с клиентом: маркетолог, jury, администратор. Аналитик только читает.
+	accessWork
 )
 
 // operations — таблица «шаблон маршрута ServeMux → операция». Маршрут, которого здесь нет,
@@ -44,6 +46,12 @@ var operations = map[string]struct {
 	"POST /api/v1/auth/logout":             {"logout", accessAnyRole},
 	"GET /api/v1/customers":                {"listCustomers", accessAnyRole},
 	"GET /api/v1/customers/{id}":           {"getCustomer", accessAnyRole},
+	"POST /api/v1/customers/{id}/task":     {"takeCustomerTask", accessWork},
+	"GET /api/v1/tasks":                    {"listTasks", accessAnyRole},
+	"GET /api/v1/tasks/assignees":          {"listTaskAssignees", accessAnyRole},
+	"GET /api/v1/tasks/{taskId}":           {"getTask", accessAnyRole},
+	"PATCH /api/v1/tasks/{taskId}":         {"patchTask", accessWork},
+	"POST /api/v1/tasks/{taskId}/events":   {"addTaskEvent", accessWork},
 	"GET /api/v1/analytics/summary":        {"getSummary", accessAnyRole},
 	"GET /api/v1/analytics/churn-chart":    {"getChurnChart", accessAnyRole},
 	"GET /api/v1/model/settings":           {"getModelSettings", accessAnyRole},
@@ -74,6 +82,8 @@ func can(role, operationID string) bool {
 			return isRole(role)
 		case accessStaff:
 			return role == RoleAnalyst || role == RoleJury || role == RoleAdmin
+		case accessWork:
+			return role == RoleMarketer || role == RoleJury || role == RoleAdmin
 		}
 	}
 	return false

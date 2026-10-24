@@ -50,6 +50,23 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 		return
 	}
 
+	var tasks map[int64]TaskRef
+	if a.tasks != nil {
+		var err error
+		if tasks, err = a.openTasks(r.Context()); err != nil && p.Task != nil {
+			httpx.WriteProblem(w, r, 500, "задачи недоступны")
+			return
+		}
+	}
+	if p.Task != nil && !validTaskFilter(*p.Task) {
+		httpx.WriteProblem(w, r, 400, "task: none, open или mine")
+		return
+	}
+	me := ""
+	if a.login != nil {
+		me = a.login(r.Context())
+	}
+
 	pinUnscored := sortBy == "score" || sortBy == "expectedLoss"
 
 	rows := make([]gen.CustomerRow, 0, len(pf.Customers))
@@ -65,7 +82,25 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 			!strings.Contains(strconv.FormatInt(c.Row.Id, 10), q) {
 			continue
 		}
-		rows = append(rows, c.Row)
+		row := c.Row
+		row.Task = briefFor(tasks, row)
+		if p.Task != nil {
+			switch *p.Task {
+			case "none":
+				if row.Task != nil {
+					continue
+				}
+			case "open":
+				if row.Task == nil {
+					continue
+				}
+			case "mine":
+				if row.Task == nil || row.Task.Assignee != me {
+					continue
+				}
+			}
+		}
+		rows = append(rows, row)
 	}
 	slices.SortStableFunc(rows, func(x, y gen.CustomerRow) int {
 		if pinUnscored { // только по скору и потере: «нет оценки» и «потерян» внизу
@@ -111,9 +146,13 @@ func (a *AnalyticsAPI) GetCustomer(w responseWriter, r *request, id gen.Customer
 		return
 	}
 	c := pf.Customers[i]
+	row := c.Row
+	if tasks, err := a.openTasks(r.Context()); err == nil {
+		row.Task = briefFor(tasks, row)
+	}
 	d := gen.CustomerDetail{
 		Version:      pf.Version,
-		Customer:     c.Row,
+		Customer:     row,
 		Account:      &c.Account,
 		Services:     orEmpty(c.Services),
 		ServiceRisks: &c.Risks,
