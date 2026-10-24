@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { renderApp } from './render-app';
 import { server } from '../mocks/server';
+import { seedTask } from '../mocks/tasks';
 
 function signedIn() {
   server.use(
@@ -278,5 +279,38 @@ describe('очередь: группа «У биллинга»', () => {
     await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
     expect(await screen.findByText('У биллинга — не загрузилось')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+  });
+});
+
+describe('очередь: фильтр по работе', () => {
+  it('«Без работы» уходит в запрос task=none и пишется в адрес', async () => {
+    signedIn();
+    const user = userEvent.setup();
+    const seen: string[] = [];
+    server.use(
+      http.get('/api/v1/customers', ({ request }) => {
+        seen.push(new URL(request.url).searchParams.get('task') ?? '');
+        return HttpResponse.json({ items: [], total: 0 });
+      }),
+    );
+    const { router } = renderApp('/queue');
+    await screen.findByRole('radio', { name: 'Без работы' });
+    await user.click(screen.getByRole('radio', { name: 'Без работы' }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ task: 'none' }));
+    await waitFor(() => expect(seen).toContain('none'));
+  });
+
+  it('клиент в работе уходит из «Без работы» и total уменьшается', async () => {
+    signedIn();
+    sessionStorage.setItem('mock-session', 'marketer');
+    seedTask(2);
+    const user = userEvent.setup();
+    renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    const ids = () =>
+      screen.getAllByRole('row').map((r) => within(r).queryAllByRole('cell')[0]?.textContent);
+    expect(ids()).toContain('2');
+    await user.click(screen.getByRole('radio', { name: 'Без работы' }));
+    await waitFor(() => expect(ids()).not.toContain('2'));
   });
 });

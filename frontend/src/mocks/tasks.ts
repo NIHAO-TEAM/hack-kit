@@ -51,6 +51,14 @@ export function openTaskBrief(customerId: number): Brief | undefined {
   );
 }
 
+/** Фильтр `task` очереди: `mine` — открытая задача на текущем логине. */
+export function taskFilterMatches(filter: string | null, brief: Brief | undefined): boolean {
+  if (filter === 'none') return !brief;
+  if (filter === 'open') return Boolean(brief);
+  if (filter === 'mine') return brief?.assignee === login();
+  return true;
+}
+
 /** Кладёт в мок готовую задачу, например просроченную. */
 export function seedTask(customerId: number, patch: Partial<Task> = {}): Task {
   const at = new Date().toISOString();

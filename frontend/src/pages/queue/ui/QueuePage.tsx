@@ -1,4 +1,13 @@
-import { Button, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import {
+  Button,
+  Group,
+  Select,
+  SegmentedControl,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
@@ -10,9 +19,10 @@ import {
   type CustomerParams,
   type CustomerSort,
   type RiskLevel,
+  type TaskFilter,
 } from '@entities/customer';
 import { ApiError } from '@shared/api';
-import type { Role } from '@entities/session';
+import { can, type Role } from '@entities/session';
 import {
   IconDownload,
   IconSearch,
@@ -36,6 +46,13 @@ const levelOptions: Array<{ value: RiskLevel; label: string }> = [
   { value: 'low', label: 'Низкий риск' },
   { value: 'unscored', label: 'Без оценки' },
   { value: 'lost', label: 'Потерян' },
+];
+
+const taskOptions: Array<{ value: TaskFilter | 'all'; label: string }> = [
+  { value: 'all', label: 'Все' },
+  { value: 'none', label: 'Без работы' },
+  { value: 'open', label: 'В работе' },
+  { value: 'mine', label: 'Мои' },
 ];
 
 /** Первый клик по заголовку: числа — от больших к меньшим, текст и ID — по возрастанию. */
@@ -81,7 +98,7 @@ export function QueuePage({
   );
   // Группа «У биллинга»: сбой автосписания, маркетолог не действует; сортировка и поиск очереди не влияют.
   const billing = useQuery(
-    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'only' }),
+    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'only', task: params.task }),
   );
 
   const [whatIf, setWhatIf] = useState(false);
@@ -128,8 +145,10 @@ export function QueuePage({
       );
   } else if (customers.data && customers.data.items.length === 0) {
     body =
-      params.q || params.level ? (
-        <StateEmpty title="Никого не нашли">Измените поиск или уровень риска.</StateEmpty>
+      params.q || params.level || params.task ? (
+        <StateEmpty title="Никого не нашли">
+          Измените поиск, уровень риска или фильтр по работе.
+        </StateEmpty>
       ) : (
         <StateEmpty title="Сегодня некого спасать">
           Клиентов под риском нет. Очередь обновится сама, когда данные изменятся.
@@ -212,6 +231,16 @@ export function QueuePage({
           Скачать CSV
         </Button>
       </Group>
+      <SegmentedControl
+        aria-label="Работа с клиентом"
+        data={taskOptions.filter((o) => o.value !== 'mine' || can(role, 'tasks.edit'))}
+        value={params.task ?? 'all'}
+        onChange={(value) =>
+          onParams(
+            withView({ ...params, task: value === 'all' ? undefined : (value as TaskFilter) }),
+          )
+        }
+      />
       {body}
       <BillingGroup
         rows={billing.data?.items}
