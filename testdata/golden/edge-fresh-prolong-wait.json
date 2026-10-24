@@ -29,7 +29,7 @@
     "weights": {
       "bonus_locked": 0.0,
       "fail": 0.4,
-      "flight": 0.15,
+      "flight": 0.0,
       "funds": 0.7,
       "noauto": 0.55,
       "pwait": 0.8,
