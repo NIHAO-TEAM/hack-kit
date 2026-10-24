@@ -2,7 +2,7 @@ import { createTheme, type CSSVariablesResolver, type MantineColorsTuple } from 
 import { colorTokens } from './tokens';
 
 export const fontFamily =
-  "'Exo 2', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  "'Digits', 'Exo 2', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
 const brand: MantineColorsTuple = [
   '#e6f7fd',

@@ -119,7 +119,7 @@ export function DevUiPage() {
       </Section>
       <Divider />
 
-      <Section title="Типографика (Onest, табличные цифры)">
+      <Section title="Типографика (Exo 2, Inter, табличные цифры)">
         <Title order={1}>Заголовок страницы</Title>
         <Title order={2}>Заголовок диалога</Title>
         <Title order={3}>Секция</Title>
