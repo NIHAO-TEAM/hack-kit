@@ -12,6 +12,11 @@ echo "== docker ps =="
 docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}' 2>&1 || true
 echo "== k3s: svc, ingress =="
 kubectl get svc,ingress -A -o wide 2>&1 || true
+echo "== спутники: endpoints и endpointslices =="
+kubectl -n churn get endpoints,endpointslices -o wide 2>&1 || true
+echo "== Traefik: версия и предупреждения про спутников =="
+kubectl -n kube-system get deploy traefik -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}' 2>&1 || true
+kubectl -n kube-system logs deploy/traefik --tail=500 2>&1 | grep -i -E 'churn-grafana|churn-keycloak|endpoint' | tail -n 20 || true
 echo "== спутники: порты на хосте =="
 ss -ltn 2>/dev/null | grep -E ':(18080|13000|19090)\b' || echo "порты спутников не слушаются"
 echo "== наличие ключей в Secret релиза (значения не печатаются) =="
