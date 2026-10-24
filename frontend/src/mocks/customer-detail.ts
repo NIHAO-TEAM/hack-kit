@@ -37,7 +37,7 @@ const featured: Record<number, Pick<Detail, 'features' | 'actions' | 'explanatio
         id: 'topup',
         title: 'Пополнить на 529,84 €',
         effectCents: -102749,
-        newScore: 0.8346,
+        newScore: 0.8245,
         newLevel: 'high',
       },
       {
@@ -67,7 +67,7 @@ export function customerDetailHandler(
       return HttpResponse.json({
         ...base,
         ...extra,
-        customer: { ...base.customer, score: 0.8814, level: 'high', expectedLossCents: 318910 },
+        customer: { ...base.customer, score: 0.8695, level: 'high', expectedLossCents: 318910 },
       });
     }
     if (id === 2) {

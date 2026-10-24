@@ -27,7 +27,7 @@ describe('экран «Карточка клиента»', () => {
     expect(within(table).getByText('funds')).toBeInTheDocument();
     expect(within(table).getByText('susp')).toBeInTheDocument();
     expect(within(table).getByText('Вклад')).toBeInTheDocument();
-    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,88');
+    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,87');
   });
 
   it('раскрытая услуга не выдаёт признаки клиента за свои', async () => {
