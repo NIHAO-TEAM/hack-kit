@@ -41,3 +41,41 @@
 - WHEN Prometheus на проде опрашивает приложение
 - THEN цель в состоянии UP, порт Prometheus не открыт снаружи
 - Тест: нет автотеста; конфиг — `deploy/prometheus/`, target UP проверяется при выкате
+
+### Requirement: метрики работы с клиентами
+
+`/metrics` SHALL отдавать число задач удержания по статусу, просроченные, закрытые по итогу и ожидаемую потерю клиентов в работе. Метки сотрудников и email в метриках нет.
+
+#### Scenario: клиент 9 в работе
+
+- WHEN клиента 9 взяли в работу
+- THEN `churn_retention_tasks{status="in_work"}` = 1, `churn_retention_expected_loss_in_work_cents` равна ожидаемой потере клиента 9 в API
+- Тест: `TestTaskMetrics`
+
+#### Scenario: срок прошёл
+
+- WHEN срок открытой задачи прошёл
+- THEN `churn_retention_tasks_overdue` = 1
+- Тест: `TestTaskMetrics`
+
+#### Scenario: клиента нет в снимке
+
+- WHEN клиент открытой задачи пропал из снимка или у него другой email
+- THEN его потеря в `churn_retention_expected_loss_in_work_cents` не считается, а сама задача остаётся в счётчиках
+- Тест: `TestTaskMetrics`
+
+### Requirement: работа с клиентами в сводке
+
+Сводка SHALL показывать долю ожидаемой потери в работе и клиентов высокого риска без работы — те же числа, что `/metrics`. Блок `retention` в ответе необязателен: при ошибке чтения задач сводка отдаётся без него, экран блок скрывает.
+
+#### Scenario: клиент 9 в работе
+
+- WHEN на наборе организаторов в работе только клиент 9
+- THEN «В работе 1 клиент · 3 189,10 € из 3 599,07 €», «Высокий риск без работы: 2 клиента»; `churn_retention_expected_loss_in_work_cents` = 318910
+- Тест: `TestSummaryRetentionMatchesMetrics`, `TestSummaryRetention`, `summary.test.tsx`
+
+#### Scenario: ошибка чтения задач
+
+- WHEN база задач недоступна
+- THEN `GET /api/v1/analytics/summary` отвечает 200 без поля `retention`
+- Тест: `TestSummaryRetentionTasksError`

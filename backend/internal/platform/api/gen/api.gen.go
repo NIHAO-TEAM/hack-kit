@@ -41,15 +41,19 @@ const (
 
 // Defines values for AuditEntryAction.
 const (
-	AccountChanged  AuditEntryAction = "accountChanged"
-	EmulatorActions AuditEntryAction = "emulatorActions"
-	EmulatorTick    AuditEntryAction = "emulatorTick"
-	Login           AuditEntryAction = "login"
-	LoginFailed     AuditEntryAction = "loginFailed"
-	Logout          AuditEntryAction = "logout"
-	ServiceChanged  AuditEntryAction = "serviceChanged"
-	SettingsChanged AuditEntryAction = "settingsChanged"
-	SnapshotLoaded  AuditEntryAction = "snapshotLoaded"
+	AccountChanged    AuditEntryAction = "accountChanged"
+	CustomersExported AuditEntryAction = "customersExported"
+	EmulatorActions   AuditEntryAction = "emulatorActions"
+	EmulatorTick      AuditEntryAction = "emulatorTick"
+	Login             AuditEntryAction = "login"
+	LoginFailed       AuditEntryAction = "loginFailed"
+	Logout            AuditEntryAction = "logout"
+	ServiceChanged    AuditEntryAction = "serviceChanged"
+	SettingsChanged   AuditEntryAction = "settingsChanged"
+	SnapshotLoaded    AuditEntryAction = "snapshotLoaded"
+	TaskChanged       AuditEntryAction = "taskChanged"
+	TaskCreated       AuditEntryAction = "taskCreated"
+	TaskRecorded      AuditEntryAction = "taskRecorded"
 )
 
 // Defines values for ModelSettingsAsOfMode.
@@ -119,6 +123,45 @@ const (
 	Seed     SourceStatusSource = "seed"
 )
 
+// Defines values for TaskChannel.
+const (
+	Mail      TaskChannel = "mail"
+	Messenger TaskChannel = "messenger"
+	Other     TaskChannel = "other"
+	Phone     TaskChannel = "phone"
+)
+
+// Defines values for TaskEventKind.
+const (
+	TaskEventKindChanged  TaskEventKind = "changed"
+	TaskEventKindContact  TaskEventKind = "contact"
+	TaskEventKindCreated  TaskEventKind = "created"
+	TaskEventKindNote     TaskEventKind = "note"
+	TaskEventKindObserved TaskEventKind = "observed"
+)
+
+// Defines values for TaskEventCreateKind.
+const (
+	TaskEventCreateKindContact TaskEventCreateKind = "contact"
+	TaskEventCreateKindNote    TaskEventCreateKind = "note"
+)
+
+// Defines values for TaskOutcome.
+const (
+	NoAnswer  TaskOutcome = "no_answer"
+	NotNeeded TaskOutcome = "not_needed"
+	Refused   TaskOutcome = "refused"
+	Renewed   TaskOutcome = "renewed"
+)
+
+// Defines values for TaskStatus.
+const (
+	Closed    TaskStatus = "closed"
+	Contacted TaskStatus = "contacted"
+	InWork    TaskStatus = "in_work"
+	Postponed TaskStatus = "postponed"
+)
+
 // Defines values for TransactionStatus.
 const (
 	NotPerformed TransactionStatus = "not_performed"
@@ -129,6 +172,13 @@ const (
 const (
 	Order   TransactionType = "order"
 	Prolong TransactionType = "prolong"
+)
+
+// Defines values for ListCustomersParamsTask.
+const (
+	Mine ListCustomersParamsTask = "mine"
+	None ListCustomersParamsTask = "none"
+	Open ListCustomersParamsTask = "open"
 )
 
 // Defines values for ListCustomersParamsSort.
@@ -145,6 +195,12 @@ const (
 const (
 	Asc  ListCustomersParamsOrder = "asc"
 	Desc ListCustomersParamsOrder = "desc"
+)
+
+// Defines values for ListCustomersParamsBilling.
+const (
+	Exclude ListCustomersParamsBilling = "exclude"
+	Only    ListCustomersParamsBilling = "only"
 )
 
 // Account defines model for Account.
@@ -286,7 +342,10 @@ type CustomerRow struct {
 	LostCents *int64 `json:"lostCents,omitempty"`
 
 	// Score Риск оттока в процентах 0..100 (как порог модели); null для unscored и lost.
-	Score     *float64     `json:"score"`
+	Score *float64 `json:"score"`
+
+	// Task Открытая задача клиента в строке очереди и в карточке.
+	Task      *TaskBrief   `json:"task,omitempty"`
 	TopAction *ActionBrief `json:"topAction,omitempty"`
 
 	// TopReason Главная причина простыми словами; нет у unscored и lost.
@@ -446,6 +505,45 @@ type QualityCheckItem struct {
 	ServiceId int64 `json:"serviceId"`
 }
 
+// RetentionTask defines model for RetentionTask.
+type RetentionTask struct {
+	Assignee string `json:"assignee"`
+
+	// Baseline Исходное состояние клиента в момент, когда его взяли в работу. Не меняется.
+	Baseline  TaskBaseline `json:"baseline"`
+	ClosedAt  *time.Time   `json:"closedAt,omitempty"`
+	CreatedAt time.Time    `json:"createdAt"`
+	CreatedBy string       `json:"createdBy"`
+
+	// CustomerEmail Email клиента на момент, когда его взяли в работу.
+	CustomerEmail *string `json:"customerEmail,omitempty"`
+	CustomerId    int64   `json:"customerId"`
+
+	// CustomerMissing Клиента нет в текущем снимке или у его ID другой email.
+	CustomerMissing bool      `json:"customerMissing"`
+	DueAt           time.Time `json:"dueAt"`
+
+	// Events История по порядку, старые сверху. Есть в ответах по одной задаче, в списке нет.
+	Events *[]TaskEvent `json:"events,omitempty"`
+	Id     int64        `json:"id"`
+
+	// LastObservation Текст последнего наблюдения по данным биллинга (kind observed); нет, пока наблюдений не было.
+	LastObservation *string `json:"lastObservation,omitempty"`
+	Note            string  `json:"note"`
+
+	// Outcome Итог закрытой задачи: продлил, отказался, не ответил, не нужно.
+	Outcome *TaskOutcome `json:"outcome,omitempty"`
+	Overdue bool         `json:"overdue"`
+
+	// Status В работе, связались, отложено, закрыто.
+	Status    TaskStatus `json:"status"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+	UpdatedBy string     `json:"updatedBy"`
+
+	// Version Номер правки; передаётся в PATCH.
+	Version int64 `json:"version"`
+}
+
 // RiskLevel defines model for RiskLevel.
 type RiskLevel string
 
@@ -566,8 +664,166 @@ type Summary struct {
 
 	// QualityCounts Сколько услуг и клиентов отмечено каждой проверкой качества данных
 	QualityCounts *map[string]int `json:"qualityCounts,omitempty"`
-	Version       int64           `json:"version"`
+
+	// Retention Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics.
+	Retention *SummaryRetention `json:"retention,omitempty"`
+	Version   int64             `json:"version"`
 }
+
+// SummaryRetention Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics.
+type SummaryRetention struct {
+	// CustomersInWork Клиенты с открытой задачей, которые есть в текущем снимке
+	CustomersInWork int `json:"customersInWork"`
+
+	// HighWithoutTask Клиенты высокого риска без открытой задачи
+	HighWithoutTask          int   `json:"highWithoutTask"`
+	HighWithoutTaskLossCents int64 `json:"highWithoutTaskLossCents"`
+
+	// LossInWorkCents Ожидаемая потеря клиентов в работе (центы евро)
+	LossInWorkCents            int64 `json:"lossInWorkCents"`
+	MediumWithoutTask          int   `json:"mediumWithoutTask"`
+	MediumWithoutTaskLossCents int64 `json:"mediumWithoutTaskLossCents"`
+	TasksContacted             int   `json:"tasksContacted"`
+
+	// TasksInWork Открытые задачи в статусе in_work
+	TasksInWork int `json:"tasksInWork"`
+
+	// TasksOverdue Открытые задачи с прошедшим сроком
+	TasksOverdue   int `json:"tasksOverdue"`
+	TasksPostponed int `json:"tasksPostponed"`
+}
+
+// TaskAssignee defines model for TaskAssignee.
+type TaskAssignee struct {
+	Login string `json:"login"`
+	Role  Role   `json:"role"`
+}
+
+// TaskAssignees defines model for TaskAssignees.
+type TaskAssignees struct {
+	Items []TaskAssignee `json:"items"`
+}
+
+// TaskBaseline Исходное состояние клиента в момент, когда его взяли в работу. Не меняется.
+type TaskBaseline struct {
+	// AsOf Время модели на этот пересчёт.
+	AsOf              *time.Time            `json:"asOf,omitempty"`
+	Balance           int64                 `json:"balance"`
+	ExpectedLossCents int64                 `json:"expectedLossCents"`
+	Level             RiskLevel             `json:"level"`
+	Score             *float64              `json:"score"`
+	Services          []TaskServiceBaseline `json:"services"`
+	TopAction         *ActionBrief          `json:"topAction,omitempty"`
+
+	// Version Версия пересчёта, из которого взято состояние.
+	Version int64 `json:"version"`
+}
+
+// TaskBrief Открытая задача клиента в строке очереди и в карточке.
+type TaskBrief struct {
+	// Assignee Логин ответственного.
+	Assignee string    `json:"assignee"`
+	DueAt    time.Time `json:"dueAt"`
+	Id       int64     `json:"id"`
+
+	// Overdue Срок прошёл (по часам сервера) и задача не закрыта.
+	Overdue bool `json:"overdue"`
+
+	// Status В работе, связались, отложено, закрыто.
+	Status TaskStatus `json:"status"`
+}
+
+// TaskChannel Канал контакта: почта (mail), телефон, мессенджер, другое.
+type TaskChannel string
+
+// TaskConflict defines model for TaskConflict.
+type TaskConflict struct {
+	// CorrelationId Равен заголовку X-Request-Id.
+	CorrelationId *string `json:"correlation_id,omitempty"`
+	Detail        *string `json:"detail,omitempty"`
+	Errors        *[]struct {
+		Field   string `json:"field"`
+		Message string `json:"message"`
+	} `json:"errors,omitempty"`
+	Status int            `json:"status"`
+	Task   *RetentionTask `json:"task,omitempty"`
+	Title  string         `json:"title"`
+	Type   string         `json:"type"`
+}
+
+// TaskCreate Необязательные поля; по умолчанию срок — завтра 18:00 МСК, ответственный — текущий пользователь.
+type TaskCreate struct {
+	Assignee *string    `json:"assignee,omitempty"`
+	DueAt    *time.Time `json:"dueAt,omitempty"`
+	Note     *string    `json:"note,omitempty"`
+}
+
+// TaskEvent defines model for TaskEvent.
+type TaskEvent struct {
+	Actor string    `json:"actor"`
+	At    time.Time `json:"at"`
+
+	// Changes Что поменялось в задаче; пусто у контакта и заметки.
+	Changes []AuditChange `json:"changes"`
+
+	// Channel Канал контакта: почта (mail), телефон, мессенджер, другое.
+	Channel *TaskChannel `json:"channel,omitempty"`
+	Id      int64        `json:"id"`
+
+	// Kind observed — наблюдение сервера по данным биллинга после взятия в работу, actor — system. Не доказывает, что помог именно контакт.
+	Kind TaskEventKind `json:"kind"`
+	Text string        `json:"text"`
+}
+
+// TaskEventKind observed — наблюдение сервера по данным биллинга после взятия в работу, actor — system. Не доказывает, что помог именно контакт.
+type TaskEventKind string
+
+// TaskEventCreate defines model for TaskEventCreate.
+type TaskEventCreate struct {
+	// Channel Канал контакта: почта (mail), телефон, мессенджер, другое.
+	Channel *TaskChannel        `json:"channel,omitempty"`
+	Kind    TaskEventCreateKind `json:"kind"`
+	Text    *string             `json:"text,omitempty"`
+}
+
+// TaskEventCreateKind defines model for TaskEventCreate.Kind.
+type TaskEventCreateKind string
+
+// TaskOutcome Итог закрытой задачи: продлил, отказался, не ответил, не нужно.
+type TaskOutcome string
+
+// TaskPage defines model for TaskPage.
+type TaskPage struct {
+	Items []RetentionTask `json:"items"`
+	Total int             `json:"total"`
+}
+
+// TaskPatch defines model for TaskPatch.
+type TaskPatch struct {
+	Assignee *string    `json:"assignee,omitempty"`
+	DueAt    *time.Time `json:"dueAt,omitempty"`
+	Note     *string    `json:"note,omitempty"`
+
+	// Outcome Итог закрытой задачи: продлил, отказался, не ответил, не нужно.
+	Outcome *TaskOutcome `json:"outcome,omitempty"`
+
+	// Status В работе, связались, отложено, закрыто.
+	Status *TaskStatus `json:"status,omitempty"`
+
+	// Version Версия, которую видел автор правки.
+	Version int64 `json:"version"`
+}
+
+// TaskServiceBaseline defines model for TaskServiceBaseline.
+type TaskServiceBaseline struct {
+	AutoProlong bool          `json:"autoProlong"`
+	ExpiresAt   time.Time     `json:"expiresAt"`
+	Id          int64         `json:"id"`
+	Status      ServiceStatus `json:"status"`
+}
+
+// TaskStatus В работе, связались, отложено, закрыто.
+type TaskStatus string
 
 // Transaction defines model for Transaction.
 type Transaction struct {
@@ -605,8 +861,14 @@ type RequestId = openapi_types.UUID
 // ServiceId defines model for ServiceId.
 type ServiceId = int64
 
+// TaskId defines model for TaskId.
+type TaskId = int64
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Problem
+
+// Conflict Problem с текущей задачей.
+type Conflict = TaskConflict
 
 // Forbidden defines model for Forbidden.
 type Forbidden = Problem
@@ -616,6 +878,9 @@ type NotFound = Problem
 
 // NotImplemented defines model for NotImplemented.
 type NotImplemented = Problem
+
+// TooManyRequests defines model for TooManyRequests.
+type TooManyRequests = Problem
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Problem
@@ -640,12 +905,21 @@ type ListCustomersParams struct {
 	Level *RiskLevel `form:"level,omitempty" json:"level,omitempty"`
 
 	// Q Подстрока email или id
-	Q      *string                   `form:"q,omitempty" json:"q,omitempty"`
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Task Задача удержания: none — без открытой, open — с открытой, mine — открытая на мне.
+	Task   *ListCustomersParamsTask  `form:"task,omitempty" json:"task,omitempty"`
 	Sort   *ListCustomersParamsSort  `form:"sort,omitempty" json:"sort,omitempty"`
 	Order  *ListCustomersParamsOrder `form:"order,omitempty" json:"order,omitempty"`
 	Limit  *int                      `form:"limit,omitempty" json:"limit,omitempty"`
 	Offset *int                      `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Billing Строки «к биллингу» (сбой автосписания): `exclude` — без них, `only` — только они, не задан — все. `total` считается после фильтра.
+	Billing *ListCustomersParamsBilling `form:"billing,omitempty" json:"billing,omitempty"`
 }
+
+// ListCustomersParamsTask defines parameters for ListCustomers.
+type ListCustomersParamsTask string
 
 // ListCustomersParamsSort defines parameters for ListCustomers.
 type ListCustomersParamsSort string
@@ -653,9 +927,42 @@ type ListCustomersParamsSort string
 // ListCustomersParamsOrder defines parameters for ListCustomers.
 type ListCustomersParamsOrder string
 
+// ListCustomersParamsBilling defines parameters for ListCustomers.
+type ListCustomersParamsBilling string
+
+// ExportCustomersParams defines parameters for ExportCustomers.
+type ExportCustomersParams struct {
+	Level *RiskLevel `form:"level,omitempty" json:"level,omitempty"`
+
+	// Q Подстрока email или id
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Sort Как у списка: id, email, balance, totalReplenished, score, expectedLoss; по умолчанию expectedLoss.
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Order asc или desc; по умолчанию desc.
+	Order *string `form:"order,omitempty" json:"order,omitempty"`
+
+	// Billing `exclude` — без строк «к биллингу», `only` — только они, не задан — все. Другое значение — 400.
+	Billing *string `form:"billing,omitempty" json:"billing,omitempty"`
+}
+
 // PatchModelSettingsParams defines parameters for PatchModelSettings.
 type PatchModelSettingsParams struct {
 	DryRun *bool `form:"dryRun,omitempty" json:"dryRun,omitempty"`
+}
+
+// ListTasksParams defines parameters for ListTasks.
+type ListTasksParams struct {
+	Status *TaskStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Assignee Логин ответственного или me — текущий пользователь.
+	Assignee *string `form:"assignee,omitempty" json:"assignee,omitempty"`
+
+	// Overdue true — только просроченные открытые.
+	Overdue *bool `form:"overdue,omitempty" json:"overdue,omitempty"`
+	Limit   *int  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset  *int  `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // HealthzParams defines parameters for Healthz.
@@ -685,6 +992,9 @@ type VersionParams struct {
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
+// TakeCustomerTaskJSONRequestBody defines body for TakeCustomerTask for application/json ContentType.
+type TakeCustomerTaskJSONRequestBody = TaskCreate
+
 // PatchModelSettingsJSONRequestBody defines body for PatchModelSettings for application/json ContentType.
 type PatchModelSettingsJSONRequestBody = ModelSettingsPatch
 
@@ -705,6 +1015,12 @@ type PatchServiceJSONRequestBody = ServicePatch
 
 // PutSnapshotJSONRequestBody defines body for PutSnapshot for application/json ContentType.
 type PutSnapshotJSONRequestBody = Snapshot
+
+// PatchTaskJSONRequestBody defines body for PatchTask for application/json ContentType.
+type PatchTaskJSONRequestBody = TaskPatch
+
+// AddTaskEventJSONRequestBody defines body for AddTaskEvent for application/json ContentType.
+type AddTaskEventJSONRequestBody = TaskEventCreate
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -811,8 +1127,16 @@ type ClientInterface interface {
 	// ListCustomers request
 	ListCustomers(ctx context.Context, params *ListCustomersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ExportCustomers request
+	ExportCustomers(ctx context.Context, params *ExportCustomersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetCustomer request
 	GetCustomer(ctx context.Context, id CustomerId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TakeCustomerTaskWithBody request with any body
+	TakeCustomerTaskWithBody(ctx context.Context, id CustomerId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TakeCustomerTask(ctx context.Context, id CustomerId, body TakeCustomerTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// Docs request
 	Docs(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -866,6 +1190,25 @@ type ClientInterface interface {
 
 	// GetSourceStatus request
 	GetSourceStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListTasks request
+	ListTasks(ctx context.Context, params *ListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListTaskAssignees request
+	ListTaskAssignees(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTask request
+	GetTask(ctx context.Context, taskId TaskId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PatchTaskWithBody request with any body
+	PatchTaskWithBody(ctx context.Context, taskId TaskId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PatchTask(ctx context.Context, taskId TaskId, body PatchTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AddTaskEventWithBody request with any body
+	AddTaskEventWithBody(ctx context.Context, taskId TaskId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AddTaskEvent(ctx context.Context, taskId TaskId, body AddTaskEventJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// Healthz request
 	Healthz(ctx context.Context, params *HealthzParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1018,8 +1361,44 @@ func (c *Client) ListCustomers(ctx context.Context, params *ListCustomersParams,
 	return c.Client.Do(req)
 }
 
+func (c *Client) ExportCustomers(ctx context.Context, params *ExportCustomersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportCustomersRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetCustomer(ctx context.Context, id CustomerId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetCustomerRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TakeCustomerTaskWithBody(ctx context.Context, id CustomerId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTakeCustomerTaskRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TakeCustomerTask(ctx context.Context, id CustomerId, body TakeCustomerTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTakeCustomerTaskRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1260,6 +1639,90 @@ func (c *Client) PutSnapshot(ctx context.Context, body PutSnapshotJSONRequestBod
 
 func (c *Client) GetSourceStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSourceStatusRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListTasks(ctx context.Context, params *ListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTasksRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListTaskAssignees(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTaskAssigneesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTask(ctx context.Context, taskId TaskId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTaskRequest(c.Server, taskId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchTaskWithBody(ctx context.Context, taskId TaskId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchTaskRequestWithBody(c.Server, taskId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchTask(ctx context.Context, taskId TaskId, body PatchTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchTaskRequest(c.Server, taskId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AddTaskEventWithBody(ctx context.Context, taskId TaskId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddTaskEventRequestWithBody(c.Server, taskId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AddTaskEvent(ctx context.Context, taskId TaskId, body AddTaskEventJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddTaskEventRequest(c.Server, taskId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1728,6 +2191,22 @@ func NewListCustomersRequest(server string, params *ListCustomersParams) (*http.
 
 		}
 
+		if params.Task != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "task", runtime.ParamLocationQuery, *params.Task); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Sort != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sort", runtime.ParamLocationQuery, *params.Sort); err != nil {
@@ -1792,6 +2271,135 @@ func NewListCustomersRequest(server string, params *ListCustomersParams) (*http.
 
 		}
 
+		if params.Billing != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "billing", runtime.ParamLocationQuery, *params.Billing); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewExportCustomersRequest generates requests for ExportCustomers
+func NewExportCustomersRequest(server string, params *ExportCustomersParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/customers/export.csv")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Level != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "level", runtime.ParamLocationQuery, *params.Level); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Q != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "q", runtime.ParamLocationQuery, *params.Q); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sort", runtime.ParamLocationQuery, *params.Sort); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Order != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "order", runtime.ParamLocationQuery, *params.Order); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Billing != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "billing", runtime.ParamLocationQuery, *params.Billing); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -1833,6 +2441,53 @@ func NewGetCustomerRequest(server string, id CustomerId) (*http.Request, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewTakeCustomerTaskRequest calls the generic TakeCustomerTask builder with application/json body
+func NewTakeCustomerTaskRequest(server string, id CustomerId, body TakeCustomerTaskJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTakeCustomerTaskRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewTakeCustomerTaskRequestWithBody generates requests for TakeCustomerTask with any type of body
+func NewTakeCustomerTaskRequestWithBody(server string, id CustomerId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/customers/%s/task", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -2315,6 +2970,274 @@ func NewGetSourceStatusRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewListTasksRequest generates requests for ListTasks
+func NewListTasksRequest(server string, params *ListTasksParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tasks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Assignee != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "assignee", runtime.ParamLocationQuery, *params.Assignee); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Overdue != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "overdue", runtime.ParamLocationQuery, *params.Overdue); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListTaskAssigneesRequest generates requests for ListTaskAssignees
+func NewListTaskAssigneesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tasks/assignees")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetTaskRequest generates requests for GetTask
+func NewGetTaskRequest(server string, taskId TaskId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "taskId", runtime.ParamLocationPath, taskId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tasks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPatchTaskRequest calls the generic PatchTask builder with application/json body
+func NewPatchTaskRequest(server string, taskId TaskId, body PatchTaskJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPatchTaskRequestWithBody(server, taskId, "application/json", bodyReader)
+}
+
+// NewPatchTaskRequestWithBody generates requests for PatchTask with any type of body
+func NewPatchTaskRequestWithBody(server string, taskId TaskId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "taskId", runtime.ParamLocationPath, taskId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tasks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewAddTaskEventRequest calls the generic AddTaskEvent builder with application/json body
+func NewAddTaskEventRequest(server string, taskId TaskId, body AddTaskEventJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAddTaskEventRequestWithBody(server, taskId, "application/json", bodyReader)
+}
+
+// NewAddTaskEventRequestWithBody generates requests for AddTaskEvent with any type of body
+func NewAddTaskEventRequestWithBody(server string, taskId TaskId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "taskId", runtime.ParamLocationPath, taskId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tasks/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewHealthzRequest generates requests for Healthz
 func NewHealthzRequest(server string, params *HealthzParams) (*http.Request, error) {
 	var err error
@@ -2612,8 +3535,16 @@ type ClientWithResponsesInterface interface {
 	// ListCustomersWithResponse request
 	ListCustomersWithResponse(ctx context.Context, params *ListCustomersParams, reqEditors ...RequestEditorFn) (*ListCustomersResponse, error)
 
+	// ExportCustomersWithResponse request
+	ExportCustomersWithResponse(ctx context.Context, params *ExportCustomersParams, reqEditors ...RequestEditorFn) (*ExportCustomersResponse, error)
+
 	// GetCustomerWithResponse request
 	GetCustomerWithResponse(ctx context.Context, id CustomerId, reqEditors ...RequestEditorFn) (*GetCustomerResponse, error)
+
+	// TakeCustomerTaskWithBodyWithResponse request with any body
+	TakeCustomerTaskWithBodyWithResponse(ctx context.Context, id CustomerId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeCustomerTaskResponse, error)
+
+	TakeCustomerTaskWithResponse(ctx context.Context, id CustomerId, body TakeCustomerTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeCustomerTaskResponse, error)
 
 	// DocsWithResponse request
 	DocsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DocsResponse, error)
@@ -2667,6 +3598,25 @@ type ClientWithResponsesInterface interface {
 
 	// GetSourceStatusWithResponse request
 	GetSourceStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSourceStatusResponse, error)
+
+	// ListTasksWithResponse request
+	ListTasksWithResponse(ctx context.Context, params *ListTasksParams, reqEditors ...RequestEditorFn) (*ListTasksResponse, error)
+
+	// ListTaskAssigneesWithResponse request
+	ListTaskAssigneesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListTaskAssigneesResponse, error)
+
+	// GetTaskWithResponse request
+	GetTaskWithResponse(ctx context.Context, taskId TaskId, reqEditors ...RequestEditorFn) (*GetTaskResponse, error)
+
+	// PatchTaskWithBodyWithResponse request with any body
+	PatchTaskWithBodyWithResponse(ctx context.Context, taskId TaskId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchTaskResponse, error)
+
+	PatchTaskWithResponse(ctx context.Context, taskId TaskId, body PatchTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchTaskResponse, error)
+
+	// AddTaskEventWithBodyWithResponse request with any body
+	AddTaskEventWithBodyWithResponse(ctx context.Context, taskId TaskId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddTaskEventResponse, error)
+
+	AddTaskEventWithResponse(ctx context.Context, taskId TaskId, body AddTaskEventJSONRequestBody, reqEditors ...RequestEditorFn) (*AddTaskEventResponse, error)
 
 	// HealthzWithResponse request
 	HealthzWithResponse(ctx context.Context, params *HealthzParams, reqEditors ...RequestEditorFn) (*HealthzResponse, error)
@@ -2790,6 +3740,7 @@ type LoginResponse struct {
 	JSON200                   *LoginResult
 	ApplicationproblemJSON400 *BadRequest
 	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON429 *TooManyRequests
 	ApplicationproblemJSON501 *NotImplemented
 }
 
@@ -2813,6 +3764,7 @@ type LogoutResponse struct {
 	Body                      []byte
 	HTTPResponse              *http.Response
 	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON403 *Forbidden
 	ApplicationproblemJSON501 *NotImplemented
 }
 
@@ -2925,6 +3877,30 @@ func (r ListCustomersResponse) StatusCode() int {
 	return 0
 }
 
+type ExportCustomersResponse struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	ApplicationproblemJSON400 *BadRequest
+	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON503 *Problem
+}
+
+// Status returns HTTPResponse.Status
+func (r ExportCustomersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ExportCustomersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetCustomerResponse struct {
 	Body                      []byte
 	HTTPResponse              *http.Response
@@ -2944,6 +3920,34 @@ func (r GetCustomerResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetCustomerResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TakeCustomerTaskResponse struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON201                   *RetentionTask
+	ApplicationproblemJSON400 *BadRequest
+	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON403 *Forbidden
+	ApplicationproblemJSON404 *NotFound
+	ApplicationproblemJSON409 *Conflict
+	ApplicationproblemJSON501 *NotImplemented
+}
+
+// Status returns HTTPResponse.Status
+func (r TakeCustomerTaskResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TakeCustomerTaskResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3274,6 +4278,136 @@ func (r GetSourceStatusResponse) StatusCode() int {
 	return 0
 }
 
+type ListTasksResponse struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON200                   *TaskPage
+	ApplicationproblemJSON400 *BadRequest
+	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON501 *NotImplemented
+}
+
+// Status returns HTTPResponse.Status
+func (r ListTasksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListTasksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListTaskAssigneesResponse struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON200                   *TaskAssignees
+	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON501 *NotImplemented
+}
+
+// Status returns HTTPResponse.Status
+func (r ListTaskAssigneesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListTaskAssigneesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetTaskResponse struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON200                   *RetentionTask
+	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON404 *NotFound
+	ApplicationproblemJSON501 *NotImplemented
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTaskResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTaskResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PatchTaskResponse struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON200                   *RetentionTask
+	ApplicationproblemJSON400 *BadRequest
+	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON403 *Forbidden
+	ApplicationproblemJSON404 *NotFound
+	ApplicationproblemJSON409 *Conflict
+	ApplicationproblemJSON501 *NotImplemented
+}
+
+// Status returns HTTPResponse.Status
+func (r PatchTaskResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PatchTaskResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AddTaskEventResponse struct {
+	Body                      []byte
+	HTTPResponse              *http.Response
+	JSON201                   *RetentionTask
+	ApplicationproblemJSON400 *BadRequest
+	ApplicationproblemJSON401 *Unauthorized
+	ApplicationproblemJSON403 *Forbidden
+	ApplicationproblemJSON404 *NotFound
+	ApplicationproblemJSON409 *Conflict
+	ApplicationproblemJSON501 *NotImplemented
+}
+
+// Status returns HTTPResponse.Status
+func (r AddTaskEventResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AddTaskEventResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type HealthzResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3513,6 +4647,15 @@ func (c *ClientWithResponses) ListCustomersWithResponse(ctx context.Context, par
 	return ParseListCustomersResponse(rsp)
 }
 
+// ExportCustomersWithResponse request returning *ExportCustomersResponse
+func (c *ClientWithResponses) ExportCustomersWithResponse(ctx context.Context, params *ExportCustomersParams, reqEditors ...RequestEditorFn) (*ExportCustomersResponse, error) {
+	rsp, err := c.ExportCustomers(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExportCustomersResponse(rsp)
+}
+
 // GetCustomerWithResponse request returning *GetCustomerResponse
 func (c *ClientWithResponses) GetCustomerWithResponse(ctx context.Context, id CustomerId, reqEditors ...RequestEditorFn) (*GetCustomerResponse, error) {
 	rsp, err := c.GetCustomer(ctx, id, reqEditors...)
@@ -3520,6 +4663,23 @@ func (c *ClientWithResponses) GetCustomerWithResponse(ctx context.Context, id Cu
 		return nil, err
 	}
 	return ParseGetCustomerResponse(rsp)
+}
+
+// TakeCustomerTaskWithBodyWithResponse request with arbitrary body returning *TakeCustomerTaskResponse
+func (c *ClientWithResponses) TakeCustomerTaskWithBodyWithResponse(ctx context.Context, id CustomerId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeCustomerTaskResponse, error) {
+	rsp, err := c.TakeCustomerTaskWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTakeCustomerTaskResponse(rsp)
+}
+
+func (c *ClientWithResponses) TakeCustomerTaskWithResponse(ctx context.Context, id CustomerId, body TakeCustomerTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeCustomerTaskResponse, error) {
+	rsp, err := c.TakeCustomerTask(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTakeCustomerTaskResponse(rsp)
 }
 
 // DocsWithResponse request returning *DocsResponse
@@ -3693,6 +4853,67 @@ func (c *ClientWithResponses) GetSourceStatusWithResponse(ctx context.Context, r
 		return nil, err
 	}
 	return ParseGetSourceStatusResponse(rsp)
+}
+
+// ListTasksWithResponse request returning *ListTasksResponse
+func (c *ClientWithResponses) ListTasksWithResponse(ctx context.Context, params *ListTasksParams, reqEditors ...RequestEditorFn) (*ListTasksResponse, error) {
+	rsp, err := c.ListTasks(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListTasksResponse(rsp)
+}
+
+// ListTaskAssigneesWithResponse request returning *ListTaskAssigneesResponse
+func (c *ClientWithResponses) ListTaskAssigneesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListTaskAssigneesResponse, error) {
+	rsp, err := c.ListTaskAssignees(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListTaskAssigneesResponse(rsp)
+}
+
+// GetTaskWithResponse request returning *GetTaskResponse
+func (c *ClientWithResponses) GetTaskWithResponse(ctx context.Context, taskId TaskId, reqEditors ...RequestEditorFn) (*GetTaskResponse, error) {
+	rsp, err := c.GetTask(ctx, taskId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTaskResponse(rsp)
+}
+
+// PatchTaskWithBodyWithResponse request with arbitrary body returning *PatchTaskResponse
+func (c *ClientWithResponses) PatchTaskWithBodyWithResponse(ctx context.Context, taskId TaskId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchTaskResponse, error) {
+	rsp, err := c.PatchTaskWithBody(ctx, taskId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchTaskResponse(rsp)
+}
+
+func (c *ClientWithResponses) PatchTaskWithResponse(ctx context.Context, taskId TaskId, body PatchTaskJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchTaskResponse, error) {
+	rsp, err := c.PatchTask(ctx, taskId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchTaskResponse(rsp)
+}
+
+// AddTaskEventWithBodyWithResponse request with arbitrary body returning *AddTaskEventResponse
+func (c *ClientWithResponses) AddTaskEventWithBodyWithResponse(ctx context.Context, taskId TaskId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddTaskEventResponse, error) {
+	rsp, err := c.AddTaskEventWithBody(ctx, taskId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddTaskEventResponse(rsp)
+}
+
+func (c *ClientWithResponses) AddTaskEventWithResponse(ctx context.Context, taskId TaskId, body AddTaskEventJSONRequestBody, reqEditors ...RequestEditorFn) (*AddTaskEventResponse, error) {
+	rsp, err := c.AddTaskEvent(ctx, taskId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddTaskEventResponse(rsp)
 }
 
 // HealthzWithResponse request returning *HealthzResponse
@@ -3951,6 +5172,13 @@ func ParseLoginResponse(rsp *http.Response) (*LoginResponse, error) {
 		}
 		response.ApplicationproblemJSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest NotImplemented
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -3983,6 +5211,13 @@ func ParseLogoutResponse(rsp *http.Response) (*LogoutResponse, error) {
 			return nil, err
 		}
 		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest NotImplemented
@@ -4135,6 +5370,46 @@ func ParseListCustomersResponse(rsp *http.Response) (*ListCustomersResponse, err
 	return response, nil
 }
 
+// ParseExportCustomersResponse parses an HTTP response from a ExportCustomersWithResponse call
+func ParseExportCustomersResponse(rsp *http.Response) (*ExportCustomersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ExportCustomersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetCustomerResponse parses an HTTP response from a GetCustomerWithResponse call
 func ParseGetCustomerResponse(rsp *http.Response) (*GetCustomerResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4169,6 +5444,74 @@ func ParseGetCustomerResponse(rsp *http.Response) (*GetCustomerResponse, error) 
 			return nil, err
 		}
 		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTakeCustomerTaskResponse parses an HTTP response from a TakeCustomerTaskWithResponse call
+func ParseTakeCustomerTaskResponse(rsp *http.Response) (*TakeCustomerTaskResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TakeCustomerTaskResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest RetentionTask
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest NotImplemented
@@ -4771,6 +6114,276 @@ func ParseGetSourceStatusResponse(rsp *http.Response) (*GetSourceStatusResponse,
 	return response, nil
 }
 
+// ParseListTasksResponse parses an HTTP response from a ListTasksWithResponse call
+func ParseListTasksResponse(rsp *http.Response) (*ListTasksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListTasksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TaskPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListTaskAssigneesResponse parses an HTTP response from a ListTaskAssigneesWithResponse call
+func ParseListTaskAssigneesResponse(rsp *http.Response) (*ListTaskAssigneesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListTaskAssigneesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TaskAssignees
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTaskResponse parses an HTTP response from a GetTaskWithResponse call
+func ParseGetTaskResponse(rsp *http.Response) (*GetTaskResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTaskResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RetentionTask
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePatchTaskResponse parses an HTTP response from a PatchTaskWithResponse call
+func ParsePatchTaskResponse(rsp *http.Response) (*PatchTaskResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PatchTaskResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RetentionTask
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAddTaskEventResponse parses an HTTP response from a AddTaskEventWithResponse call
+func ParseAddTaskEventResponse(rsp *http.Response) (*AddTaskEventResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AddTaskEventResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest RetentionTask
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest NotImplemented
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseHealthzResponse parses an HTTP response from a HealthzWithResponse call
 func ParseHealthzResponse(rsp *http.Response) (*HealthzResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4969,9 +6582,15 @@ type ServerInterface interface {
 	// Клиенты с оценкой риска; фильтр и сортировка рейтинга
 	// (GET /api/v1/customers)
 	ListCustomers(w http.ResponseWriter, r *http.Request, params ListCustomersParams)
+	// Очередь целиком в CSV (UTF-8 с BOM, разделитель `;`, десятичная запятая)
+	// (GET /api/v1/customers/export.csv)
+	ExportCustomers(w http.ResponseWriter, r *http.Request, params ExportCustomersParams)
 	// Подробная оценка клиента: услуги, признаки с вкладом, деньги, действия с ценой
 	// (GET /api/v1/customers/{id})
 	GetCustomer(w http.ResponseWriter, r *http.Request, id CustomerId)
+	// Взять клиента в работу (маркетолог, jury, администратор)
+	// (POST /api/v1/customers/{id}/task)
+	TakeCustomerTask(w http.ResponseWriter, r *http.Request, id CustomerId)
 	// Swagger UI (открыт, файлы вшиты в бинарь)
 	// (GET /api/v1/docs)
 	Docs(w http.ResponseWriter, r *http.Request)
@@ -5011,6 +6630,21 @@ type ServerInterface interface {
 	// Версия снимка, возраст, проверки качества
 	// (GET /api/v1/source/status)
 	GetSourceStatus(w http.ResponseWriter, r *http.Request)
+	// Задачи удержания с фильтрами; новые правки сверху
+	// (GET /api/v1/tasks)
+	ListTasks(w http.ResponseWriter, r *http.Request, params ListTasksParams)
+	// Кому можно назначить задачу
+	// (GET /api/v1/tasks/assignees)
+	ListTaskAssignees(w http.ResponseWriter, r *http.Request)
+	// Задача с историей
+	// (GET /api/v1/tasks/{taskId})
+	GetTask(w http.ResponseWriter, r *http.Request, taskId TaskId)
+	// Изменить статус, ответственного, срок, заметку, итог (маркетолог, jury, администратор)
+	// (PATCH /api/v1/tasks/{taskId})
+	PatchTask(w http.ResponseWriter, r *http.Request, taskId TaskId)
+	// Записать контакт или заметку в историю (маркетолог, jury, администратор)
+	// (POST /api/v1/tasks/{taskId}/events)
+	AddTaskEvent(w http.ResponseWriter, r *http.Request, taskId TaskId)
 	// Проверка живости
 	// (GET /healthz)
 	Healthz(w http.ResponseWriter, r *http.Request, params HealthzParams)
@@ -5280,6 +6914,14 @@ func (siw *ServerInterfaceWrapper) ListCustomers(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// ------------- Optional query parameter "task" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "task", r.URL.Query(), &params.Task)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "task", Err: err})
+		return
+	}
+
 	// ------------- Optional query parameter "sort" -------------
 
 	err = runtime.BindQueryParameter("form", true, false, "sort", r.URL.Query(), &params.Sort)
@@ -5312,8 +6954,83 @@ func (siw *ServerInterfaceWrapper) ListCustomers(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// ------------- Optional query parameter "billing" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "billing", r.URL.Query(), &params.Billing)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "billing", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListCustomers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportCustomers operation middleware
+func (siw *ServerInterfaceWrapper) ExportCustomers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportCustomersParams
+
+	// ------------- Optional query parameter "level" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "level", r.URL.Query(), &params.Level)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "level", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "q", r.URL.Query(), &params.Q)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "sort", r.URL.Query(), &params.Sort)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "order" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "order", r.URL.Query(), &params.Order)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "order", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "billing" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "billing", r.URL.Query(), &params.Billing)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "billing", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportCustomers(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5347,6 +7064,39 @@ func (siw *ServerInterfaceWrapper) GetCustomer(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCustomer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TakeCustomerTask operation middleware
+func (siw *ServerInterfaceWrapper) TakeCustomerTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id CustomerId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TakeCustomerTask(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5646,6 +7396,194 @@ func (siw *ServerInterfaceWrapper) GetSourceStatus(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSourceStatus(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTasks operation middleware
+func (siw *ServerInterfaceWrapper) ListTasks(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTasksParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "status", r.URL.Query(), &params.Status)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "assignee" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "assignee", r.URL.Query(), &params.Assignee)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "assignee", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "overdue" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "overdue", r.URL.Query(), &params.Overdue)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "overdue", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTasks(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTaskAssignees operation middleware
+func (siw *ServerInterfaceWrapper) ListTaskAssignees(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTaskAssignees(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTask operation middleware
+func (siw *ServerInterfaceWrapper) GetTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "taskId" -------------
+	var taskId TaskId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "taskId", r.PathValue("taskId"), &taskId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "taskId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTask(w, r, taskId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchTask operation middleware
+func (siw *ServerInterfaceWrapper) PatchTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "taskId" -------------
+	var taskId TaskId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "taskId", r.PathValue("taskId"), &taskId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "taskId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchTask(w, r, taskId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddTaskEvent operation middleware
+func (siw *ServerInterfaceWrapper) AddTaskEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "taskId" -------------
+	var taskId TaskId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "taskId", r.PathValue("taskId"), &taskId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "taskId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddTaskEvent(w, r, taskId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5993,7 +7931,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/auth/oidc/callback", wrapper.OidcCallback)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/auth/oidc/login", wrapper.OidcLogin)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/customers", wrapper.ListCustomers)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/customers/export.csv", wrapper.ExportCustomers)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/customers/{id}", wrapper.GetCustomer)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/customers/{id}/task", wrapper.TakeCustomerTask)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/docs", wrapper.Docs)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/events", wrapper.GetEvents)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/model/settings", wrapper.GetModelSettings)
@@ -6007,6 +7947,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("PATCH "+options.BaseURL+"/api/v1/source/services/{id}", wrapper.PatchService)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/source/snapshot", wrapper.PutSnapshot)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/source/status", wrapper.GetSourceStatus)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tasks", wrapper.ListTasks)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tasks/assignees", wrapper.ListTaskAssignees)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/tasks/{taskId}", wrapper.GetTask)
+	m.HandleFunc("PATCH "+options.BaseURL+"/api/v1/tasks/{taskId}", wrapper.PatchTask)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/tasks/{taskId}/events", wrapper.AddTaskEvent)
 	m.HandleFunc("GET "+options.BaseURL+"/healthz", wrapper.Healthz)
 	m.HandleFunc("GET "+options.BaseURL+"/metics", wrapper.GetMetricsAlias)
 	m.HandleFunc("GET "+options.BaseURL+"/metrics", wrapper.GetMetrics)
@@ -6020,128 +7965,176 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

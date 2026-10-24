@@ -45,3 +45,26 @@
 - WHEN `cases/analizator/002_seed.sql` применяется к базе после миграций
 - THEN загружено 10 аккаунтов, 30 услуг, 100 транзакций без ошибок ограничений
 - Тест: `TestOrganizerSeedLoadsIntoSchema`, `TestMigrationsUpDownUp` (`backend/internal/platform/db`)
+
+### Requirement: ответы ошибок описаны в контракте
+
+Каждый код ошибки, который сервер отдаёт на путь, SHALL быть описан у этого пути в `api/openapi.yaml`.
+
+#### Scenario: перебор пароля
+
+- WHEN шестая неверная попытка входа подряд
+- THEN 429, ответ соответствует описанию в контракте
+- Тест: `TestErrorResponsesMatchContract/429` (`backend/internal/apitest/contract_errors_test.go`)
+
+#### Scenario: cookie без CSRF
+
+- WHEN `PATCH /api/v1/model/settings` по cookie без `X-CSRF-Token`
+- THEN 403, ответ соответствует описанию в контракте
+- Тест: `TestErrorResponsesMatchContract/403` (`backend/internal/apitest/contract_errors_test.go`)
+
+#### Scenario: слишком большой снимок
+
+- WHEN тело `PUT /api/v1/source/snapshot` больше `SNAPSHOT_MAX_BYTES`
+- THEN 400 `application/problem+json`, ответ соответствует описанию в контракте
+- Тест: `TestErrorResponsesMatchContract/слишком_большой_снимок`
+

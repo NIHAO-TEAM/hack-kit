@@ -7,6 +7,8 @@ export type RiskLevel = components['schemas']['RiskLevel'];
 
 export type CustomerSort =
   'id' | 'email' | 'balance' | 'totalReplenished' | 'score' | 'expectedLoss';
+/** Фильтр по задаче удержания: без открытой, с открытой, открытая на мне. */
+export type TaskFilter = 'none' | 'open' | 'mine';
 export type CustomerOrder = 'asc' | 'desc';
 
 export interface CustomerParams {
@@ -14,6 +16,9 @@ export interface CustomerParams {
   order: CustomerOrder;
   level?: RiskLevel;
   q?: string;
+  task?: TaskFilter;
+  /** Строки «к биллингу»: `exclude` — без них, `only` — только они; без параметра — все. */
+  billing?: 'exclude' | 'only';
   /** Номер страницы с 1; без него — первая. */
   page?: number;
   /** Размер страницы; по умолчанию максимум сервера (полоса «удалит биллинг» берёт все строки). */
@@ -26,6 +31,17 @@ const MAX_LIMIT = 200;
 
 export const customersOffset = (page: number | undefined, limit: number) =>
   (Math.max(page ?? 1, 1) - 1) * limit;
+
+/**
+ * Ссылка на выгрузку очереди в CSV: те же поиск, уровень и сортировка, что на экране, все строки
+ * без страниц. Строки «к биллингу» остаются в файле, у них своя колонка.
+ */
+export const customersExportHref = (params: CustomerParams) => {
+  const query = new URLSearchParams({ sort: params.sort, order: params.order });
+  if (params.level) query.set('level', params.level);
+  if (params.q) query.set('q', params.q);
+  return `/api/v1/customers/export.csv?${query}`;
+};
 
 export const customersKey = ['customers'] as const;
 
@@ -42,6 +58,8 @@ export const customersOptions = (params: CustomerParams) =>
               order: params.order,
               level: params.level,
               q: params.q || undefined,
+              task: params.task,
+              billing: params.billing,
               limit: params.limit ?? MAX_LIMIT,
               offset: customersOffset(params.page, params.limit ?? MAX_LIMIT) || undefined,
             },

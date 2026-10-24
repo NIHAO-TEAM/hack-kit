@@ -2,6 +2,17 @@ import { HttpResponse, http } from 'msw';
 
 const entries = [
   {
+    id: 4,
+    at: '2026-10-24T09:20:00Z',
+    actor: 'marketer',
+    action: 'taskChanged',
+    summary: 'Изменена задача по клиенту',
+    changes: [
+      { field: 'status', from: 'in_work', to: 'contacted' },
+      { field: 'note', from: '', to: 'изменена' },
+    ],
+  },
+  {
     id: 3,
     at: '2026-10-24T09:15:00Z',
     actor: 'analyst',

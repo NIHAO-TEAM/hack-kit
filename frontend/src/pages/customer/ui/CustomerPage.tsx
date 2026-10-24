@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { customerQuery, scorePercentText, type CustomerDetail } from '@entities/customer-detail';
+import { can, meOptions } from '@entities/session';
 import { summaryOptions } from '@entities/summary';
 import { ApiError } from '@shared/api';
 import { formatMoney, useChangedRows } from '@shared/lib';
@@ -18,6 +19,7 @@ import {
 import { ActionsCard } from './ActionsCard';
 import { FeaturesCard } from './FeaturesCard';
 import { ServiceList } from './ServiceList';
+import { TaskPanel } from './TaskPanel';
 
 function BackLink() {
   return (
@@ -47,6 +49,7 @@ export function CustomerPage({ id }: { id: number }) {
   const valid = Number.isInteger(id);
   const query = useQuery({ ...customerQuery(id), enabled: valid });
   const summary = useQuery(summaryOptions);
+  const me = useQuery(meOptions);
   const error = query.error instanceof ApiError ? query.error : null;
   const detail = query.data;
   const items = useMemo(
@@ -148,6 +151,11 @@ export function CustomerPage({ id }: { id: number }) {
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Stack>
             {lost ? null : <ActionsCard actions={actions} changed={changed.has('action')} />}
+            <TaskPanel
+              customerId={customer.id}
+              brief={customer.task}
+              canEdit={can(me.data?.role, 'tasks.edit')}
+            />
             <ServiceList
               services={services}
               risks={serviceRisks ?? []}

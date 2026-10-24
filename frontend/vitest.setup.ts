@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { notifications } from '@mantine/notifications';
 import { cleanup } from '@testing-library/react';
 import { server } from './src/mocks/server';
+import { conflictOn, resetTasks } from './src/mocks/tasks';
 
 // Mantine требует matchMedia и ResizeObserver, которых нет в jsdom.
 Object.defineProperty(window, 'matchMedia', {
@@ -30,5 +31,7 @@ afterEach(() => {
   notifications.clean();
   server.resetHandlers();
   sessionStorage.clear();
+  resetTasks();
+  conflictOn.clear();
 });
 afterAll(() => server.close());

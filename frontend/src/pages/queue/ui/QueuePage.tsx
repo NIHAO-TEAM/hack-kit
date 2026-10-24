@@ -1,19 +1,35 @@
-import { Button, Group, Pagination, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import {
+  Button,
+  Group,
+  Select,
+  SegmentedControl,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import {
+  customersExportHref,
+  customersKey,
   customersOptions,
   QUEUE_PAGE_SIZE,
   type CustomerParams,
   type CustomerSort,
   type RiskLevel,
+  type TaskFilter,
 } from '@entities/customer';
+import { takeTask, TaskConflictError } from '@entities/retention-task';
 import { ApiError } from '@shared/api';
-import type { Role } from '@entities/session';
+import { can, type Role } from '@entities/session';
 import {
+  IconDownload,
   IconSearch,
+  Pagination,
   StateEmpty,
   StateError,
   StateForbidden,
@@ -21,6 +37,7 @@ import {
   StateOffline,
 } from '@shared/ui';
 import { summaryOptions } from '@entities/summary';
+import { BillingGroup } from './BillingGroup';
 import { DeletionStrip } from './DeletionStrip';
 import { QueueTable } from './QueueTable';
 import { SummaryCards } from './SummaryCards';
@@ -32,6 +49,13 @@ const levelOptions: Array<{ value: RiskLevel; label: string }> = [
   { value: 'low', label: 'Низкий риск' },
   { value: 'unscored', label: 'Без оценки' },
   { value: 'lost', label: 'Потерян' },
+];
+
+const taskOptions: Array<{ value: TaskFilter | 'all'; label: string }> = [
+  { value: 'all', label: 'Все' },
+  { value: 'none', label: 'Без работы' },
+  { value: 'open', label: 'В работе' },
+  { value: 'mine', label: 'Мои' },
 ];
 
 /** Первый клик по заголовку: числа — от больших к меньшим, текст и ID — по возрастанию. */
@@ -55,9 +79,24 @@ export function QueuePage({
   role: Role;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  // 409: клиента уже взял другой, строка перечитывается и показывает его.
+  const take = useMutation({
+    mutationFn: (id: number) => takeTask(id, {}),
+    onError: (e) => {
+      notifications.show({
+        color: 'orange',
+        message:
+          e instanceof TaskConflictError
+            ? `Клиента уже взял ${e.changedBy ?? 'другой сотрудник'}`
+            : 'Не удалось взять в работу. Повторите попытку.',
+      });
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: customersKey }),
+  });
   const page = params.page ?? 1;
   const customers = useQuery({
-    ...customersOptions({ ...params, limit: QUEUE_PAGE_SIZE }),
+    ...customersOptions({ ...params, billing: 'exclude', limit: QUEUE_PAGE_SIZE }),
     placeholderData: keepPreviousData,
   });
   const total = customers.data?.total ?? 0;
@@ -72,7 +111,13 @@ export function QueuePage({
   }, [customers.data, customers.isPlaceholderData]);
   const summary = useQuery(summaryOptions);
   // Полоса «удалит биллинг» не зависит от поиска и фильтра: к биллингу уходят все.
-  const unfiltered = useQuery(customersOptions({ sort: 'expectedLoss', order: 'desc' }));
+  const unfiltered = useQuery(
+    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'exclude' }),
+  );
+  // Группа «У биллинга»: сбой автосписания, маркетолог не действует; сортировка и поиск очереди не влияют.
+  const billing = useQuery(
+    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'only', task: params.task }),
+  );
 
   const [whatIf, setWhatIf] = useState(false);
   const [search, setSearch] = useState(params.q ?? '');
@@ -118,8 +163,10 @@ export function QueuePage({
       );
   } else if (customers.data && customers.data.items.length === 0) {
     body =
-      params.q || params.level ? (
-        <StateEmpty title="Никого не нашли">Измените поиск или уровень риска.</StateEmpty>
+      params.q || params.level || params.task ? (
+        <StateEmpty title="Никого не нашли">
+          Измените поиск, уровень риска или фильтр по работе.
+        </StateEmpty>
       ) : (
         <StateEmpty title="Сегодня некого спасать">
           Клиентов под риском нет. Очередь обновится сама, когда данные изменятся.
@@ -136,6 +183,8 @@ export function QueuePage({
           order={params.order}
           onSort={onSort}
           onOpen={open}
+          onTake={can(role, 'tasks.edit') ? (id) => take.mutate(id) : undefined}
+          takingId={take.isPending ? take.variables : null}
         />
         {total > QUEUE_PAGE_SIZE ? (
           <Group justify="space-between" align="center">
@@ -192,8 +241,35 @@ export function QueuePage({
             onParams(withView({ ...params, level: (value as RiskLevel | null) ?? undefined }))
           }
         />
+        <Button
+          component="a"
+          href={customersExportHref(params)}
+          download
+          variant="default"
+          leftSection={<IconDownload size={16} aria-hidden />}
+        >
+          Скачать CSV
+        </Button>
       </Group>
+      <SegmentedControl
+        aria-label="Работа с клиентом"
+        data={taskOptions.filter((o) => o.value !== 'mine' || can(role, 'tasks.edit'))}
+        value={params.task ?? 'all'}
+        onChange={(value) =>
+          onParams(
+            withView({ ...params, task: value === 'all' ? undefined : (value as TaskFilter) }),
+          )
+        }
+      />
       {body}
+      <BillingGroup
+        rows={billing.data?.items}
+        total={billing.data?.total}
+        loading={billing.isPending}
+        failed={billing.isError && !billing.data}
+        onRetry={() => void billing.refetch()}
+        onOpen={open}
+      />
     </Stack>
   );
 }

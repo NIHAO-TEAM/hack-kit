@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { renderApp } from './render-app';
 import { server } from '../mocks/server';
+import { seedTask } from '../mocks/tasks';
 
 function signedIn() {
   server.use(
@@ -49,6 +50,20 @@ describe('очередь удержания', () => {
     ).toBeInTheDocument();
   });
 
+  it('«Скачать CSV» ведёт на выгрузку с текущей сортировкой', async () => {
+    signedIn();
+    const user = userEvent.setup();
+    renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    await user.click(screen.getByRole('button', { name: 'Email' }));
+    await waitFor(() => {
+      const href = screen.getByRole('link', { name: 'Скачать CSV' }).getAttribute('href') ?? '';
+      expect(href).toContain('/api/v1/customers/export.csv?');
+      expect(href).toContain('sort=email');
+      expect(href).toContain('order=asc');
+    });
+  });
+
   it('пусто: «Сегодня некого спасать»', async () => {
     signedIn();
     server.use(http.get('/api/v1/customers', () => HttpResponse.json({ items: [], total: 0 })));
@@ -72,7 +87,7 @@ describe('очередь удержания', () => {
     expect(
       await screen.findByRole('heading', { name: 'Не удалось загрузить очередь' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Повторить' }).length).toBeGreaterThan(0);
   });
 
   it('нет связи: плашка с повтором', async () => {
@@ -96,12 +111,6 @@ describe('очередь удержания', () => {
     expect(await screen.findByRole('heading', { name: 'Недостаточно прав' })).toBeInTheDocument();
   });
 
-  it('«К биллингу» стоит вместо действия', async () => {
-    signedIn();
-    renderApp('/queue');
-    expect(await screen.findByText('к биллингу')).toBeInTheDocument();
-  });
-
   it('двойной клик по «Баланс»: сначала убывание, затем возрастание, строки в этом порядке', async () => {
     signedIn();
     const user = userEvent.setup();
@@ -110,7 +119,7 @@ describe('очередь удержания', () => {
     const firstEmail = () => within(screen.getAllByRole('row')[1]!).getAllByRole('link')[0]!;
 
     await user.click(screen.getByRole('button', { name: 'Баланс' }));
-    await waitFor(() => expect(firstEmail()).toHaveTextContent('user-0003'));
+    await waitFor(() => expect(firstEmail()).toHaveTextContent('user-0001'));
 
     await user.click(screen.getByRole('button', { name: 'Баланс' }));
     await waitFor(() => expect(firstEmail()).toHaveTextContent('user-0005'));
@@ -181,7 +190,7 @@ describe('очередь удержания', () => {
       const user = userEvent.setup();
       const { router } = renderApp('/queue');
       expect(await screen.findByText(/Показаны 1–50 из 230/)).toBeInTheDocument();
-      await user.click(screen.getByRole('button', { name: '5' }));
+      await user.click(screen.getByRole('button', { name: 'Страница 5' }));
       expect(await screen.findByText(/Показаны 201–230 из 230/)).toBeInTheDocument();
       expect(await screen.findByText('c201@example.test')).toBeInTheDocument();
       expect(router.state.location.search).toMatchObject({ page: 5 });
@@ -223,5 +232,116 @@ describe('очередь удержания', () => {
       await waitFor(() => expect(router.state.location.search).not.toHaveProperty('page'));
       expect(await screen.findByText(/Показаны 1–50 из 230/)).toBeInTheDocument();
     });
+  });
+});
+
+describe('очередь: группа «У биллинга»', () => {
+  it('клиент к биллингу не в таблице очереди, а в свёрнутой группе', async () => {
+    signedIn();
+    const user = userEvent.setup();
+    const seen: Array<string | null> = [];
+    server.events.on('request:start', ({ request }) => {
+      const u = new URL(request.url);
+      if (u.pathname === '/api/v1/customers') seen.push(u.searchParams.get('billing'));
+    });
+    renderApp('/queue');
+    const table = await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    expect(within(table).queryByText(/user-0003/)).not.toBeInTheDocument();
+    const control = await screen.findByRole('button', { name: /У биллинга \(1\)/ });
+    expect(control).toHaveAttribute('aria-expanded', 'false');
+    await user.click(control);
+    const group = await screen.findByRole('table', { name: 'Клиенты у биллинга' });
+    expect(within(group).getAllByRole('row')).toHaveLength(2);
+    expect(seen).toContain('exclude');
+    expect(seen).toContain('only');
+  });
+
+  it('нет таких клиентов: группы нет', async () => {
+    signedIn();
+    server.use(http.get('/api/v1/customers', () => HttpResponse.json({ items: [], total: 0 })));
+    renderApp('/queue');
+    await screen.findByRole('heading', { name: 'Сегодня некого спасать' });
+    expect(screen.queryByText(/У биллинга/)).not.toBeInTheDocument();
+  });
+
+  it('ошибка группы: заголовок с повтором, очередь на месте', async () => {
+    signedIn();
+    server.use(
+      http.get('/api/v1/customers', ({ request }) => {
+        if (new URL(request.url).searchParams.get('billing') !== 'only') return undefined;
+        return HttpResponse.json(
+          { type: 'about:blank', title: 'Сбой', status: 500 },
+          { status: 500, headers: { 'Content-Type': 'application/problem+json' } },
+        );
+      }),
+    );
+    renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    expect(await screen.findByText('У биллинга — не загрузилось')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+  });
+});
+
+describe('очередь: фильтр по работе', () => {
+  it('«Без работы» уходит в запрос task=none и пишется в адрес', async () => {
+    signedIn();
+    const user = userEvent.setup();
+    const seen: string[] = [];
+    server.use(
+      http.get('/api/v1/customers', ({ request }) => {
+        seen.push(new URL(request.url).searchParams.get('task') ?? '');
+        return HttpResponse.json({ items: [], total: 0 });
+      }),
+    );
+    const { router } = renderApp('/queue');
+    await screen.findByRole('radio', { name: 'Без работы' });
+    await user.click(screen.getByRole('radio', { name: 'Без работы' }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ task: 'none' }));
+    await waitFor(() => expect(seen).toContain('none'));
+  });
+
+  it('клиент в работе уходит из «Без работы»', async () => {
+    signedIn();
+    sessionStorage.setItem('mock-session', 'marketer');
+    seedTask(2);
+    const user = userEvent.setup();
+    renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    const ids = () =>
+      screen.getAllByRole('row').map((r) => within(r).queryAllByRole('cell')[0]?.textContent);
+    expect(ids()).toContain('2');
+    await user.click(screen.getByRole('radio', { name: 'Без работы' }));
+    await waitFor(() => expect(ids()).not.toContain('2'));
+  });
+});
+
+describe('очередь: «Взять в работу» в строке', () => {
+  it('один клик берёт клиента, карточка не открывается, в строке появляется «В работе»', async () => {
+    signedIn();
+    sessionStorage.setItem('mock-session', 'marketer');
+    const user = userEvent.setup();
+    const { router } = renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    await user.click(screen.getAllByRole('button', { name: 'Взять в работу' })[0]!);
+    expect(await screen.findByText('В работе')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/queue');
+  });
+
+  it('409: подсказка «уже взял …»', async () => {
+    signedIn();
+    sessionStorage.setItem('mock-session', 'marketer');
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/v1/customers/:id/task', () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Конфликт', status: 409, task: { updatedBy: 'jury' } },
+          { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    await user.click(screen.getAllByRole('button', { name: 'Взять в работу' })[0]!);
+    expect(await screen.findByText('Клиента уже взял jury')).toBeInTheDocument();
   });
 });

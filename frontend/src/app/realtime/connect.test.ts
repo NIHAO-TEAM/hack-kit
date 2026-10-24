@@ -44,6 +44,13 @@ describe('connectEvents', () => {
     expect(states.at(-1)).toEqual({ status: 'online', version: 5 });
   });
 
+  it('на tasks сбрасывает очередь, карточку, сводку и задачи', () => {
+    const { spy, sources } = setup();
+    sources[0]!.onopen?.(new Event('open'));
+    sources[0]!.emit('tasks', '{"type":"changed","taskId":3,"customerId":9}');
+    expect(roots(spy)).toEqual(['customers', 'customer', 'summary', 'task']);
+  });
+
   it('обрыв даёт offline, возврат связи — один перезапрос', () => {
     const { spy, sources, states } = setup();
     sources[0]!.onopen?.(new Event('open'));

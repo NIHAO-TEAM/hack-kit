@@ -36,6 +36,36 @@ type ModelSetting struct {
 	UpdatedBy string
 }
 
+type RetentionTask struct {
+	ID            int64
+	CustomerID    int64
+	CustomerEmail string
+	Status        string
+	Outcome       pgtype.Text
+	Assignee      string
+	DueAt         time.Time
+	Note          string
+	Version       int64
+	Baseline      []byte
+	CreatedBy     string
+	CreatedAt     time.Time
+	UpdatedBy     string
+	UpdatedAt     time.Time
+	ClosedAt      pgtype.Timestamptz
+}
+
+type RetentionTaskEvent struct {
+	ID      int64
+	TaskID  int64
+	At      time.Time
+	Actor   string
+	Kind    string
+	Channel pgtype.Text
+	Text    string
+	Changes []byte
+	ObsKey  pgtype.Text
+}
+
 type Service struct {
 	ID          int64
 	Name        string
