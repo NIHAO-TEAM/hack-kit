@@ -22,15 +22,9 @@ set_env() { # ключ, значение: дописать, если ключа 
 }
 domain="$(grep -E '^PROD_DOMAIN=' "$ENV_FILE" | cut -d= -f2-)"
 
-# Keycloak 26 не стартует с KC_BOOTSTRAP_ADMIN_USERNAME без пароля: непустой пароль генерируется на сервере.
-# Пустая строка `KC_ADMIN_PASSWORD=` заменяется (set_env пустые не трогает). Значения нет ни в логе, ни в репозитории.
-if ! grep -qE '^KC_ADMIN_PASSWORD=.+' "$ENV_FILE"; then
-  sed -i '/^KC_ADMIN_PASSWORD=/d' "$ENV_FILE"
-  (umask 077; printf 'KC_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 16)" >> "$ENV_FILE")
-  echo "KC_ADMIN_PASSWORD добавлен в .env"
-fi
-# Остальные ключи SSO не генерируются (значения совпадают с realm и секретом приложения): только имя в предупреждении.
-for key in KC_SECURE_PASSWORD KC_SECURE_TOTP_SECRET OIDC_CLIENT_SECRET; do
+# Ключи SSO (в том числе непустой KC_ADMIN_PASSWORD для Keycloak 26) дописывает sso-env.sh; обычно они уже есть после deploy.sh.
+"$SRC/deploy/k3s/sso-env.sh" "$ENV_FILE" "$domain"
+for key in KC_ADMIN_PASSWORD KC_SECURE_PASSWORD KC_SECURE_TOTP_SECRET OIDC_CLIENT_SECRET; do
   grep -qE "^$key=.+" "$ENV_FILE" || echo "::warning::в .env нет $key (SSO может не заработать)"
 done
 
