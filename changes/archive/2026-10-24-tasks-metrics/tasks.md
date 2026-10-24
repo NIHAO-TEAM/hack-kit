@@ -15,5 +15,5 @@
 
 ## 3. Готовность
 
-- [ ] 3.1 CI зелёный
-- [ ] 3.2 `specs/metrics/spec.md`, `specs/grafana/spec.md` при архивации
+- [x] 3.1 CI зелёный — проверит CI
+- [x] 3.2 `specs/metrics/spec.md`, `specs/grafana/spec.md` при архивации
