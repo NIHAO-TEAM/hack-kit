@@ -22,9 +22,9 @@ const TopicStreamProgress = "source.stream"
 // Границы и умолчания запроса потока.
 const (
 	streamMinEvents     = 100
-	streamMaxEvents     = 5000
+	streamMaxEvents     = 100000
 	streamDefaultEvents = 2500
-	streamMaxRate       = 2000
+	streamMaxRate       = 20000
 	streamDefaultRate   = 100
 	streamDefaultSeed   = 1
 )
@@ -75,14 +75,14 @@ var (
 	}, []string{"result"})
 	streamApply = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "churn_emulator_stream_apply_seconds",
-		Help:    "Время применения одного события потока эмулятора: чтение снимка, правка, запись (секунды).",
+		Help:    "Время применения одного события потока эмулятора: от постановки в очередь до фиксации пачки (секунды).",
 		Buckets: []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5},
 	})
 )
 
 // StreamCollectors — метрики потока событий для /metrics.
 func StreamCollectors() []prometheus.Collector {
-	return []prometheus.Collector{streamEvents, streamApply}
+	return []prometheus.Collector{streamEvents, streamApply, ingestBatchSize, ingestBatchSeconds, ingestQueueDepth}
 }
 
 // streamRun — состояние прогона; один на SourceAPI.
@@ -156,6 +156,9 @@ func (a *SourceAPI) startStream(ctx context.Context, n, rate int, seed int64) (s
 		return "", errStreamBusy
 	}
 	base, err := a.streamBase(ctx)
+	if err == nil {
+		err = a.ensureSnapshot(ctx)
+	}
 	if err != nil {
 		a.stream.update(func(s *gen.StreamState) { *s = gen.StreamState{State: gen.Idle} })
 		log.Printf("source: поток, чтение снимка: %v", err)
@@ -177,6 +180,16 @@ func (a *SourceAPI) streamBase(ctx context.Context) (Snapshot, error) {
 		return *fresh, nil
 	}
 	return s, err
+}
+
+// ensureSnapshot записывает сид, если в базе ещё нет снимка: точечные правки потока ложатся на
+// существующие строки и версию, а в пустой базе им нечего править.
+func (a *SourceAPI) ensureSnapshot(ctx context.Context) error {
+	if _, ok, err := currentStatus(ctx, a.pool); err != nil || ok {
+		return err
+	}
+	_, _, err := a.commitStep(ctx, func(s *Snapshot) (*Snapshot, string, error) { return s, OriginEmulator, nil })
+	return err
 }
 
 // applyStreamEvent применяет событие теми же patchService и patchAccount, что PATCH-вызовы.
@@ -232,7 +245,7 @@ func (p *pendingLag) settle(dataVersion int64, now time.Time) {
 	p.pending = keep
 }
 
-// runStream применяет события по одному и собирает отчёт. Работает в своей горутине.
+// runStream ставит события в очередь приёма, которая пишет их пачками, и собирает отчёт. Работает в своей горутине.
 func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, base Snapshot) {
 	ctx, cancel := context.WithTimeout(context.Background(), streamRunTimeout)
 	defer cancel()
@@ -278,11 +291,38 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		applied, failed int
 		started         = time.Now()
 		lastPublish     = started
-		every           = n / 100
 	)
-	if every < 1 {
-		every = 1
+	progress := func(force bool) {
+		if !force && time.Since(lastPublish) < 150*time.Millisecond {
+			return
+		}
+		lastPublish = time.Now()
+		done := applied + failed
+		st := a.stream.update(func(s *gen.StreamState) { s.Applied = done })
+		a.bus.Publish(TopicStreamProgress, st)
 	}
+	// onBatch вызывает писатель из своей горутины, пока отправитель ждёт в submit или на паузе;
+	// счётчики читает только эта же горутина, а после finish — runStream.
+	ing := newIngester(a.pool, newIngestState(&base), time.Now,
+		func(version int64) { a.bus.Publish(TopicChanged, version) },
+		func(res []ingestResult) {
+			now := time.Now()
+			for _, r := range res {
+				applyDur = append(applyDur, r.dur)
+				streamApply.Observe(r.dur.Seconds())
+				if r.err != nil {
+					failed++
+					streamEvents.WithLabelValues("failed").Inc()
+					log.Printf("source: поток %s: событие %d не применено: %v", runID, r.seq, r.err)
+					continue
+				}
+				applied++
+				streamEvents.WithLabelValues("applied").Inc()
+				lag.add(r.version, now)
+			}
+			progress(false)
+		})
+	ing.start(ctx)
 	var gap time.Duration
 	if rate > 0 {
 		gap = time.Second / time.Duration(rate)
@@ -296,38 +336,16 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 				}
 			}
 		}
-		if ctx.Err() != nil {
+		if !ing.submit(ctx, i, ev) || ctx.Err() != nil {
+			ing.finish()
 			close(stopWatch)
 			<-watchDone
 			fail(fmt.Errorf("прогон прерван: %w", ctx.Err()))
 			return
 		}
-		t0 := time.Now()
-		acc, _, err := a.commitStep(ctx, func(s *Snapshot) (*Snapshot, string, error) {
-			if err := applyStreamEvent(s, ev); err != nil {
-				return nil, "", err
-			}
-			return s, OriginEmulator, nil
-		})
-		d := time.Since(t0)
-		applyDur = append(applyDur, d)
-		streamApply.Observe(d.Seconds())
-		if err != nil {
-			failed++
-			streamEvents.WithLabelValues("failed").Inc()
-			log.Printf("source: поток %s: событие %d (%s) не применено: %v", runID, i, ev.Kind, err)
-		} else {
-			applied++
-			streamEvents.WithLabelValues("applied").Inc()
-			lag.add(acc.Version, time.Now())
-		}
-		if (i+1)%every == 0 || time.Since(lastPublish) > 150*time.Millisecond || i == len(events)-1 {
-			lastPublish = time.Now()
-			ap, fl := applied, failed
-			st := a.stream.update(func(s *gen.StreamState) { s.Applied = ap + fl })
-			a.bus.Publish(TopicStreamProgress, st)
-		}
 	}
+	ing.finish()
+	progress(true)
 	elapsed := time.Since(started)
 
 	after, cons, err := a.settleAndVerify(ctx)

@@ -24,8 +24,12 @@ func envInt(t *testing.T, name string) int {
 // Замер потока на большом снимке. Включается переменными INGEST_BENCH_ACCOUNTS (клиентов) и
 // INGEST_BENCH_EVENTS (событий); скорость «как можно быстрее». Числа идут в docs/load/.
 func TestStreamBench(t *testing.T) {
-	accounts := envInt(t, "INGEST_BENCH_ACCOUNTS")
-	events := envInt(t, "INGEST_BENCH_EVENTS")
+	runBench(t, envInt(t, "INGEST_BENCH_ACCOUNTS"), envInt(t, "INGEST_BENCH_EVENTS"))
+}
+
+// runBench грузит снимок на accounts клиентов, гонит events событий без пауз и проверяет согласованность.
+func runBench(t *testing.T, accounts, events int) {
+	t.Helper()
 	body, err := snapgen.Generate(snapgen.Options{Accounts: accounts, Seed: 7})
 	if err != nil {
 		t.Fatal(err)
