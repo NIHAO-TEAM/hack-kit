@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v2"
+
 	"example.com/app/internal/app"
 	"example.com/app/internal/auth"
 	"example.com/app/internal/platform/clock"
@@ -113,6 +115,48 @@ func TestChurnDashboardHasNoTaskPanels(t *testing.T) {
 		}
 		if p.Title == "Работа с клиентами" {
 			t.Errorf("остался раздел %q", p.Title)
+		}
+	}
+}
+
+// Правила Prometheus разбираются, у каждого есть выражение и оно ссылается на известные метрики.
+func TestPrometheusRulesParse(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "deploy", "prometheus", "rules.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f struct {
+		Groups []struct {
+			Name  string `yaml:"name"`
+			Rules []struct {
+				Alert  string `yaml:"alert"`
+				Record string `yaml:"record"`
+				Expr   string `yaml:"expr"`
+			} `yaml:"rules"`
+		} `yaml:"groups"`
+	}
+	if err := yaml.Unmarshal(b, &f); err != nil {
+		t.Fatalf("rules.yml не разбирается: %v", err)
+	}
+	known := metricsKnown(t)
+	seen := map[string]bool{}
+	for _, g := range f.Groups {
+		for _, r := range g.Rules {
+			name := r.Alert + r.Record
+			seen[name] = true
+			if name == "" || r.Expr == "" {
+				t.Errorf("группа %s: правило без имени или выражения", g.Name)
+			}
+			for _, m := range metricName.FindAllString(r.Expr, -1) {
+				if !known[m] && !strings.HasPrefix(m, "churn:") {
+					t.Errorf("правило %s: метрики %s нет у сервера", name, m)
+				}
+			}
+		}
+	}
+	for _, want := range []string{"RecalcSlow", "churn:http_request_duration_seconds:p95_5m"} {
+		if !seen[want] {
+			t.Errorf("нет правила %s", want)
 		}
 	}
 }
