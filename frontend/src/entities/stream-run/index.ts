@@ -6,6 +6,7 @@ export {
   type StreamReport,
   type StreamRequest,
   type StreamState,
+  type StreamWindowPoint,
 } from './api/stream';
 export {
   formatCount,

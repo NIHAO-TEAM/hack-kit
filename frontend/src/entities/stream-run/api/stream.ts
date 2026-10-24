@@ -3,6 +3,7 @@ import { api, toApiError, type components } from '@shared/api';
 
 export type StreamState = components['schemas']['StreamState'];
 export type StreamReport = components['schemas']['StreamReport'];
+export type StreamWindowPoint = components['schemas']['StreamWindowPoint'];
 export type StreamRequest = components['schemas']['StreamRequest'];
 
 /** Корень ключей запросов потока: по нему SSE `streamProgress` кладёт ход прогона в кэш. */
