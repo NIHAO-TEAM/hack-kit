@@ -21,6 +21,12 @@ async function noautoThumb() {
 }
 
 describe('экран «Модель»', () => {
+  it('признак bonus_locked подписан словами, без технического id', async () => {
+    renderApp('/model');
+    expect(await screen.findByText('Бонусы заблокированы')).toBeInTheDocument();
+    expect(screen.queryByText('bonus_locked')).not.toBeInTheDocument();
+  });
+
   it('сдвиг noauto до 0,85 показывает «сменят уровень 1 клиент, потеря +200,69 €»', async () => {
     const user = userEvent.setup();
     renderApp('/model');

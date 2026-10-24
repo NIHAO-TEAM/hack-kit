@@ -30,6 +30,11 @@ export const featureInfo: Record<string, { title: string; hint: string; defaultW
     hint: 'Клиент выводит остаток — признак ухода',
     defaultWeight: 0.15,
   },
+  bonus_locked: {
+    title: 'Бонусы заблокированы',
+    hint: 'Бонусы на счёте нельзя потратить — клиент теряет повод остаться',
+    defaultWeight: 0,
+  },
 };
 
 export function featureTitle(id: string): string {
