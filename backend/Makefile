@@ -3,7 +3,7 @@
 GOLANGCI_VERSION := v2.1.6
 GOVULNCHECK_VERSION := v1.1.4
 
-.PHONY: generate check test test-int
+.PHONY: generate check test test-int parity
 
 generate:
 	cp ../api/openapi.yaml internal/platform/docs/openapi.yaml
@@ -22,3 +22,8 @@ test:
 
 test-int:
 	go test -race -p 1 -tags integration ./...
+
+# parity сверяет Go с эталоном оракула на сгенерированном снимке (N клиентов, SEED); в CI не входит.
+# Быстрый вариант на 10 000: go test -tags parity ./tools/snapcalc/
+parity:
+	../tools/oracle/parity.sh $(or $(N),10000) $(or $(SEED),1)
