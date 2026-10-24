@@ -2,6 +2,7 @@
 # Залп событий эмулятора по стенду: docs/load/burst.sh [N ...] (по умолчанию 3000 10000 50000).
 # На каждый залп: поток rate=0 через POST /source/emulator/stream, опрос до done, проверки, строка итога.
 # Если k6 есть в PATH (и не задан BURST_NO_K6=1), параллельно идут чтение очереди (20 VU) и 500 SSE-клиентов.
+# Число событий, сброшенных шиной медленным подписчикам, пишется в отчёт (busDropped), но проверкой не является.
 # Красный (код 1), если нарушено: 5xx, applied+failed≠events, согласованность≠0 центов, рестарт процесса, обрыв SSE.
 #
 # Среда: BASE_URL (http://localhost:8080), LOGIN (admin), ADMIN_PASSWORD, METRICS_TOKEN,
@@ -28,6 +29,8 @@ metrics() { curl -fsS --max-time 20 -H "Authorization: Bearer $METRICS_TOKEN" "$
 metric() { awk -v n="$1" '$1==n {print $2; exit}'; }
 # count5xx — сколько ответов 5xx посчитал сервер (по гистограмме длительности).
 count5xx() { awk '/^churn_http_request_duration_seconds_count\{/ && /code="5[0-9][0-9]"/ {s+=$2} END {print s+0}'; }
+# countDropped — сколько событий шина сбросила медленным подписчикам (сумма churn_events_dropped_total по меткам).
+countDropped() { awk '/^churn_events_dropped_total(\{| )/ {s+=$NF} END {print s+0}'; }
 fail() { echo "::error::$*" >&2; FAIL=1; }
 
 if [ -n "${SOURCE_TOKEN:-}" ] && [ -n "${SNAPSHOT:-}" ]; then
@@ -53,6 +56,7 @@ for N in "${SIZES[@]}"; do
   M0=$(metrics)
   START0=$(metric process_start_time_seconds <<<"$M0")
   FIVE0=$(count5xx <<<"$M0")
+  DROP0=$(countDropped <<<"$M0")
   RC0=$(restart_count)
 
   # Пик памяти и горутин — раз в секунду, пока идёт залп.
@@ -92,6 +96,7 @@ for N in "${SIZES[@]}"; do
   M1=$(metrics)
   START1=$(metric process_start_time_seconds <<<"$M1")
   FIVE1=$(count5xx <<<"$M1")
+  DROP1=$(countDropped <<<"$M1")
   RC1=$(restart_count)
   jq . <<<"$STATE" >"$OUT/stream-$N.json"
 
@@ -118,20 +123,20 @@ for N in "${SIZES[@]}"; do
   PEAK_G=$(awk -F'\t' '$2+0>m {m=$2+0} END {print m+0}' "$OUT/samples-$N.tsv")
 
   jq -n --argjson n "$N" --argjson r "$(jq '.report // {}' <<<"$STATE")" --arg drops "$DROPS" --arg readp95 "$READ_P95" \
-    --arg peakmb "$PEAK_MB" --arg peakg "$PEAK_G" --argjson five "$((FIVE1 - FIVE0))" \
+    --arg peakmb "$PEAK_MB" --arg peakg "$PEAK_G" --argjson five "$((FIVE1 - FIVE0))" --argjson busdrop "$((DROP1 - DROP0))" \
     '{events:$n, applied:$r.applied, failed:$r.failed, eventsPerSecond:$r.eventsPerSecond, applyP50Ms:$r.applyP50Ms,
       applyP95Ms:$r.applyP95Ms, applyP99Ms:($r.applyP99Ms // null), queueLagP95Ms:$r.queueLagP95Ms, recalcs:$r.recalcs,
-      consistency:$r.consistency, http5xx:$five, sseDrops:$drops, queueReadP95Ms:$readp95, peakRssMB:$peakmb, peakGoroutines:$peakg}' \
+      consistency:$r.consistency, http5xx:$five, busDropped:$busdrop, sseDrops:$drops, queueReadP95Ms:$readp95, peakRssMB:$peakmb, peakGoroutines:$peakg}' \
     >"$OUT/burst-$N.json"
   cat "$OUT/burst-$N.json"
 done
 
 # Таблица для summary и отчёта.
 {
-  echo "| Залп | события/с | p50 мс | p95 мс | p99 мс | «событие → очередь» p95 мс | чтение очереди p95 мс | пересчётов | 5xx | обрывов SSE | пик памяти МБ | пик горутин |"
-  echo "|---|---|---|---|---|---|---|---|---|---|---|---|"
+  echo "| Залп | события/с | p50 мс | p95 мс | p99 мс | «событие → очередь» p95 мс | чтение очереди p95 мс | пересчётов | 5xx | потеряно шиной | обрывов SSE | пик памяти МБ | пик горутин |"
+  echo "|---|---|---|---|---|---|---|---|---|---|---|---|---|"
   for N in "${SIZES[@]}"; do
-    jq -r '"| \(.events) | \(.eventsPerSecond) | \(.applyP50Ms) | \(.applyP95Ms) | \(.applyP99Ms // "н/д") | \(.queueLagP95Ms // "н/д") | \(.queueReadP95Ms) | \(.recalcs) | \(.http5xx) | \(.sseDrops) | \(.peakRssMB) | \(.peakGoroutines) |"' "$OUT/burst-$N.json"
+    jq -r '"| \(.events) | \(.eventsPerSecond) | \(.applyP50Ms) | \(.applyP95Ms) | \(.applyP99Ms // "н/д") | \(.queueLagP95Ms // "н/д") | \(.queueReadP95Ms) | \(.recalcs) | \(.http5xx) | \(.busDropped) | \(.sseDrops) | \(.peakRssMB) | \(.peakGoroutines) |"' "$OUT/burst-$N.json"
   done
 } | tee "$OUT/summary.md"
 [ -z "${GITHUB_STEP_SUMMARY:-}" ] || { echo "## Залпы событий"; cat "$OUT/summary.md"; } >>"$GITHUB_STEP_SUMMARY"
