@@ -155,7 +155,7 @@ func run() error {
 	go func() { defer workers.Done(); <-recalcStopped }()
 
 	lc := httpx.NewLifecycle()
-	lc.Ready = func() bool { return recalc.Engine.Latest() != nil }
+	lc.Ready = func() bool { return ready(recalc.Engine.Latest() != nil, recalc.Engine.LastError()) }
 	lc.Ping = pool.Ping
 	opts := []app.Option{app.WithCollectors(lc.Collector(), authAPI.Collector())}
 
@@ -220,4 +220,11 @@ func serve(ctx context.Context, srv *http.Server, ln net.Listener, lc *httpx.Lif
 	}
 	log.Printf("api: остановлен за %s (ошибка: %v)", time.Since(started).Round(time.Millisecond), err)
 	return err
+}
+
+// ready — готов ли под принимать трафик: есть результат пересчёта, либо считать нечего (снимок ещё
+// не загружали — чистая установка). Без второго условия свежий под на пустой базе никогда не
+// становится готовым, и `helm install --wait` падает по таймауту, хотя снимок грузят уже в готовый сервис.
+func ready(hasResult bool, lastErr error) bool {
+	return hasResult || errors.Is(lastErr, source.ErrNoSnapshot)
 }
