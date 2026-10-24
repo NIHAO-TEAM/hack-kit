@@ -35,8 +35,8 @@ const W = 13.333, H = 7.5, M = 0.6;
 
 const pres = new pptxgen();
 pres.layout = 'LAYOUT_WIDE';
-pres.title = 'Контур удержания — NIHAO, aéza';
-pres.author = 'NIHAO';
+pres.title = 'Контур удержания — Input Math, aéza';
+pres.author = 'Input Math';
 pres.theme = { headFontFace: 'Arial', bodyFontFace: 'Arial' };
 
 const img = (f) => path.join(shots, f);
@@ -86,7 +86,7 @@ function bullets(s, items, x, y, w, h, size = 18) {
     s.addImage({ data: logoData, x: M + 0.25, y: M + 0.22, w: 2.1, h: 2.1 * 85 / 354, altText: 'Логотип aéza' });
     s.addText('Контур удержания', { x: M, y: 2.3, w: 8, h: 1.1, fontSize: 54, bold: true, color: C.text, margin: 0, isTextBox: true });
     s.addText('Кого из клиентов aéza спасать сегодня, почему и сколько это стоит', { x: M, y: 3.4, w: 7.6, h: 1.0, fontSize: 22, color: C.muted, margin: 0, isTextBox: true });
-    s.addText('Команда NIHAO · кейс aéza «Анализатор рисков оттока»', { x: M, y: 6.3, w: 8, h: 0.5, fontSize: 16, color: C.accent, margin: 0, isTextBox: true });
+    s.addText('Команда Input Math · кейс aéza «Анализатор рисков оттока»', { x: M, y: 6.3, w: 8, h: 0.5, fontSize: 16, color: C.accent, margin: 0, isTextBox: true });
     card(s, 9.4, 2.0, 3.3, 3.9, { fill: 'FFFFFF' });
     s.addImage({ path: qr('qr-prod.png'), x: 9.6, y: 2.2, w: 2.9, h: 2.9, altText: 'QR: прод' });
     s.addText('Открыть продукт', { x: 9.4, y: 5.2, w: 3.3, h: 0.5, fontSize: 16, bold: true, color: '0A0D10', align: 'center', margin: 0, isTextBox: true });
