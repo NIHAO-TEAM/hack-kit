@@ -62,11 +62,12 @@ const scenario: Array<Partial<CustomerRow> & { id: number }> = [
     level: 'lost',
     score: null,
     expectedLossCents: 0,
+    lostCents: 680874,
     topReason: 'услуги удалены биллингом',
   },
 ];
 
-function rows(): CustomerRow[] {
+export function rows(): CustomerRow[] {
   const accounts = new Map((data.accounts as Account[]).map((a) => [a.id, a]));
   return scenario.map((s) => {
     const a = accounts.get(s.id) ?? (data.accounts[0] as Account);
@@ -108,7 +109,9 @@ export const queueHandlers = [
         const kb = key(b);
         return (ka < kb ? -1 : ka > kb ? 1 : 0) * dir || a.id - b.id;
       });
-    return HttpResponse.json({ items, total: items.length });
+    const limit = Number(url.searchParams.get('limit') ?? 200);
+    const offset = Number(url.searchParams.get('offset') ?? 0);
+    return HttpResponse.json({ items: items.slice(offset, offset + limit), total: items.length });
   }),
   http.get(`${API}/analytics/summary`, () => {
     const all = rows();

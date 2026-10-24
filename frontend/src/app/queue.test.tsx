@@ -1,3 +1,4 @@
+import { customersKey } from '@entities/customer';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
@@ -150,5 +151,77 @@ describe('очередь удержания', () => {
     expect(table.querySelectorAll('td[data-label="Окно спасения"]')).toHaveLength(
       within(table).getAllByText('—', { selector: 'td[data-label="Окно спасения"]' }).length,
     );
+  });
+
+  describe('постраничный переход', () => {
+    const many = (total = 230) => {
+      server.use(
+        http.get('/api/v1/customers', ({ request }) => {
+          const q = new URL(request.url).searchParams;
+          const limit = Number(q.get('limit') ?? 200);
+          const offset = Number(q.get('offset') ?? 0);
+          const items = Array.from({ length: total }, (_, i) => ({
+            id: i + 1,
+            email: `c${i + 1}@example.test`,
+            balance: 1000,
+            totalReplenished: 5000,
+            score: 60,
+            level: 'high',
+            expectedLossCents: 100,
+            topReason: 'мало денег',
+          }));
+          return HttpResponse.json({ items: items.slice(offset, offset + limit), total });
+        }),
+      );
+    };
+
+    it('230 клиентов: страница 5 показывает строку 201+ и подпись диапазона', async () => {
+      signedIn();
+      many();
+      const user = userEvent.setup();
+      const { router } = renderApp('/queue');
+      expect(await screen.findByText(/Показаны 1–50 из 230/)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: '5' }));
+      expect(await screen.findByText(/Показаны 201–230 из 230/)).toBeInTheDocument();
+      expect(await screen.findByText('c201@example.test')).toBeInTheDocument();
+      expect(router.state.location.search).toMatchObject({ page: 5 });
+    });
+
+    it('живое обновление перезапрашивает текущую страницу и не сбрасывает её', async () => {
+      signedIn();
+      many();
+      const { router, queryClient } = renderApp('/queue?page=3');
+      await screen.findByText(/Показаны 101–150 из 230/);
+      await queryClient.invalidateQueries({ queryKey: customersKey });
+      expect(await screen.findByText(/Показаны 101–150 из 230/)).toBeInTheDocument();
+      expect(router.state.location.search).toMatchObject({ page: 3 });
+    });
+
+    it('одна страница: переключателя нет', async () => {
+      signedIn();
+      many(50);
+      renderApp('/queue');
+      await screen.findByText('c50@example.test');
+      expect(screen.queryByText(/Показаны/)).toBeNull();
+    });
+
+    it('смена сортировки возвращает на первую страницу', async () => {
+      signedIn();
+      many();
+      const user = userEvent.setup();
+      const { router } = renderApp('/queue?page=3');
+      await screen.findByText(/Показаны 101–150 из 230/);
+      await user.click(screen.getByRole('button', { name: 'Email' }));
+      await waitFor(() => expect(router.state.location.search).not.toHaveProperty('page'));
+      expect(await screen.findByText(/Показаны 1–50 из 230/)).toBeInTheDocument();
+    });
+
+    it('страница за пределами total — первая', async () => {
+      signedIn();
+      many();
+      const { router } = renderApp('/queue?page=99');
+      await waitFor(() => expect(router.state.location.search).not.toHaveProperty('page'));
+      expect(await screen.findByText(/Показаны 1–50 из 230/)).toBeInTheDocument();
+    });
   });
 });

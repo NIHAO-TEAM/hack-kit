@@ -1,7 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import type { components } from '@shared/api';
 import data from './data.json';
-import { queueHandlers } from './queue';
+import { queueHandlers, rows as queueRows } from './queue';
 import { customerDetailHandler } from './customer-detail';
 import { modelSettingsHandlers } from './model-settings';
 import { sourceHandlers } from './source';
@@ -46,15 +46,15 @@ const accounts = data.accounts as Account[];
 const services = data.services as Service[];
 
 function levelOf(score: number): RiskLevel {
-  if (score >= 0.7) return 'high';
-  if (score >= 0.4) return 'medium';
+  if (score >= 70) return 'high';
+  if (score >= 40) return 'medium';
   return 'low';
 }
 
 /** Оценки моков условные: детерминированы по id и нужны только для вёрстки. */
 function rows(): CustomerRow[] {
   return accounts.map((a) => {
-    const score = ((a.id * 37) % 100) / 100;
+    const score = (a.id * 37) % 100; // проценты 0..100, как в контракте
     return {
       id: a.id,
       email: a.email,
@@ -62,7 +62,7 @@ function rows(): CustomerRow[] {
       totalReplenished: a.totalReplenished,
       score,
       level: levelOf(score),
-      expectedLossCents: Math.round(a.totalReplenished * score),
+      expectedLossCents: Math.round((a.totalReplenished * score) / 100),
     };
   });
 }
@@ -115,7 +115,7 @@ export const handlers = [
   ...auditHandlers,
   customerDetailHandler(
     (id) => {
-      const customer = rows().find((r) => r.id === id);
+      const customer = queueRows().find((r) => r.id === id) ?? rows().find((r) => r.id === id);
       if (!customer) return undefined;
       return {
         version: 1,

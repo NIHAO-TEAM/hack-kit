@@ -2,7 +2,7 @@ import { Anchor, Badge, Card, Grid, Group, Stack, Text, Title } from '@mantine/c
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import { customerQuery, type CustomerDetail } from '@entities/customer-detail';
+import { customerQuery, scorePercentText, type CustomerDetail } from '@entities/customer-detail';
 import { summaryOptions } from '@entities/summary';
 import { ApiError } from '@shared/api';
 import { formatMoney, useChangedRows } from '@shared/lib';
@@ -29,9 +29,9 @@ function BackLink() {
 
 /** Скор в шапке: «нет оценки» и «потерян» вместо числа, с причиной. */
 function scoreText(customer: CustomerDetail['customer']): string {
-  if (customer.level === 'lost') return 'потерян: все услуги заблокированы';
+  if (customer.level === 'lost') return 'потерян: живых услуг не осталось';
   if (customer.score == null) return 'нет оценки';
-  return `скор ${Math.round(customer.score * 100)} %`;
+  return scorePercentText(customer.score);
 }
 
 function NotFound({ id }: { id: number }) {
@@ -124,11 +124,22 @@ export function CustomerPage({ id }: { id: number }) {
                 </Text>
               </Group>
               <Text size="sm" c="dimmed">
-                {lost ? 'Уже потеряно' : 'Ожидаемая потеря'}
+                {lost
+                  ? 'Стоимость потерянных услуг за горизонт модели (расчёт)'
+                  : 'Ожидаемая потеря'}
               </Text>
               <Text fz="xl" fw={600}>
-                <Money cents={customer.expectedLossCents} tone={lost ? 'lost' : 'default'} />
+                <Money
+                  cents={lost ? (customer.lostCents ?? 0) : customer.expectedLossCents}
+                  tone={lost ? 'lost' : 'default'}
+                />
               </Text>
+              {lost ? (
+                <Text size="xs" c="dimmed" maw={320} ta="right">
+                  Расчёт по ценам услуг, а не фактическая выручка за прошлый месяц: дат удаления в
+                  данных нет.
+                </Text>
+              ) : null}
             </Stack>
           </Changed>
         </Group>

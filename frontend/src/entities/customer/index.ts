@@ -1,6 +1,8 @@
 export {
   customersKey,
+  customersOffset,
   customersOptions,
+  QUEUE_PAGE_SIZE,
   type CustomerOrder,
   type CustomerParams,
   type CustomerRow,
