@@ -2,7 +2,7 @@
 
 ## 1. Контракт и данные
 
-- [ ] 1.1 Параметр `billing` (`exclude`/`only`) в `api/openapi.yaml`, `make generate`, типы фронта — проверка: `make generate && git diff --exit-code`, `oasdiff` без breaking
+- [x] 1.1 Параметр `billing` (`exclude`/`only`) в `api/openapi.yaml`, `make generate`, типы фронта — проверка: `make generate && git diff --exit-code`, `oasdiff` без breaking
 
 ## 2. Логика
 
