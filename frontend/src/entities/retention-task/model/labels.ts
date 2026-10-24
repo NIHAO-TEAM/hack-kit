@@ -13,8 +13,8 @@ export const statusLabel: Record<Status, string> = {
 
 export const outcomeLabel: Record<Outcome, string> = {
   renewed: 'Продлил',
-  refused: 'Отказался',
-  no_answer: 'Не ответил',
+  refused: 'Ушёл',
+  no_answer: 'Не удалось связаться',
   not_needed: 'Не нужно',
 };
 

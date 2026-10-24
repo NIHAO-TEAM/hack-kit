@@ -6,7 +6,7 @@ describe('подписи задачи', () => {
   it('статусы и итоги', () => {
     expect(statusLabel.in_work).toBe('В работе');
     expect(statusLabel.contacted).toBe('Связались');
-    expect(outcomeLabel.no_answer).toBe('Не ответил');
+    expect(outcomeLabel.no_answer).toBe('Не удалось связаться');
   });
 
   it('просрочено: «срок прошёл 3 ч назад»', () => {
