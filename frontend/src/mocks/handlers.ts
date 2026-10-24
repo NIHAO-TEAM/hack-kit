@@ -108,22 +108,6 @@ export const handlers = [
       expectedLossCents: all.reduce((s, r) => s + r.expectedLossCents, 0),
       atRiskCents: all.filter((r) => r.level !== 'low').reduce((s, r) => s + r.balance, 0),
       lostCents: 0,
-      retention: {
-        tasksInWork: 1,
-        tasksContacted: 0,
-        tasksPostponed: 0,
-        tasksOverdue: 0,
-        customersInWork: 1,
-        lossInWorkCents: all.find((r) => r.id === 9)?.expectedLossCents ?? 0,
-        highWithoutTask: all.filter((r) => r.level === 'high' && r.id !== 9).length,
-        highWithoutTaskLossCents: all
-          .filter((r) => r.level === 'high' && r.id !== 9)
-          .reduce((s, r) => s + r.expectedLossCents, 0),
-        mediumWithoutTask: count('medium'),
-        mediumWithoutTaskLossCents: all
-          .filter((r) => r.level === 'medium')
-          .reduce((s, r) => s + r.expectedLossCents, 0),
-      },
       version: 1,
     });
   }),
