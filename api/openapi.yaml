@@ -467,6 +467,140 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EmulatorAction"
+    StreamRequest:
+      type: object
+      properties:
+        events:
+          type: integer
+          minimum: 100
+          maximum: 5000
+          default: 2500
+          description: Сколько событий применить
+        ratePerSecond:
+          type: integer
+          minimum: 0
+          maximum: 2000
+          default: 100
+          description: Скорость, событий в секунду; 0 — без пауз между событиями
+        seed:
+          type: integer
+          format: int64
+          default: 1
+          description: Зерно генератора; то же зерно на том же снимке даёт ту же последовательность
+    StreamAccepted:
+      type: object
+      required: [runId]
+      properties:
+        runId:
+          type: string
+    LevelCounts:
+      type: object
+      required: [high, medium, low, unscored, lost]
+      properties:
+        high:
+          type: integer
+        medium:
+          type: integer
+        low:
+          type: integer
+        unscored:
+          type: integer
+        lost:
+          type: integer
+    StreamLevelChange:
+      type: object
+      required: [from, to, count]
+      properties:
+        from:
+          $ref: "#/components/schemas/RiskLevel"
+        to:
+          $ref: "#/components/schemas/RiskLevel"
+        count:
+          type: integer
+          description: Сколько клиентов перешло с уровня from на to (клиент считается по худшей услуге)
+    StreamConsistency:
+      type: object
+      required: [ok, diffCents, version]
+      properties:
+        ok:
+          type: boolean
+          description: Пересчёт с нуля над итоговым снимком совпал с тем, что отдаёт сервис
+        diffCents:
+          type: integer
+          format: int64
+          description: Наибольшая по модулю разница ожидаемой потери, суммы под риском и уже потерянного, в центах
+        version:
+          type: integer
+          format: int64
+          description: Версия снимка, по которой сверяли
+    StreamReport:
+      type: object
+      required: [events, applied, failed, durationMs, eventsPerSecond, applyP50Ms, applyP95Ms, applyMaxMs, recalcs, levelsBefore, levelsAfter, levelChanges, lossBeforeCents, lossAfterCents, consistency]
+      properties:
+        events:
+          type: integer
+        applied:
+          type: integer
+        failed:
+          type: integer
+        durationMs:
+          type: integer
+          format: int64
+        eventsPerSecond:
+          type: number
+        applyP50Ms:
+          type: number
+        applyP95Ms:
+          type: number
+        applyMaxMs:
+          type: number
+        recalcs:
+          type: integer
+          description: Сколько пересчётов выполнил движок за прогон (пересчёт склеивает пачки событий)
+        queueLagP95Ms:
+          type: number
+          description: p95 задержки от применения события до очереди, в которой оно учтено
+        levelsBefore:
+          $ref: "#/components/schemas/LevelCounts"
+        levelsAfter:
+          $ref: "#/components/schemas/LevelCounts"
+        levelChanges:
+          type: array
+          items:
+            $ref: "#/components/schemas/StreamLevelChange"
+        lossBeforeCents:
+          type: integer
+          format: int64
+        lossAfterCents:
+          type: integer
+          format: int64
+        consistency:
+          $ref: "#/components/schemas/StreamConsistency"
+    StreamState:
+      type: object
+      required: [state, events, applied]
+      properties:
+        state:
+          type: string
+          enum: [idle, running, done, failed]
+        runId:
+          type: string
+        events:
+          type: integer
+        applied:
+          type: integer
+        ratePerSecond:
+          type: integer
+        seed:
+          type: integer
+          format: int64
+        startedAt:
+          type: string
+          format: date-time
+        error:
+          type: string
+        report:
+          $ref: "#/components/schemas/StreamReport"
     RiskLevel:
       type: string
       enum: [high, medium, low, unscored, lost]
@@ -807,7 +941,7 @@ components:
           description: Логин того, кто действовал; при неудачном входе — введённый логин
         action:
           type: string
-          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions, customersExported, taskCreated, taskChanged, taskRecorded]
+          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions, emulatorStream, customersExported, taskCreated, taskChanged, taskRecorded]
         summary:
           type: string
           description: Запись простыми словами
@@ -2013,11 +2147,70 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "501":
           $ref: "#/components/responses/NotImplemented"
+  /api/v1/source/emulator/stream:
+    post:
+      operationId: startEmulatorStream
+      tags: [source]
+      summary: Запустить поток событий пользователей над текущим снимком (аналитик, jury)
+      description: >-
+        Сервер строит из снимка и зерна детерминированный список событий (пополнение, автопродление,
+        остановка и возобновление услуги, неудачное продление, ожидание продления) и применяет их тем же
+        путём, что PATCH услуг и счетов. Ход идёт в поток GET /events событием streamProgress, итог — в
+        GET /source/emulator/stream. Одновременно идёт один прогон.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StreamRequest"
+      responses:
+        "202":
+          description: Прогон принят
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreamAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Другой прогон ещё идёт
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    get:
+      operationId: getEmulatorStream
+      tags: [source]
+      summary: Состояние текущего или последнего прогона потока (аналитик, jury)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Состояние прогона; пока прогонов не было, state — idle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreamState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
   /api/v1/events:
     get:
       operationId: getEvents
       tags: [analytics]
-      summary: SSE-поток событий, например {"type":"recalculated","version":N}
+      summary: SSE-поток событий, например {"type":"recalculated","version":N}; ход потока событий эмулятора — event streamProgress с телом StreamState
       security:
         - cookieAuth: []
         - bearerAuth: []

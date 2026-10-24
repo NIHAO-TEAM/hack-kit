@@ -9,6 +9,5 @@ export {
   type CustomerRow,
   type CustomerSort,
   type RiskLevel,
-  type TaskFilter,
 } from './api/customers';
 export { deletionAt, inWaitWindow } from './model/window';

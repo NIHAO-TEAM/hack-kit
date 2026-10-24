@@ -168,28 +168,6 @@
   }
 }
 
-.work {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 2px;
-  max-width: 5.5rem;
-}
-
-.take {
-  height: auto;
-  min-height: 28px;
-  padding-block: 4px;
-  white-space: normal;
-  line-height: 1.2;
-}
-
-/* Касание на планшете и телефоне: кнопки не меньше 44 px. */
-@media (width <= 64em) {
-  .take {
-    min-height: 44px;
-  }
-}
-
 /* Шкала окна спасения уже, чем по умолчанию: десятая колонка «Работа» должна уместиться на 1440. */
 @media (width > 64em) {
   .table .window > * {
