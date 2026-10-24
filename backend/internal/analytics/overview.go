@@ -10,6 +10,7 @@ type Overview struct {
 	AsOf              time.Time
 	CalculatedAt      time.Time
 	Duration          time.Duration
+	Stages            Stages
 	SettingsVersion   int64
 	Levels            map[string]int // high, medium, low, unscored, lost
 	ExpectedLossCents int64

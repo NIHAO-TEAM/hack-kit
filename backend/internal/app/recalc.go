@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -25,11 +26,13 @@ type Recalc struct {
 	snaps    *snapshots
 	cache    cacheHolder
 	observer *retention.Service
+	reads    *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
 }
 
 // NewRecalc собирает воркер: настройки из model_settings, снимок из таблиц организаторов.
 func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 	snaps := &snapshots{}
+	reads := &atomic.Int64{}
 	store := model.NewStore(pool, bus, ValidateSettings)
 	reader := source.NewReader(pool)
 	compute := func(ctx context.Context) (analytics.Computed[risk.Result], error) {
@@ -37,26 +40,51 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 		if err != nil {
 			return analytics.Computed[risk.Result]{}, err
 		}
-		snap, dataVersion, err := reader.Load(ctx)
+		var stages analytics.Stages
+		t0 := clk.Now()
+		// Версия снимка та же — таблицы не перечитываем: любое изменение данных заводит новую версию.
+		dataVersion, err := reader.Version(ctx)
 		if err != nil {
 			return analytics.Computed[risk.Result]{}, err
 		}
-		rs := ToRiskSnapshot(snap)
-		snaps.put(dataVersion, rs)
+		rs, ok := snaps.get(dataVersion)
+		if !ok {
+			reads.Add(1)
+			snap, loaded, err := reader.Load(ctx)
+			if err != nil {
+				return analytics.Computed[risk.Result]{}, err
+			}
+			dataVersion = loaded
+			stages.Load = clk.Now().Sub(t0)
+			t1 := clk.Now()
+			rs = ToRiskSnapshot(snap)
+			stages.Convert = clk.Now().Sub(t1)
+			snaps.put(dataVersion, rs)
+		} else {
+			stages.Load = clk.Now().Sub(t0)
+		}
+		t2 := clk.Now()
+		res := risk.Score(rs, st, rs.AsOf)
+		stages.Score = clk.Now().Sub(t2)
 		return analytics.Computed[risk.Result]{
-			Result:          risk.Score(rs, st, rs.AsOf),
+			Result:          res,
 			DataVersion:     dataVersion,
 			SettingsVersion: settingsVersion,
+			Stages:          stages,
 		}, nil
 	}
 	r := &Recalc{
 		Engine:   analytics.NewEngine(compute, bus, clk, source.TopicChanged, model.TopicChanged),
 		Settings: store,
 		snaps:    snaps,
+		reads:    reads,
 	}
 	r.observer = retention.New(pool, bus, clk, r)
 	return r
 }
+
+// TableReads — сколько раз пересчёт читал таблицы снимка целиком; смена настроек их не читает.
+func (r *Recalc) TableReads() int64 { return r.reads.Load() }
 
 // Start запускает воркер: первый пересчёт идёт сразу, дальше по событиям.
 // Вместе с ним работает наблюдатель за открытыми задачами удержания: он читает результат каждого пересчёта.
@@ -135,6 +163,7 @@ func (r *Recalc) Overview() *analytics.Overview {
 		AsOf:              c.Result.AsOf,
 		CalculatedAt:      c.CalculatedAt,
 		Duration:          c.Duration,
+		Stages:            c.Stages,
 		SettingsVersion:   c.SettingsVersion,
 		Levels:            s.Levels,
 		ExpectedLossCents: s.ExpectedLossCents,

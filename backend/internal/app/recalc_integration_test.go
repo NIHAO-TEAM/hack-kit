@@ -190,3 +190,33 @@ func TestRaceSettingsAndSnapshot(t *testing.T) {
 		t.Errorf("пустой результат: %v", lv)
 	}
 }
+
+// Смена настроек не перечитывает таблицы: версия снимка та же, берётся собранный снимок.
+// Новая версия данных (загрузка снимка) читает таблицы заново, и очередь показывает новые данные.
+func TestRecalcSkipsTableReadWhenSnapshotVersionSame(t *testing.T) {
+	r := newRig(t, true)
+	rc := r.start(t, r.Pool)
+	waitLatest(t, rc, "первый пересчёт", func() bool { return rc.Engine.Latest() != nil })
+	if n := rc.TableReads(); n != 1 {
+		t.Fatalf("первый пересчёт: чтений таблиц = %d, ждали 1", n)
+	}
+	first := rc.Engine.Latest().Version
+
+	st := risk.Defaults()
+	for id := range st.Weights {
+		st.Weights[id] = 0.5
+		break
+	}
+	saveSettings(t, rc, st)
+	waitLatest(t, rc, "пересчёт по настройкам", func() bool { return rc.Engine.Latest().Version > first })
+	if n := rc.TableReads(); n != 1 {
+		t.Errorf("после смены настроек чтений таблиц = %d, ждали 1 (без перечитывания)", n)
+	}
+
+	before := rc.Engine.Latest().Version
+	r.reload(t)
+	waitLatest(t, rc, "пересчёт по новой версии", func() bool { return rc.Engine.Latest().Version > before })
+	if n := rc.TableReads(); n != 2 {
+		t.Errorf("после новой версии снимка чтений таблиц = %d, ждали 2", n)
+	}
+}

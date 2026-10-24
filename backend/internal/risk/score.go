@@ -2,8 +2,11 @@ package risk
 
 import (
 	"math"
+	"runtime"
 	"sort"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -135,12 +138,20 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 	for _, c := range cs {
 		hits[c.ID()] = &CheckResult{ID: c.ID(), OK: true}
 	}
-	for _, a := range accounts {
+	// Клиенты не зависят друг от друга: считаем их параллельно в слайс по индексу, а сводку и
+	// проверки собираем потом по порядку индекса — результат тот же, что при последовательном счёте.
+	customers := make([]Customer, len(accounts))
+	parallelFor(len(accounts), func(i int) {
+		a := accounts[i]
 		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs)
 		if c.State == StateScored {
 			c.Actions = actionResults(s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
 		}
-		res.Customers = append(res.Customers, c)
+		customers[i] = c
+	})
+	res.Customers = customers
+	for i, a := range accounts {
+		c := customers[i]
 
 		key := StateUnscored
 		switch {
@@ -188,6 +199,43 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 		res.Checks = append(res.Checks, *h)
 	}
 	return res
+}
+
+// parallelFor вызывает fn(i) для i в [0, n) на runtime.GOMAXPROCS(0) воркерах; каждый берёт свой кусок индексов.
+func parallelFor(n int, fn func(i int)) {
+	workers := runtime.GOMAXPROCS(0)
+	if workers > n {
+		workers = n
+	}
+	if workers <= 1 {
+		for i := 0; i < n; i++ {
+			fn(i)
+		}
+		return
+	}
+	const chunk = 64
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				lo := int(next.Add(chunk)) - chunk
+				if lo >= n {
+					return
+				}
+				hi := lo + chunk
+				if hi > n {
+					hi = n
+				}
+				for i := lo; i < hi; i++ {
+					fn(i)
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 // actionResults применяет каждое подходящее действие к копии снимка, где изменён только этот клиент.

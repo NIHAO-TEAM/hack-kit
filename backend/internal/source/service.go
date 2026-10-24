@@ -173,6 +173,19 @@ type Reader struct {
 // NewReader создаёт читателя снимка.
 func NewReader(pool *pgxpool.Pool) *Reader { return &Reader{pool: pool} }
 
+// Version читает номер последней версии снимка одним запросом; ErrNoSnapshot, пока снимков нет.
+func (r *Reader) Version(ctx context.Context) (int64, error) {
+	var version int64
+	err := r.pool.QueryRow(ctx, "SELECT version FROM snapshots ORDER BY version DESC LIMIT 1").Scan(&version)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNoSnapshot
+	}
+	if err != nil {
+		return 0, fmt.Errorf("source: версия снимка: %w", err)
+	}
+	return version, nil
+}
+
 // Load читает последнюю строку snapshots и три таблицы в одной транзакции REPEATABLE READ:
 // данные и версия согласованы, даже если во время чтения пишется новый снимок.
 // AsOf берётся из строки snapshots; пустой as_of (источник не назвал время) — loaded_at.

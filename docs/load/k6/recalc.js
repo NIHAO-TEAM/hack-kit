@@ -7,6 +7,12 @@ import { loginOnce, authHeaders, API, BASE } from './common.js';
 
 const patchSeconds = new Trend('patch_settings_seconds');
 const recalcGauge = new Trend('server_recalc_seconds');
+// Имена начинаются с server_recalc_seconds, поэтому фильтр итога deploy-load их подхватывает.
+const stageTrends = {
+  load: new Trend('server_recalc_seconds_load'),
+  convert: new Trend('server_recalc_seconds_convert'),
+  score: new Trend('server_recalc_seconds_score'),
+};
 
 export const options = {
   vus: 1,
@@ -32,4 +38,9 @@ export default function (session) {
   const m = http.get(`${BASE}/metrics`, { headers: { Authorization: `Bearer ${__ENV.METRICS_TOKEN}` } });
   const hit = /^churn_recalc_duration_seconds\s+([0-9.eE+-]+)/m.exec(m.body || '');
   if (hit) recalcGauge.add(parseFloat(hit[1]));
+  // Этапы того же пересчёта: чтение, перевод, расчёт — churn_recalc_stage_seconds{stage}.
+  for (const stage of Object.keys(stageTrends)) {
+    const h = new RegExp(`^churn_recalc_stage_seconds\\{stage="${stage}"\\}\\s+([0-9.eE+-]+)`, 'm').exec(m.body || '');
+    if (h) stageTrends[stage].add(parseFloat(h[1]));
+  }
 }
