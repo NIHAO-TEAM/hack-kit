@@ -473,13 +473,13 @@ components:
         events:
           type: integer
           minimum: 100
-          maximum: 5000
+          maximum: 100000
           default: 2500
           description: Сколько событий применить
         ratePerSecond:
           type: integer
           minimum: 0
-          maximum: 2000
+          maximum: 20000
           default: 100
           description: Скорость, событий в секунду; 0 — без пауз между событиями
         seed:
@@ -552,6 +552,9 @@ components:
           type: number
         applyP95Ms:
           type: number
+        applyP99Ms:
+          type: number
+          description: p99 длительности применения одного события
         applyMaxMs:
           type: number
         recalcs:
@@ -676,6 +679,9 @@ components:
           type: integer
           format: int64
           description: Версия пересчёта, по которому построена страница.
+        nextCursor:
+          type: string
+          description: Курсор следующей страницы; нет, если страница последняя.
     TaskStatus:
       type: string
       description: "В работе, связались, отложено, закрыто."
@@ -994,6 +1000,14 @@ components:
           description: Риск после действия, 0..100.
         newLevel:
           $ref: "#/components/schemas/RiskLevel"
+        costCents:
+          type: integer
+          format: int64
+          description: Что действие стоит клиенту, центы (пополнение — сумма, остальные — 0).
+        returnPerEuro:
+          type: number
+          format: double
+          description: Снятая ожидаемая потеря на каждый евро цены, 2 знака. Нет при цене 0. Оценка сценария «клиент выполнил действие полностью», не ROI.
     ServiceRisk:
       type: object
       required: [serviceId, probability, rCents, lossCents, features, quality]
@@ -1050,11 +1064,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Action"
+        actionCombo:
+          type: integer
+          format: int64
+          description: Эффект от совместного применения всех применимых действий (потеря после − до), центы. Нет, если применимо меньше двух действий.
         explanation:
           type: string
     Summary:
       type: object
-      required: [levels, expectedLossCents, atRiskCents, lostCents, version]
+      required: [levels, expectedLossCents, atRiskCents, lostCents, lossByFeature, version]
       properties:
         levels:
           type: object
@@ -1087,11 +1105,33 @@ components:
           description: Сколько услуг и клиентов отмечено каждой проверкой качества данных
           additionalProperties:
             type: integer
+        lossByFeature:
+          type: array
+          description: Ожидаемая потеря по причинам (признакам модели), по убыванию потери. Сумма lossCents равна expectedLossCents. Распределение по вкладу w·f признака, не доказанная причинность.
+          items:
+            $ref: "#/components/schemas/LossByFeature"
         retention:
           $ref: "#/components/schemas/SummaryRetention"
         version:
           type: integer
           format: int64
+    LossByFeature:
+      type: object
+      required: [featureId, lossCents, customers, sharePercent]
+      properties:
+        featureId:
+          type: string
+          description: Идентификатор признака модели (funds, noauto, fail и т. д.)
+        lossCents:
+          type: integer
+          format: int64
+        customers:
+          type: integer
+          description: Клиенты с ненулевой долей потери по этой причине
+        sharePercent:
+          type: number
+          format: double
+          description: Доля в ожидаемой потере, 0..100, два знака
     SummaryRetention:
       type: object
       description: Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics.
@@ -1210,6 +1250,58 @@ components:
         asOfMode:
           type: string
           enum: [snapshot, server]
+    ModelSensitivity:
+      type: object
+      required: [features, shiftPercent, sampled, customers, snapshotVersion, settingsVersion]
+      properties:
+        shiftPercent:
+          type: integer
+          description: Размер сдвига веса, процентов (20).
+        sampled:
+          type: boolean
+          description: Расчёт на выборке; число сменивших уровень тогда относится к выборке.
+        customers:
+          type: integer
+          minimum: 0
+          description: Сколько клиентов в расчёте (размер выборки, если sampled).
+        snapshotVersion:
+          type: integer
+          format: int64
+        settingsVersion:
+          type: integer
+          format: int64
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureSensitivity"
+    FeatureSensitivity:
+      type: object
+      required: [id, weight, down, up]
+      properties:
+        id:
+          type: string
+        weight:
+          type: number
+          format: double
+        down:
+          $ref: "#/components/schemas/WeightShift"
+        up:
+          $ref: "#/components/schemas/WeightShift"
+    WeightShift:
+      type: object
+      required: [levelChanges, topThreeChanged, lossDeltaCents]
+      properties:
+        levelChanges:
+          type: integer
+          minimum: 0
+          description: Сколько клиентов сменили уровень.
+        topThreeChanged:
+          type: boolean
+          description: Изменился ли состав первой тройки по ожидаемой потере.
+        lossDeltaCents:
+          type: integer
+          format: int64
+          description: Изменение суммарной ожидаемой потери, евроцентов.
     DryRunResult:
       type: object
       required: [levelChanges, expectedLossDeltaCents]
@@ -1548,6 +1640,15 @@ paths:
           schema:
             type: string
             enum: [exclude, only]
+        - name: cursor
+          in: query
+          description: >-
+            Курсор следующей страницы из `nextCursor` предыдущего ответа. Заменяет `offset`
+            (вместе с ним — 400); сортировка и порядок должны быть те же, что у страницы, из которой
+            он получен. Курсор привязан к версии пересчёта: после нового пересчёта — 409,
+            начните с первой страницы.
+          schema:
+            type: string
       responses:
         "200":
           description: Страница клиентов
@@ -1557,6 +1658,12 @@ paths:
                 $ref: "#/components/schemas/CustomerPage"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Курсор построен по другой версии пересчёта
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "501":
@@ -1936,6 +2043,37 @@ paths:
           $ref: "#/components/responses/UnprocessableEntity"
         "501":
           $ref: "#/components/responses/NotImplemented"
+  /api/v1/model/sensitivity:
+    get:
+      operationId: getModelSensitivity
+      tags: [model]
+      summary: Чувствительность очереди к весам признаков (аналитик, jury)
+      description: >-
+        Для каждого признака с ненулевым весом: что будет, если сдвинуть вес на −20 % и на +20 %.
+        Только чтение, сохранённые настройки не меняются. Результат кэшируется по версии снимка и
+        настроек. Клиентов больше 20 000 — расчёт на выборке 5 000 (sampled=true).
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Чувствительность
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSensitivity"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+        "503":
+          description: Расчёт не уложился в 10 секунд или ещё нет снимка данных
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
   /api/v1/source/snapshot:
     put:
       operationId: putSnapshot

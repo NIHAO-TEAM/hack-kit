@@ -146,8 +146,9 @@ func buildCustomer(c risk.Customer, a risk.Account, svcs []risk.Service) analyti
 			out.Row.TopReason = &reason
 		}
 	}
+	out.ActionCombo = c.ActionComboCents
 	for _, ar := range c.Actions {
-		act := gen.Action{Id: ar.ID, Title: ar.Title, EffectCents: ar.LossDeltaCents}
+		act := gen.Action{Id: ar.ID, Title: ar.Title, EffectCents: ar.LossDeltaCents, CostCents: &ar.CostCents, ReturnPerEuro: ar.ReturnPerEuro}
 		if ar.ScoreAfter != nil {
 			act.NewScore = *ar.ScoreAfter
 		}

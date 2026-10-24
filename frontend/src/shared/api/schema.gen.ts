@@ -401,6 +401,26 @@ export interface paths {
         patch: operations["patchModelSettings"];
         trace?: never;
     };
+    "/api/v1/model/sensitivity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Чувствительность очереди к весам признаков (аналитик, jury)
+         * @description Для каждого признака с ненулевым весом: что будет, если сдвинуть вес на −20 % и на +20 %. Только чтение, сохранённые настройки не меняются. Результат кэшируется по версии снимка и настроек. Клиентов больше 20 000 — расчёт на выборке 5 000 (sampled=true).
+         */
+        get: operations["getModelSensitivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/source/snapshot": {
         parameters: {
             query?: never;
@@ -862,6 +882,8 @@ export interface components {
             eventsPerSecond: number;
             applyP50Ms: number;
             applyP95Ms: number;
+            /** @description p99 длительности применения одного события */
+            applyP99Ms?: number;
             applyMaxMs: number;
             /** @description Сколько пересчётов выполнил движок за прогон (пересчёт склеивает пачки событий) */
             recalcs: number;
@@ -944,6 +966,8 @@ export interface components {
              * @description Версия пересчёта, по которому построена страница.
              */
             version: number;
+            /** @description Курсор следующей страницы; нет, если страница последняя. */
+            nextCursor?: string;
         };
         /**
          * @description В работе, связались, отложено, закрыто.
@@ -1141,6 +1165,16 @@ export interface components {
              */
             newScore: number;
             newLevel: components["schemas"]["RiskLevel"];
+            /**
+             * Format: int64
+             * @description Что действие стоит клиенту, центы (пополнение — сумма, остальные — 0).
+             */
+            costCents?: number;
+            /**
+             * Format: double
+             * @description Снятая ожидаемая потеря на каждый евро цены, 2 знака. Нет при цене 0. Оценка сценария «клиент выполнил действие полностью», не ROI.
+             */
+            returnPerEuro?: number;
         };
         ServiceRisk: {
             /** Format: int64 */
@@ -1174,6 +1208,11 @@ export interface components {
             services: components["schemas"]["Service"][];
             features: components["schemas"]["Feature"][];
             actions: components["schemas"]["Action"][];
+            /**
+             * Format: int64
+             * @description Эффект от совместного применения всех применимых действий (потеря после − до), центы. Нет, если применимо меньше двух действий.
+             */
+            actionCombo?: number;
             explanation?: string;
         };
         Summary: {
@@ -1196,9 +1235,24 @@ export interface components {
             qualityCounts?: {
                 [key: string]: number;
             };
+            /** @description Ожидаемая потеря по причинам (признакам модели), по убыванию потери. Сумма lossCents равна expectedLossCents. Распределение по вкладу w·f признака, не доказанная причинность. */
+            lossByFeature: components["schemas"]["LossByFeature"][];
             retention?: components["schemas"]["SummaryRetention"];
             /** Format: int64 */
             version: number;
+        };
+        LossByFeature: {
+            /** @description Идентификатор признака модели (funds, noauto, fail и т. д.) */
+            featureId: string;
+            /** Format: int64 */
+            lossCents: number;
+            /** @description Клиенты с ненулевой долей потери по этой причине */
+            customers: number;
+            /**
+             * Format: double
+             * @description Доля в ожидаемой потере, 0..100, два знака
+             */
+            sharePercent: number;
         };
         /** @description Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics. */
         SummaryRetention: {
@@ -1272,6 +1326,37 @@ export interface components {
             priceBasis?: "per_period" | "per_month";
             /** @enum {string} */
             asOfMode?: "snapshot" | "server";
+        };
+        ModelSensitivity: {
+            /** @description Размер сдвига веса, процентов (20). */
+            shiftPercent: number;
+            /** @description Расчёт на выборке; число сменивших уровень тогда относится к выборке. */
+            sampled: boolean;
+            /** @description Сколько клиентов в расчёте (размер выборки, если sampled). */
+            customers: number;
+            /** Format: int64 */
+            snapshotVersion: number;
+            /** Format: int64 */
+            settingsVersion: number;
+            features: components["schemas"]["FeatureSensitivity"][];
+        };
+        FeatureSensitivity: {
+            id: string;
+            /** Format: double */
+            weight: number;
+            down: components["schemas"]["WeightShift"];
+            up: components["schemas"]["WeightShift"];
+        };
+        WeightShift: {
+            /** @description Сколько клиентов сменили уровень. */
+            levelChanges: number;
+            /** @description Изменился ли состав первой тройки по ожидаемой потере. */
+            topThreeChanged: boolean;
+            /**
+             * Format: int64
+             * @description Изменение суммарной ожидаемой потери, евроцентов.
+             */
+            lossDeltaCents: number;
         };
         DryRunResult: {
             /** @description Ключ вида «medium->high», значение — число клиентов. */
@@ -1703,6 +1788,8 @@ export interface operations {
                 offset?: number;
                 /** @description Строки «к биллингу» (сбой автосписания): `exclude` — без них, `only` — только они, не задан — все. `total` считается после фильтра. */
                 billing?: "exclude" | "only";
+                /** @description Курсор следующей страницы из `nextCursor` предыдущего ответа. Заменяет `offset` (вместе с ним — 400); сортировка и порядок должны быть те же, что у страницы, из которой он получен. Курсор привязан к версии пересчёта: после нового пересчёта — 409, начните с первой страницы. */
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -1721,6 +1808,15 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            /** @description Курсор построен по другой версии пересчёта */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             501: components["responses"]["NotImplemented"];
         };
     };
@@ -2069,6 +2165,38 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             422: components["responses"]["UnprocessableEntity"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    getModelSensitivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Чувствительность */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelSensitivity"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            501: components["responses"]["NotImplemented"];
+            /** @description Расчёт не уложился в 10 секунд или ещё нет снимка данных */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     putSnapshot: {

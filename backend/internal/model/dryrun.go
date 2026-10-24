@@ -37,6 +37,11 @@ type Ports struct {
 	Check func(body json.RawMessage) []FieldProblem
 	// Preview считает последствия перехода от cur к next на текущем снимке.
 	Preview func(ctx context.Context, cur, next json.RawMessage) (DryRun, error)
+	// SnapshotVersion — номер версии последнего снимка (дёшево); ErrNoData, пока снимков нет.
+	SnapshotVersion func(ctx context.Context) (int64, error)
+	// Sensitivity считает чувствительность очереди к весам на текущем снимке по телу настроек;
+	// ничего не пишет. Нет снимка — ErrNoData.
+	Sensitivity func(ctx context.Context, settings json.RawMessage) (Sensitivity, error)
 	// Actor — кто делает запрос (логин из сессии).
 	Actor func(ctx context.Context) string
 }

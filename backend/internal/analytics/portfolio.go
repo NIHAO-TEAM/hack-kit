@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"sync"
 	"time"
 
 	"example.com/app/internal/platform/api/gen"
@@ -11,6 +12,10 @@ import (
 type Portfolio struct {
 	Version   int64
 	Customers []Customer
+
+	// Модель чтения (readmodel.go): строится один раз, после этого не меняется.
+	once sync.Once
+	rm   *readModel
 }
 
 // Customer — клиент с оценкой. Level — high, medium, low, unscored или lost.
@@ -22,6 +27,8 @@ type Customer struct {
 	Risks    []gen.ServiceRisk
 	Features []gen.Feature
 	Actions  []gen.Action
+	// ActionCombo — эффект совместного применения действий, центы; nil, если действий меньше двух.
+	ActionCombo *int64
 }
 
 // Feed отдаёт последний портфель; nil, пока ни один расчёт не удался.

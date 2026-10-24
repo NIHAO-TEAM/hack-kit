@@ -22,7 +22,9 @@ COPY --from=front /src/frontend/dist/ /tmp/front-dist/
 RUN if [ -n "$(ls -A /tmp/front-dist)" ]; then \
       rm -rf internal/platform/webui/dist && cp -r /tmp/front-dist internal/platform/webui/dist; \
     fi
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
+# PGO: профиль backend/cmd/api/default.pgo; флаг явный, чтобы было видно. Обновление профиля — README.
+RUN CGO_ENABLED=0 go build -pgo=auto -trimpath -ldflags="-s -w" -o /out/api ./cmd/api \
+ && go version -m /out/api | grep -- "-pgo="
 
 # 3. Итоговый образ: без shell, не от root.
 FROM gcr.io/distroless/static:nonroot
