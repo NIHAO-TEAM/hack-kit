@@ -49,6 +49,20 @@ describe('очередь удержания', () => {
     ).toBeInTheDocument();
   });
 
+  it('«Скачать CSV» ведёт на выгрузку с текущей сортировкой', async () => {
+    signedIn();
+    const user = userEvent.setup();
+    renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    await user.click(screen.getByRole('button', { name: 'Email' }));
+    await waitFor(() => {
+      const href = screen.getByRole('link', { name: 'Скачать CSV' }).getAttribute('href') ?? '';
+      expect(href).toContain('/api/v1/customers/export.csv?');
+      expect(href).toContain('sort=email');
+      expect(href).toContain('order=asc');
+    });
+  });
+
   it('пусто: «Сегодня некого спасать»', async () => {
     signedIn();
     server.use(http.get('/api/v1/customers', () => HttpResponse.json({ items: [], total: 0 })));
@@ -72,7 +86,7 @@ describe('очередь удержания', () => {
     expect(
       await screen.findByRole('heading', { name: 'Не удалось загрузить очередь' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Повторить' }).length).toBeGreaterThan(0);
   });
 
   it('нет связи: плашка с повтором', async () => {
@@ -96,12 +110,6 @@ describe('очередь удержания', () => {
     expect(await screen.findByRole('heading', { name: 'Недостаточно прав' })).toBeInTheDocument();
   });
 
-  it('«К биллингу» стоит вместо действия', async () => {
-    signedIn();
-    renderApp('/queue');
-    expect(await screen.findByText('к биллингу')).toBeInTheDocument();
-  });
-
   it('двойной клик по «Баланс»: сначала убывание, затем возрастание, строки в этом порядке', async () => {
     signedIn();
     const user = userEvent.setup();
@@ -110,7 +118,7 @@ describe('очередь удержания', () => {
     const firstEmail = () => within(screen.getAllByRole('row')[1]!).getAllByRole('link')[0]!;
 
     await user.click(screen.getByRole('button', { name: 'Баланс' }));
-    await waitFor(() => expect(firstEmail()).toHaveTextContent('user-0003'));
+    await waitFor(() => expect(firstEmail()).toHaveTextContent('user-0001'));
 
     await user.click(screen.getByRole('button', { name: 'Баланс' }));
     await waitFor(() => expect(firstEmail()).toHaveTextContent('user-0005'));
@@ -223,5 +231,52 @@ describe('очередь удержания', () => {
       await waitFor(() => expect(router.state.location.search).not.toHaveProperty('page'));
       expect(await screen.findByText(/Показаны 1–50 из 230/)).toBeInTheDocument();
     });
+  });
+});
+
+describe('очередь: группа «У биллинга»', () => {
+  it('клиент к биллингу не в таблице очереди, а в свёрнутой группе', async () => {
+    signedIn();
+    const user = userEvent.setup();
+    const seen: Array<string | null> = [];
+    server.events.on('request:start', ({ request }) => {
+      const u = new URL(request.url);
+      if (u.pathname === '/api/v1/customers') seen.push(u.searchParams.get('billing'));
+    });
+    renderApp('/queue');
+    const table = await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    expect(within(table).queryByText(/user-0003/)).not.toBeInTheDocument();
+    const control = await screen.findByRole('button', { name: /У биллинга \(1\)/ });
+    expect(control).toHaveAttribute('aria-expanded', 'false');
+    await user.click(control);
+    const group = await screen.findByRole('table', { name: 'Клиенты у биллинга' });
+    expect(within(group).getAllByRole('row')).toHaveLength(2);
+    expect(seen).toContain('exclude');
+    expect(seen).toContain('only');
+  });
+
+  it('нет таких клиентов: группы нет', async () => {
+    signedIn();
+    server.use(http.get('/api/v1/customers', () => HttpResponse.json({ items: [], total: 0 })));
+    renderApp('/queue');
+    await screen.findByRole('heading', { name: 'Сегодня некого спасать' });
+    expect(screen.queryByText(/У биллинга/)).not.toBeInTheDocument();
+  });
+
+  it('ошибка группы: заголовок с повтором, очередь на месте', async () => {
+    signedIn();
+    server.use(
+      http.get('/api/v1/customers', ({ request }) => {
+        if (new URL(request.url).searchParams.get('billing') !== 'only') return undefined;
+        return HttpResponse.json(
+          { type: 'about:blank', title: 'Сбой', status: 500 },
+          { status: 500, headers: { 'Content-Type': 'application/problem+json' } },
+        );
+      }),
+    );
+    renderApp('/queue');
+    await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    expect(await screen.findByText('У биллинга — не загрузилось')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
   });
 });

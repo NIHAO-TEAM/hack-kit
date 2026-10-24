@@ -3,6 +3,7 @@
 package analytics
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"example.com/app/internal/audit"
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/events"
 	"example.com/app/internal/platform/httpx"
@@ -25,10 +27,14 @@ type (
 
 // AnalyticsAPI обслуживает /customers, /analytics/*, /events, /metrics.
 type AnalyticsAPI struct {
-	pool *pgxpool.Pool
-	bus  *events.Bus
-	clk  clock.Clock
-	feed Feed
+	pool  *pgxpool.Pool
+	bus   *events.Bus
+	clk   clock.Clock
+	feed  Feed
+	audit audit.Recorder
+	// tasks и login — задачи удержания для поля task и фильтра; nil, пока сервер не подключил модуль.
+	tasks TaskSource
+	login func(context.Context) string
 	// overview отдаёт последний результат пересчёта; nil, пока сервер не подключил воркер.
 	overview OverviewFunc
 

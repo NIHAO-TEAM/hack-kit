@@ -98,9 +98,15 @@ export const queueHandlers = [
     const dir = url.searchParams.get('order') === 'asc' ? 1 : -1;
     const level = url.searchParams.get('level');
     const q = (url.searchParams.get('q') ?? '').toLowerCase();
+    const billing = url.searchParams.get('billing');
     const key = sortKey[sort] ?? sortKey['expectedLoss']!;
     const items = rows()
-      .filter((r) => (!level || r.level === level) && r.email.toLowerCase().includes(q))
+      .filter(
+        (r) =>
+          (!level || r.level === level) &&
+          r.email.toLowerCase().includes(q) &&
+          (!billing || Boolean(r.billing) === (billing === 'only')),
+      )
       .sort((a, b) => {
         const lowA = bottom.includes(a.level);
         const lowB = bottom.includes(b.level);
