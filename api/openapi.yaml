@@ -473,13 +473,13 @@ components:
         events:
           type: integer
           minimum: 100
-          maximum: 5000
+          maximum: 100000
           default: 2500
           description: Сколько событий применить
         ratePerSecond:
           type: integer
           minimum: 0
-          maximum: 2000
+          maximum: 20000
           default: 100
           description: Скорость, событий в секунду; 0 — без пауз между событиями
         seed:
