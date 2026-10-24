@@ -2,7 +2,7 @@
 
 ## 1. Логика
 
-- [ ] 1.1 Хвост неоценённых только для `score`/`expectedLoss` — проверка: `go test ./internal/analytics ./internal/app`
+- [x] 1.1 Хвост неоценённых только для `score`/`expectedLoss` — проверка: `go test ./internal/analytics ./internal/app`
 - [ ] 1.2 `TestListCustomersSorts`: полный порядок ID для 4 полей × 2 направления на данных организаторов, `level=lost&sort=id&order=desc` = 8,7,3,2 — проверка: тест падает на старом коде (проверить мутацией), проходит на новом
 
 ## 2. Экран
