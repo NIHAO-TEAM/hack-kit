@@ -71,11 +71,15 @@
 - «Пополнить» — если `funds > 0`: сумма `нужно − есть` добавляется к `balance`. Пример: клиент 9 — пополнить на 529,84 € (52 984), эффект −1 027,49 € (−102 749).
 - «Включить автопродление» — если `noauto > 0`: у всех услуг клиента `autoProlong = true`. Пример: клиент 1 — скор 54,84 → 40,00 (`low`), эффект −375,08 € (−37 508).
 
+Цена действия `costCents`: у «Пополнить» — сумма пополнения, у остальных 0. «На каждый €» = `−эффект ÷ цена` с двумя знаками, при цене 0 пусто. Пример: клиент 9 — 102 749 ÷ 52 984 ≈ 1,94.
+
+Сочетание `actionComboCents` — если применимо два действия и больше: действия применяются подряд к копии данных (сначала автопродление, затем пополнение «нужно − есть» по данным после автопродления), эффект считается пересчётом, а не суммой эффектов. Пример: клиент 9 — −1 029,32 € (−102 932) против суммы −1 028,84 €.
+
 ## 10. Формат golden
 
 ```
 {asOf, source, settings, customers: [{id, state, score, level, expectedLossCents, exposureCents, lostCents,
-  features: {serviceId: {признак: f}}, actions: [{type, amountCents?, lossDeltaCents, scoreBefore, scoreAfter, levelAfter}]}],
+  features: {serviceId: {признак: f}}, actionComboCents?, actions: [{type, amountCents?, costCents, lossDeltaCents, scoreBefore, scoreAfter, levelAfter}]}],
  summary: {levels, expectedLossCents, exposureCents, lostCents}}
 ```
 
