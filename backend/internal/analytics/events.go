@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// TopicStreamProgress — тема шины: ход потока событий эмулятора, полезная нагрузка gen.StreamState.
+// Значение то же, что у source.TopicStreamProgress: модули друг друга не импортируют.
+const TopicStreamProgress = "source.stream"
+
 // heartbeatEvery — как часто в поток уходит пульс-комментарий, чтобы прокси не рвал простаивающее соединение.
 const heartbeatEvery = 15 * time.Second
 
@@ -15,6 +19,8 @@ func (a *AnalyticsAPI) GetEvents(w responseWriter, r *request) {
 	defer cancel()
 	taskEvents, cancelTasks := a.bus.Subscribe(TopicTasks)
 	defer cancelTasks()
+	streamEvents, cancelStream := a.bus.Subscribe(TopicStreamProgress)
+	defer cancelStream()
 
 	// Поток живёт дольше ReadTimeout/IdleTimeout сервера: дедлайны с него снимаются.
 	clearDeadlines(w)
@@ -49,6 +55,12 @@ func (a *AnalyticsAPI) GetEvents(w responseWriter, r *request) {
 			te, _ := ev.Payload.(TaskEvent)
 			data, _ := json.Marshal(te)
 			_, _ = fmt.Fprintf(w, "event: tasks\ndata: %s\n\n", data)
+		case ev, ok := <-streamEvents:
+			if !ok {
+				return
+			}
+			data, _ := json.Marshal(ev.Payload)
+			_, _ = fmt.Fprintf(w, "event: streamProgress\ndata: %s\n\n", data)
 		case <-tick.C:
 			_, _ = fmt.Fprint(w, ": ping\n\n")
 		}
