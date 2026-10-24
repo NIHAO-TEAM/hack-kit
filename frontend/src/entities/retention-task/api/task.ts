@@ -11,8 +11,10 @@ export type TaskCreate = components['schemas']['TaskCreate'];
 export type TaskPatch = components['schemas']['TaskPatch'];
 export type TaskEventCreate = components['schemas']['TaskEventCreate'];
 
-export const taskKey = (id: number) => ['task', id] as const;
-export const assigneesKey = ['task', 'assignees'] as const;
+/** Корень ключей запросов задач: по нему событие SSE `tasks` сбрасывает открытые задачи. */
+export const TASK_ROOT = 'task';
+export const taskKey = (id: number) => [TASK_ROOT, id] as const;
+export const assigneesKey = [TASK_ROOT, 'assignees'] as const;
 
 /** 409: задачу уже изменил другой сотрудник; `task` — её текущее состояние. */
 export class TaskConflictError extends ApiError {

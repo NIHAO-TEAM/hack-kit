@@ -17,7 +17,10 @@ describe('подписи задачи', () => {
   });
 
   it('не просрочено: сколько осталось', () => {
-    expect(dueText('2026-10-24T12:30:00Z', NOW)).toEqual({ text: 'осталось 30 мин', overdue: false });
+    expect(dueText('2026-10-24T12:30:00Z', NOW)).toEqual({
+      text: 'осталось 30 мин',
+      overdue: false,
+    });
     expect(dueText('2026-10-30T12:00:00Z', NOW).text).toBe('осталось 6 д');
   });
 

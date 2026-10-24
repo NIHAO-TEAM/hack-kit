@@ -3,6 +3,7 @@ export {
   assigneesQuery,
   patchTask,
   takeTask,
+  TASK_ROOT,
   taskKey,
   taskQuery,
   TaskConflictError,
