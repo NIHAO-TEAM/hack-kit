@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 // Вёрстка на телефоне и планшете (шкала 5.9): без горизонтальной прокрутки страницы,
 // цели касания от 44 px на планшете, главное действие видно на телефоне.
-// Только читает прод: «Взять в работу» не нажимается. Пароль — из окружения.
+// Только читает прод: «Отметить: взято в работу» не нажимается. Пароль — из окружения.
 const juryPassword = process.env.E2E_JURY_PASSWORD ?? '';
 
 const MIN_TARGET = 44;
@@ -24,9 +24,8 @@ const screens: Screen[] = [
     name: 'карточка клиента 9',
     path: '/queue/9',
     ready: heading,
-    action: (p) => p.getByRole('button', { name: /^(Взять в работу|Связались)$/ }),
+    action: (p) => p.getByRole('button', { name: /^(Отметить: взято в работу|Закрыть)$/ }),
   },
-  { name: 'задачи', path: '/tasks', ready: heading },
   { name: 'сводка', path: '/summary', ready: heading },
   { name: 'модель', path: '/model', ready: heading },
   { name: 'источник', path: '/source', ready: heading },
@@ -41,8 +40,8 @@ const touchTargets = (p: Page): { what: string; loc: Locator }[] => [
   { what: 'шапка: тема', loc: p.locator('header').getByRole('radio') },
   { what: 'меню', loc: p.getByRole('navigation', { name: 'Разделы' }).getByRole('link') },
   { what: 'сортировка', loc: p.getByRole('columnheader').getByRole('button') },
-  { what: 'Взять в работу', loc: p.getByRole('button', { name: 'Взять в работу' }) },
-  { what: 'Связались', loc: p.getByRole('button', { name: 'Связались' }) },
+  { what: 'Отметить: взято в работу', loc: p.getByRole('button', { name: 'Отметить: взято в работу' }) },
+  { what: 'Закрыть', loc: p.getByRole('button', { name: 'Закрыть', exact: true }) },
   { what: 'страницы', loc: p.getByRole('button', { name: /страниц|Назад|Вперёд|Следующая|Предыдущая/i }) },
   { what: 'кнопка формы', loc: p.locator('main').getByRole('button', { name: /^(Войти|Отложить|Закрыть задачу|Экспорт.*)$/ }) },
 ];

@@ -152,9 +152,10 @@ async function tasksOf(request: APIRequestContext, customerId: number): Promise<
   return ((await res.json()).items as TaskItem[]).filter((t) => t.customerId === customerId);
 }
 
-// Цикл удержания (шаг 5 демо): взять в работу → пополнение эмулятором → наблюдение → закрыть «Продлил».
+// Цикл удержания (шаг 5 демо, ADR-0004): «Отметить: взято в работу» → пополнение эмулятором → наблюдение → закрыть «Продлил».
+// Экрана «Задачи» нет: вся цепочка в карточке клиента.
 // Задачи сбросом эмулятора не стираются, поэтому старую открытую задачу клиента 9 закрываем до начала.
-test('демо: взять в работу → пополнение → наблюдение → закрыть «Продлил»', async ({ browser, baseURL }) => {
+test('демо: отметить «взято в работу» → пополнение → наблюдение → закрыть «Продлил»', async ({ browser, baseURL }) => {
   test.skip(!juryPassword, 'нужен E2E_JURY_PASSWORD');
   const ctx = await browser.newContext({ baseURL });
   const api = ctx.request;
@@ -168,11 +169,12 @@ test('демо: взять в работу → пополнение → набл
     }
     const lossTaken = (await customers(api)).find((r) => r.id === 9)!.expectedLossCents;
 
-    // Взять в работу в карточке.
+    // Отметить в карточке: срок и ответственный в интерфейсе не показываются.
     const page = await ctx.newPage();
     await page.goto('/queue/9');
-    await page.getByRole('button', { name: 'Взять в работу' }).click();
-    await expect(page.getByRole('button', { name: 'Связались' })).toBeVisible();
+    await page.getByRole('button', { name: 'Отметить: взято в работу' }).click();
+    await expect(page.getByRole('button', { name: 'Закрыть', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Связались' })).toHaveCount(0);
 
     // «Источник»: эмулятор пополняет баланс клиента 9.
     await page.goto('/source');
@@ -197,7 +199,7 @@ test('демо: взять в работу → пополнение → набл
     await page.getByRole('combobox', { name: 'Итог' }).click();
     await page.getByRole('option', { name: 'Продлил' }).click();
     await page.getByRole('button', { name: 'Закрыть задачу' }).click();
-    await expect(page.getByRole('button', { name: 'Взять в работу' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Отметить: взято в работу' })).toBeVisible();
     const last = (await tasksOf(api, 9)).find((t) => t.status === 'closed' && t.outcome === 'renewed');
     expect(last, 'закрытая задача с итогом renewed').toBeTruthy();
   } finally {
