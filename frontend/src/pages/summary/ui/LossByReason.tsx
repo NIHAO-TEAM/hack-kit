@@ -1,4 +1,5 @@
 import { Card, Group, Text, Title } from '@mantine/core';
+import { Link } from '@tanstack/react-router';
 import classes from './LossByReason.module.css';
 import { reasonRows, type ReasonLoss } from '../model/loss-by-reason';
 import { Money } from '@shared/ui';
@@ -18,7 +19,14 @@ export function LossByReason({ items }: { items: readonly ReasonLoss[] }) {
           {rows.map((r) => (
             <li key={r.featureId}>
               <Group justify="space-between" gap="sm" wrap="nowrap">
-                <Text fw={500}>{r.title}</Text>
+                <Link
+                  to="/queue"
+                  search={{ reason: r.featureId }}
+                  className={classes.link}
+                  aria-label={`${r.title}: показать клиентов в очереди`}
+                >
+                  {r.title}
+                </Link>
                 <Text span>
                   <Money cents={r.lossCents} /> · {r.share}
                 </Text>

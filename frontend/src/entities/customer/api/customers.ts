@@ -6,7 +6,14 @@ export type CustomerRow = components['schemas']['CustomerRow'];
 export type RiskLevel = components['schemas']['RiskLevel'];
 
 export type CustomerSort =
-  'id' | 'email' | 'balance' | 'totalReplenished' | 'score' | 'expectedLoss';
+  | 'id'
+  | 'email'
+  | 'balance'
+  | 'totalReplenished'
+  | 'score'
+  | 'expectedLoss'
+  /** Потеря по причине из `reason`; серверу `sort` не передаётся, он сам так упорядочивает. */
+  | 'reasonLoss';
 export type CustomerOrder = 'asc' | 'desc';
 
 export interface CustomerParams {
@@ -14,6 +21,8 @@ export interface CustomerParams {
   order: CustomerOrder;
   level?: RiskLevel;
   q?: string;
+  /** Причина риска (признак модели): только клиенты с ненулевой потерей по ней. */
+  reason?: string;
   /** Строки «к биллингу»: `exclude` — без них, `only` — только они; без параметра — все. */
   billing?: 'exclude' | 'only';
   /** Номер страницы с 1; без него — первая. */
@@ -26,6 +35,10 @@ export interface CustomerParams {
 export const QUEUE_PAGE_SIZE = 50;
 const MAX_LIMIT = 200;
 
+/** `sort` для сервера: «по потере по причине» он применяет сам, пока задан `reason`. */
+const serverSort = (params: CustomerParams) =>
+  params.sort !== 'reasonLoss' ? params.sort : params.reason ? undefined : 'expectedLoss';
+
 export const customersOffset = (page: number | undefined, limit: number) =>
   (Math.max(page ?? 1, 1) - 1) * limit;
 
@@ -34,7 +47,11 @@ export const customersOffset = (page: number | undefined, limit: number) =>
  * без страниц. Строки «к биллингу» остаются в файле, у них своя колонка.
  */
 export const customersExportHref = (params: CustomerParams) => {
-  const query = new URLSearchParams({ sort: params.sort, order: params.order });
+  const query = new URLSearchParams();
+  const sort = serverSort(params);
+  if (sort) query.set('sort', sort);
+  query.set('order', params.order);
+  if (params.reason) query.set('reason', params.reason);
   if (params.level) query.set('level', params.level);
   if (params.q) query.set('q', params.q);
   return `/api/v1/customers/export.csv?${query}`;
@@ -51,9 +68,10 @@ export const customersOptions = (params: CustomerParams) =>
         .GET('/api/v1/customers', {
           params: {
             query: {
-              sort: params.sort,
+              sort: serverSort(params),
               order: params.order,
               level: params.level,
+              reason: params.reason,
               q: params.q || undefined,
               billing: params.billing,
               limit: params.limit ?? MAX_LIMIT,

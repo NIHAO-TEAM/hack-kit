@@ -46,7 +46,17 @@ func decodeCursor(s string) (cursor, error) {
 	return cursor{Version: v, Sort: gen.ListCustomersParamsSort(parts[1]), Desc: parts[2] == "d", Pos: pos}, nil
 }
 
+// reasonSortPrefix — сортировка по потере по причине (без явного sort при заданном reason): «reason:<признак>».
+const reasonSortPrefix = "reason:"
+
+func reasonSort(reason string) gen.ListCustomersParamsSort {
+	return gen.ListCustomersParamsSort(reasonSortPrefix + reason)
+}
+
 func validSort(s gen.ListCustomersParamsSort) bool {
+	if strings.HasPrefix(string(s), reasonSortPrefix) {
+		return len(s) > len(reasonSortPrefix)
+	}
 	for _, k := range sortKeys {
 		if k == s {
 			return true
@@ -56,10 +66,12 @@ func validSort(s gen.ListCustomersParamsSort) bool {
 }
 
 // matches — выдан ли курсор для той же сортировки и порядка, что в запросе (по умолчанию — потеря, по убыванию).
-func (c cursor) matches(sortBy *gen.ListCustomersParamsSort, order *gen.ListCustomersParamsOrder) bool {
+func (c cursor) matches(sortBy *gen.ListCustomersParamsSort, order *gen.ListCustomersParamsOrder, reason *string) bool {
 	s, desc := gen.ListCustomersParamsSort("expectedLoss"), true
 	if sortBy != nil {
 		s = *sortBy
+	} else if reason != nil && *reason != "" {
+		s = reasonSort(*reason)
 	}
 	if order != nil {
 		desc = *order != gen.Asc

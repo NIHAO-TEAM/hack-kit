@@ -22,6 +22,9 @@ type readModel struct {
 	orders [][2][]int32
 	// raw[i] — JSON строки списка клиента i без поля task (оно зависит от запроса); собирается один раз.
 	raw [][]byte
+	// byReason[признак][0] — позиции клиентов с ненулевой потерей по причине по возрастанию этой потери,
+	// [1] — по убыванию; при равных значениях по id.
+	byReason map[string][2][]int32
 }
 
 // BuildIndex строит порядки сразу; без вызова они строятся при первом чтении списка.
@@ -59,8 +62,53 @@ func buildReadModel(cs []Customer) *readModel {
 			}()
 		}
 	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rm.byReason = reasonOrders(cs)
+	}()
 	wg.Wait()
 	return rm
+}
+
+// reasonOrders строит для каждой причины список клиентов с ненулевой потерей по ней.
+func reasonOrders(cs []Customer) map[string][2][]int32 {
+	byReason := map[string][2][]int32{}
+	for i := range cs {
+		for id := range cs[i].Loss {
+			o := byReason[id]
+			o[1] = append(o[1], int32(i))
+			byReason[id] = o
+		}
+	}
+	for id, o := range byReason {
+		desc := o[1]
+		slices.SortFunc(desc, func(i, j int32) int {
+			if c := cmp.Compare(cs[j].Loss[id], cs[i].Loss[id]); c != 0 {
+				return c
+			}
+			return cmp.Compare(cs[i].Row.Id, cs[j].Row.Id)
+		})
+		asc := slices.Clone(desc)
+		slices.SortFunc(asc, func(i, j int32) int {
+			if c := cmp.Compare(cs[i].Loss[id], cs[j].Loss[id]); c != 0 {
+				return c
+			}
+			return cmp.Compare(cs[i].Row.Id, cs[j].Row.Id)
+		})
+		o[0] = asc
+		byReason[id] = o
+	}
+	return byReason
+}
+
+// reasonOrder — клиенты причины в порядке её потери; нет клиентов — пустой срез.
+func (rm *readModel) reasonOrder(reason string, desc bool) []int32 {
+	o := rm.byReason[reason]
+	if desc {
+		return o[1]
+	}
+	return o[0]
 }
 
 // sortedPositions повторяет прежнюю сортировку списка: по полю, при равных — по id; по скору

@@ -50,13 +50,13 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 			httpx.WriteProblem(w, r, 409, "курсор устарел: данные пересчитаны, начните с первой страницы")
 			return
 		}
-		if !c.matches(p.Sort, p.Order) {
+		if !c.matches(p.Sort, p.Order, p.Reason) {
 			httpx.WriteProblem(w, r, 400, "cursor выдан для другой сортировки")
 			return
 		}
 		after = c.Pos
 	}
-	f := customerFilter{Level: p.Level, Q: p.Q, Sort: p.Sort, Order: p.Order, Billing: p.Billing, Task: p.Task}
+	f := customerFilter{Level: p.Level, Q: p.Q, Sort: p.Sort, Order: p.Order, Billing: p.Billing, Task: p.Task, Reason: p.Reason}
 	var err error
 	if f.Tasks, err = a.openTasks(r.Context()); err != nil && p.Task != nil {
 		httpx.WriteProblem(w, r, 500, "задачи недоступны")
@@ -118,6 +118,8 @@ type customerFilter struct {
 	Sort    *gen.ListCustomersParamsSort
 	Order   *gen.ListCustomersParamsOrder
 	Billing *gen.ListCustomersParamsBilling
+	// Reason — причина риска (признак модели): только клиенты с ненулевой потерей по ней.
+	Reason *string
 	// Task, Tasks и Me — фильтр по задачам удержания: открытые задачи по ID клиента и логин
 	// текущего пользователя для «mine». Выгрузка их не задаёт, строки идут без task.
 	Task  *gen.ListCustomersParamsTask
@@ -133,6 +135,8 @@ type selector struct {
 	sort  gen.ListCustomersParamsSort
 	desc  bool
 	q     string
+	// reason — причина из фильтра, "" если не задан.
+	reason string
 }
 
 // newSelector проверяет параметры; при неверном вернёт текст для 400.
@@ -150,24 +154,42 @@ func newSelector(pf *Portfolio, f customerFilter) (*selector, string) {
 	if f.Billing != nil && *f.Billing != gen.Exclude && *f.Billing != gen.Only {
 		return nil, "billing: exclude или only"
 	}
-	order, ok := pf.index().order(sortBy, desc)
-	if !ok {
-		return nil, "неизвестное поле сортировки"
+	reason := ""
+	if f.Reason != nil {
+		reason = *f.Reason
+		if !slices.Contains(pf.Reasons, reason) {
+			return nil, "reason: неизвестная причина, допустимые: " + strings.Join(pf.Reasons, ", ")
+		}
+	}
+	var order []int32
+	if reason != "" && f.Sort == nil {
+		// без явной сортировки причина упорядочивает очередь по своей потере
+		sortBy = reasonSort(reason)
+		order = pf.index().reasonOrder(reason, desc)
+	} else {
+		var ok bool
+		if order, ok = pf.index().order(sortBy, desc); !ok {
+			return nil, "неизвестное поле сортировки"
+		}
 	}
 	if f.Task != nil && !validTaskFilter(*f.Task) {
 		return nil, "task: none, open или mine"
 	}
-	s := &selector{pf: pf, f: f, order: order, sort: sortBy, desc: desc}
+	s := &selector{pf: pf, f: f, order: order, sort: sortBy, desc: desc, reason: reason}
 	if f.Q != nil {
 		s.q = strings.ToLower(strings.TrimSpace(*f.Q))
 	}
 	return s, ""
 }
 
-// match — проходит ли клиент фильтры; строку не копирует.
-func (s *selector) match(row *gen.CustomerRow) bool {
+// match — проходит ли клиент на позиции pos фильтры; строку не копирует.
+func (s *selector) match(pos int32) bool {
 	f := s.f
+	row := &s.pf.Customers[pos].Row
 	if f.Level != nil && row.Level != *f.Level {
+		return false
+	}
+	if s.reason != "" && s.pf.Customers[pos].Loss[s.reason] <= 0 {
 		return false
 	}
 	if f.Billing != nil && isBilling(*row) != (*f.Billing == gen.Only) {
@@ -192,14 +214,19 @@ func (s *selector) match(row *gen.CustomerRow) bool {
 }
 
 func (s *selector) row(pos int32) gen.CustomerRow {
-	row := s.pf.Customers[pos].Row
+	c := &s.pf.Customers[pos]
+	row := c.Row
 	row.Task = briefFor(s.f.Tasks, row)
+	if s.reason != "" {
+		loss := c.Loss[s.reason]
+		row.ReasonLossCents = &loss
+	}
 	return row
 }
 
 // rowJSON — JSON строки: из модели чтения, если у клиента нет открытой задачи, иначе собирается с task.
 func (s *selector) rowJSON(pos int32) []byte {
-	if briefFor(s.f.Tasks, s.pf.Customers[pos].Row) == nil {
+	if s.reason == "" && briefFor(s.f.Tasks, s.pf.Customers[pos].Row) == nil {
 		return s.pf.index().raw[pos]
 	}
 	b, _ := json.Marshal(s.row(pos))
@@ -214,7 +241,7 @@ func selectRows(pf *Portfolio, f customerFilter) (rows []gen.CustomerRow, bad st
 	}
 	rows = make([]gen.CustomerRow, 0, len(s.order))
 	for _, pos := range s.order {
-		if s.match(&s.pf.Customers[pos].Row) {
+		if s.match(pos) {
 			rows = append(rows, s.row(pos))
 		}
 	}
@@ -245,7 +272,7 @@ func selectPage(pf *Portfolio, f customerFilter, win window) (pageResult, string
 	res := pageResult{Items: make([][]byte, 0, win.Limit), Sort: s.sort, Desc: s.desc, Last: -1}
 	skipped := 0
 	for k, pos := range s.order {
-		if !s.match(&pf.Customers[pos].Row) {
+		if !s.match(pos) {
 			continue
 		}
 		res.Total++
