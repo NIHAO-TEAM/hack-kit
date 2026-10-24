@@ -1,10 +1,18 @@
-import { AppShell as MantineShell, Burger, Button, Group, NavLink, Text } from '@mantine/core';
+import {
+  AppShell as MantineShell,
+  Burger,
+  Button,
+  Group,
+  NavLink,
+  Text,
+  Tooltip,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { can, logout, sessionKey, type Right } from '@entities/session';
-import { IconLogout } from '@shared/ui';
+import { IconExternalLink, IconLogout } from '@shared/ui';
 import { RealtimeProvider } from '../realtime';
 import { Route } from '../routes/_app';
 import { ThemeSwitch } from './ThemeSwitch';
@@ -61,6 +69,21 @@ export function AppShell() {
             </Text>
           </Group>
           <Group wrap="nowrap">
+            {can(user.role, 'source.view') && (
+              <Tooltip label="Графики Grafana: пересчёты, очередь, источник">
+                <Button
+                  component="a"
+                  href="/grafana/"
+                  target="_blank"
+                  rel="noopener"
+                  variant="default"
+                  size="compact-md"
+                  rightSection={<IconExternalLink size={16} aria-hidden />}
+                >
+                  Мониторинг
+                </Button>
+              </Tooltip>
+            )}
             <ThemeSwitch />
             <Text size="sm" visibleFrom="sm">
               {user.login}

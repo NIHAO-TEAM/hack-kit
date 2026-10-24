@@ -2,6 +2,7 @@
 export {
   IconAlertTriangle,
   IconDeviceDesktop,
+  IconExternalLink,
   IconInbox,
   IconLock,
   IconLogout,
