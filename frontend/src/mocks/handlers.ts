@@ -6,6 +6,7 @@ import { customerDetailHandler } from './customer-detail';
 import { modelSettingsHandlers } from './model-settings';
 import { sourceHandlers } from './source';
 import { auditHandlers } from './audit';
+import { taskHandlers } from './tasks';
 
 type User = components['schemas']['User'];
 type CustomerRow = components['schemas']['CustomerRow'];
@@ -113,6 +114,7 @@ export const handlers = [
   ...modelSettingsHandlers,
   ...sourceHandlers,
   ...auditHandlers,
+  ...taskHandlers,
   customerDetailHandler(
     (id) => {
       const customer = queueRows().find((r) => r.id === id) ?? rows().find((r) => r.id === id);
