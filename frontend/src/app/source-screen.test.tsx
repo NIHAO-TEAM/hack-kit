@@ -116,6 +116,29 @@ describe('экран «Источник»', () => {
     );
   });
 
+  it.each([
+    ['529,84', 52984],
+    ['529', 52900],
+    ['0,05', 5],
+  ])('пополнение на «%s» € уходит в запрос как %d центов', async (typed, cents) => {
+    signedInAs('analyst');
+    const bodies: unknown[] = [];
+    server.use(
+      http.post('/api/v1/source/emulator/actions', async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ version: 2, source: 'emulator' });
+      }),
+    );
+    const user = userEvent.setup();
+    renderApp('/source');
+    const emulator = await screen.findByRole('region', { name: 'Эмулятор биллинга' });
+    await user.type(within(emulator).getByLabelText('Номер клиента'), '9');
+    await user.type(within(emulator).getByLabelText('Сумма, €'), typed);
+    await user.click(within(emulator).getByRole('button', { name: 'Пополнить' }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(JSON.stringify(bodies[0])).toContain(`"cents":${cents}`);
+  });
+
   it('плохой файл: ошибка по полю человеческим текстом', async () => {
     signedInAs('analyst');
     const user = userEvent.setup();
