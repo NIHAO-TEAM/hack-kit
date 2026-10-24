@@ -13,7 +13,7 @@
 
 ## 3. Проверка после выката
 
-- [ ] 3.1 Тест discovery Keycloak в `e2e/tests/smoke.spec.ts` — проверка: `deploy-smoke.yml` зелёный на проде
+- [x] 3.1 Тест discovery Keycloak в `e2e/tests/smoke.spec.ts` — проверка: `deploy-smoke.yml` зелёный на проде
 
 ## 4. Готовность
 
