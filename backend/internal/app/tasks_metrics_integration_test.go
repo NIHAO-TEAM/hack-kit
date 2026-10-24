@@ -185,3 +185,42 @@ func TestTaskMetrics(t *testing.T) {
 		t.Errorf("задачи не должны пропадать вместе со снимком: %v", m)
 	}
 }
+
+// Блок retention в сводке и churn_retention_* в /metrics берутся из одних задач и одного портфеля.
+func TestSummaryRetentionMatchesMetrics(t *testing.T) {
+	r := taskRig(t)
+	ctx := context.Background()
+	marketer := r.As(t, auth.RoleMarketer)
+	if t9 := take(t, marketer, 9).JSON201; t9 == nil {
+		t.Fatal("задача клиента 9 не создана")
+	}
+
+	sum, err := marketer.GetSummaryWithResponse(ctx)
+	if err != nil || sum.JSON200 == nil || sum.JSON200.Retention == nil {
+		t.Fatalf("сводка без блока retention: %v %s", err, sum.Body)
+	}
+	b := sum.JSON200.Retention
+	m, _ := metricValues(t, r)
+	for name, pair := range map[string][2]float64{
+		`tasks{in_work}`:    {float64(b.TasksInWork), m[`churn_retention_tasks{status="in_work"}`]},
+		`tasks{contacted}`:  {float64(b.TasksContacted), m[`churn_retention_tasks{status="contacted"}`]},
+		`tasks{postponed}`:  {float64(b.TasksPostponed), m[`churn_retention_tasks{status="postponed"}`]},
+		`tasks_overdue`:     {float64(b.TasksOverdue), m["churn_retention_tasks_overdue"]},
+		`loss_in_work`:      {float64(b.LossInWorkCents), m["churn_retention_expected_loss_in_work_cents"]},
+		`customers in work`: {float64(b.CustomersInWork), 1},
+	} {
+		if pair[0] != pair[1] {
+			t.Errorf("%s: в сводке %v, в метриках/ожидании %v", name, pair[0], pair[1])
+		}
+	}
+	card, err := marketer.GetCustomerWithResponse(ctx, 9)
+	if err != nil || card.JSON200 == nil {
+		t.Fatalf("карточка 9: %v", err)
+	}
+	if b.LossInWorkCents != card.JSON200.Customer.ExpectedLossCents || b.LossInWorkCents != 318910 {
+		t.Errorf("потеря в работе %d, карточка %d, ждали 318910", b.LossInWorkCents, card.JSON200.Customer.ExpectedLossCents)
+	}
+	if b.HighWithoutTask != 2 {
+		t.Errorf("высокий риск без работы = %d, ждали 2 (клиенты 10 и 5)", b.HighWithoutTask)
+	}
+}
