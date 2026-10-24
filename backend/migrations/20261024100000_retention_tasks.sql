@@ -31,7 +31,7 @@ CREATE TABLE public.retention_task_events (
     at timestamptz NOT NULL,
     actor text NOT NULL,
     kind text NOT NULL CHECK (kind IN ('created', 'changed', 'contact', 'note')),
-    channel text CHECK (channel IN ('email', 'phone', 'messenger', 'other')),
+    channel text CHECK (channel IN ('mail', 'phone', 'messenger', 'other')),
     text text NOT NULL DEFAULT '',
     changes jsonb NOT NULL DEFAULT '[]'
 );
