@@ -55,7 +55,7 @@ test.beforeAll(() => {
   test.skip(!marketerPassword || !analystPassword, 'нужны E2E_MARKETER_PASSWORD и E2E_ANALYST_PASSWORD');
 });
 
-test('демо: очередь → карточка → вес → автопродление → /metrics', async ({ browser, baseURL }) => {
+test('демо: очередь → карточка → потеря по причинам → вес → устойчивость → автопродление → поток событий → /metrics', async ({ browser, baseURL }) => {
   const marketerCtx = await browser.newContext({ baseURL });
   const analystCtx = await browser.newContext({ baseURL });
   const analyst = analystCtx.request;
@@ -85,7 +85,15 @@ test('демо: очередь → карточка → вес → автопр�
     await expect(page.getByText(money('3 189,10')).first()).toBeVisible();
     await page.goto('/queue');
 
-    // Шаг 3. Аналитик меняет вес — очередь обновляется без перезагрузки.
+    // Шаг 3. «Сводка»: где теряем деньги, по причинам.
+    await test.step('Сводка: где теряем деньги', async () => {
+      await page.goto('/summary');
+      await expect(page.getByRole('heading', { name: 'Где теряем деньги' })).toBeVisible();
+      await expect(page.getByText('Это не доказанная причинность.')).toBeVisible();
+      await page.goto('/queue');
+    });
+
+    // Шаг 4. Аналитик меняет вес — очередь обновляется без перезагрузки.
     let reloaded = false;
     page.on('load', () => {
       reloaded = true;
@@ -100,7 +108,17 @@ test('демо: очередь → карточка → вес → автопр�
     expect(high.level).toBe('high');
     expect(high.score).toBeCloseTo(84.75, 1);
 
-    // Шаг 4. Эмулятор: автопродление №1 — потеря падает (~375 €).
+    // Устойчивость очереди к весам видит аналитик на «О модели».
+    await test.step('О модели: устойчивость очереди к весам', async () => {
+      const analystPage = await analystCtx.newPage();
+      await uiLogin(analystPage, 'analyst', analystPassword);
+      await analystPage.goto('/about');
+      await expect(analystPage.getByRole('heading', { name: 'Насколько устойчива очередь' })).toBeVisible();
+      await expect(analystPage.getByRole('region', { name: 'Устойчивость очереди к весам' })).toBeVisible();
+      await analystPage.close();
+    });
+
+    // Шаг 5. Эмулятор: автопродление №1 — потеря падает (~375 €).
     // Эффект ~375 € — при весе по умолчанию 0,55 (при 0,85 он 579,67 €), поэтому вес возвращаем.
     await setNoauto(analyst, 0.55);
     await expect
@@ -121,7 +139,28 @@ test('демо: очередь → карточка → вес → автопр�
     expect(drop).toBeGreaterThan(30_000);
     expect(drop).toBeLessThan(40_000);
 
-    // Шаг 5. /metrics = сводка.
+    // Шаг 6. Поток 2 500 событий и сверка с пересчётом с нуля («Источник»).
+    await test.step('Источник: поток 2 500 событий, согласованность 0 центов', async () => {
+      const analystPage = await analystCtx.newPage();
+      await uiLogin(analystPage, 'analyst', analystPassword);
+      await analystPage.goto('/source');
+      const panel = analystPage.getByRole('region', { name: 'Поток событий' });
+      await panel.getByLabel('Скорость').click();
+      await analystPage.getByRole('option', { name: 'Без пауз' }).click();
+      await panel.getByRole('button', { name: /Прогнать .*2.500.* событий/ }).click();
+      await expect(panel.getByRole('status').filter({ hasText: /Согласованность: пересчёт с нуля совпал \(разница 0\s¢/ })).toBeVisible({
+        timeout: 180_000,
+      });
+      await expect(panel.getByRole('region', { name: 'Итог прогона' })).toContainText('Применено событий');
+      await analystPage.close();
+    });
+
+    // Шаг 7. Инженерия: ссылка «Мониторинг» ведёт на Grafana (сама Grafana на стенде раннера может отсутствовать).
+    await test.step('Ссылка «Мониторинг» ведёт на /grafana/', async () => {
+      await expect(page.getByRole('link', { name: 'Мониторинг' })).toHaveAttribute('href', '/grafana/');
+    });
+
+    // Шаг 7. /metrics = сводка.
     const summary = await (await marketerCtx.request.get('/api/v1/analytics/summary')).json();
     const metrics = await marketerCtx.request.get('/metrics');
     expect(metrics.ok(), '/metrics').toBeTruthy();
