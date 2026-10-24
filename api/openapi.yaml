@@ -953,7 +953,42 @@ components:
           description: Сколько услуг и клиентов отмечено каждой проверкой качества данных
           additionalProperties:
             type: integer
+        retention:
+          $ref: "#/components/schemas/SummaryRetention"
         version:
+          type: integer
+          format: int64
+    SummaryRetention:
+      type: object
+      description: Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics.
+      required: [tasksInWork, tasksContacted, tasksPostponed, tasksOverdue, customersInWork, lossInWorkCents, highWithoutTask, highWithoutTaskLossCents, mediumWithoutTask, mediumWithoutTaskLossCents]
+      properties:
+        tasksInWork:
+          type: integer
+          description: Открытые задачи в статусе in_work
+        tasksContacted:
+          type: integer
+        tasksPostponed:
+          type: integer
+        tasksOverdue:
+          type: integer
+          description: Открытые задачи с прошедшим сроком
+        customersInWork:
+          type: integer
+          description: Клиенты с открытой задачей, которые есть в текущем снимке
+        lossInWorkCents:
+          type: integer
+          format: int64
+          description: Ожидаемая потеря клиентов в работе (центы евро)
+        highWithoutTask:
+          type: integer
+          description: Клиенты высокого риска без открытой задачи
+        highWithoutTaskLossCents:
+          type: integer
+          format: int64
+        mediumWithoutTask:
+          type: integer
+        mediumWithoutTaskLossCents:
           type: integer
           format: int64
     ChurnPoint:

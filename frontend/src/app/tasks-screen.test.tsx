@@ -31,6 +31,12 @@ describe('экран «Задачи»', () => {
     expect(screen.getByRole('link', { name: /9 · a@x.test/ })).toHaveAttribute('href', '/queue/9');
   });
 
+  it('адрес ?filter=overdue открывает «Просроченные» (ссылка со «Сводки»)', async () => {
+    asRole('marketer');
+    renderApp('/tasks?filter=overdue');
+    expect(await screen.findByRole('radio', { name: 'Просроченные' })).toBeChecked();
+  });
+
   it('у аналитика по умолчанию «Все открытые»', async () => {
     asRole('analyst');
     seedTask(10, { assignee: 'jury', customerEmail: 'b@x.test' });
