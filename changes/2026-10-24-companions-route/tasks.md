@@ -8,7 +8,7 @@
 
 ## 2. Чарт
 
-- [ ] 2.1 Спутники через `Endpoints` (или правка по найденной причине) — проверка: `helm template … | kubeconform` (job `lint` в `deploy-k8s.yml`)
+- [x] 2.1 Спутники через `Endpoints` (или правка по найденной причине) — проверка: `helm template … | kubeconform` (job `lint` в `deploy-k8s.yml`) (проверит CI: helm в среде нет)
 
 ## 3. Прод
 

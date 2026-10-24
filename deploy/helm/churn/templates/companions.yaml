@@ -1,5 +1,6 @@
 {{- if .Values.companions.enabled }}
-# Keycloak и Grafana живут в Compose на хосте: Service без селектора + EndpointSlice на адрес хоста.
+# Keycloak и Grafana живут в Compose на хосте: Service без селектора + Endpoints на адрес хоста
+# (Traefik берёт адреса из Endpoints; EndpointSlice создаётся из них зеркалированием).
 {{- range $name, $port := dict "keycloak" .Values.companions.keycloak.port "grafana" .Values.companions.grafana.port }}
 apiVersion: v1
 kind: Service
@@ -10,18 +11,16 @@ spec:
   ports:
     - {name: http, port: 8080, targetPort: {{ $port }}, protocol: TCP}
 ---
-apiVersion: discovery.k8s.io/v1
-kind: EndpointSlice
+apiVersion: v1
+kind: Endpoints
 metadata:
   name: {{ $.Release.Name }}-{{ $name }}
-  labels:
-    kubernetes.io/service-name: {{ $.Release.Name }}-{{ $name }}
-    {{- include "churn.labels" $ | nindent 4 }}
-addressType: IPv4
-ports:
-  - {name: http, port: {{ $port }}, protocol: TCP}
-endpoints:
-  - addresses: [{{ $.Values.companions.hostAddress | quote }}]
+  labels: {{- include "churn.labels" $ | nindent 4 }}
+subsets:
+  - addresses:
+      - ip: {{ $.Values.companions.hostAddress | quote }}
+    ports:
+      - {name: http, port: {{ $port }}, protocol: TCP}
 ---
 {{- end }}
 {{- end }}
