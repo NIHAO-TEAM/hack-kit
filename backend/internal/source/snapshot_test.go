@@ -2,6 +2,7 @@ package source
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -185,5 +186,85 @@ func TestValidateMoneyLimit(t *testing.T) {
 	edge := `{"accounts":[{"id":1,"email":"a@x.test","balance":1000000000,"withdrawBalance":0,"totalReplenished":0,"bonusBalance":0,"bonusState":"locked"}],"services":[],"transactions":[]}`
 	if errs := Validate(parseFile(t, []byte(edge))); len(errs) != 0 {
 		t.Errorf("сумма ровно на пределе отклонена: %v", errs)
+	}
+}
+
+// recorder запоминает порядок массивов и число записей, которые отдал parseStream.
+type recorder struct {
+	order  []table
+	counts [3]int
+}
+
+func (r *recorder) begin(t table) error { r.order = append(r.order, t); return nil }
+func (r *recorder) end(table) error     { return nil }
+func (r *recorder) account(int, Account) error {
+	r.counts[tableAccounts]++
+	return nil
+}
+func (r *recorder) service(int, Service) error {
+	r.counts[tableServices]++
+	return nil
+}
+func (r *recorder) transaction(int, Transaction) error {
+	r.counts[tableTransactions]++
+	return nil
+}
+
+// Три массива и asOf принимаются в любом порядке ключей верхнего уровня.
+func TestParseStreamAnyKeyOrder(t *testing.T) {
+	parts := map[string]string{
+		"asOf":         `"asOf":"2026-10-19T15:00:00Z"`,
+		"accounts":     `"accounts":[{"id":1,"email":"a@x","balance":0,"withdrawBalance":0,"totalReplenished":0,"bonusBalance":0,"bonusState":"locked"}]`,
+		"services":     `"services":[{"id":1,"name":"vps","ownerId":1,"paymentTerm":"month","autoProlong":true,"createdAt":"2026-01-01T00:00:00Z","expiresAt":"2026-02-01T00:00:00Z","status":"active","price":100}]`,
+		"transactions": `"transactions":[{"id":1,"amount":5,"status":"not_performed","createdAt":"2026-01-01T00:00:00Z","type":"order","serviceId":1}]`,
+	}
+	keys := []string{"asOf", "accounts", "services", "transactions"}
+	var perm func(k int)
+	n := 0
+	var try func(order []string)
+	try = func(order []string) {
+		body := "{"
+		for i, k := range order {
+			if i > 0 {
+				body += ","
+			}
+			body += parts[k]
+		}
+		body += "}"
+		rec := &recorder{}
+		asOf, errs, err := parseStream(strings.NewReader(body), rec, 0)
+		if err != nil || len(errs) > 0 || asOf == nil {
+			t.Fatalf("порядок %v: asOf=%v errs=%v err=%v", order, asOf, errs, err)
+		}
+		if rec.counts != [3]int{1, 1, 1} {
+			t.Fatalf("порядок %v: записей %v", order, rec.counts)
+		}
+		var want []table
+		for _, k := range order {
+			for ti, name := range tableKeys {
+				if k == name {
+					want = append(want, table(ti))
+				}
+			}
+		}
+		if fmt.Sprint(rec.order) != fmt.Sprint(want) {
+			t.Fatalf("порядок %v: массивы пришли как %v", order, rec.order)
+		}
+		n++
+	}
+	perm = func(k int) {
+		if k == len(keys) {
+			try(append([]string(nil), keys...))
+			return
+		}
+		for i := k; i < len(keys); i++ {
+			keys[k], keys[i] = keys[i], keys[k]
+			perm(k + 1)
+			keys[k], keys[i] = keys[i], keys[k]
+		}
+	}
+	perm(0)
+	if n != 24 {
+		t.Fatalf("проверено порядков %d, ждали 24", n)
 	}
 }
