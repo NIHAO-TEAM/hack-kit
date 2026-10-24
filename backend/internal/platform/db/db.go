@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib" // драйвер database/sql для goose
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 
 	"example.com/app/migrations"
 )
@@ -57,7 +58,12 @@ func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 }
 
 func provider(sqlDB *sql.DB) (*goose.Provider, error) {
-	return goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS)
+	// Сессионная блокировка: две реплики на старте не гонят миграции одновременно.
+	locker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		return nil, err
+	}
+	return goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS, goose.WithSessionLocker(locker))
 }
 
 // Up применяет все новые миграции.
