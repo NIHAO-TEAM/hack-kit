@@ -29,7 +29,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-burst
+  # scale идёт в своей группе: в общей его вытесняют очередные запуски после слияний в main
+  group: deploy-burst${{ inputs.mode == 'scale' && '-scale' || '' }}
   cancel-in-progress: false
 
 jobs:
