@@ -28,6 +28,8 @@ var (
 		"Длительность этапов последнего пересчёта (секунды); stage: load, convert, score.", []string{"stage"}, nil)
 	descAge = prometheus.NewDesc("churn_snapshot_age_seconds",
 		"Возраст данных снимка: сейчас минус момент снимка (секунды).", nil, nil)
+	descRecalcCustomers = prometheus.NewDesc("churn_recalc_customers",
+		"Сколько клиентов пересчитал последний прогон (штуки): при событии по одному клиенту — 1, при полном пересчёте — весь портфель.", nil, nil)
 	descVersion = prometheus.NewDesc("churn_model_version",
 		"Номер версии последнего пересчёта (растёт на 1 с каждым пересчётом).", nil, nil)
 )
@@ -41,7 +43,7 @@ type overviewCollector struct {
 
 func (overviewCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{descCustomers, descExpectedLoss, descAtRisk, descLost,
-		descQuality, descRecalc, descStage, descAge, descVersion} {
+		descQuality, descRecalc, descRecalcCustomers, descStage, descAge, descVersion} {
 		ch <- d
 	}
 }
@@ -67,6 +69,7 @@ func (c overviewCollector) Collect(ch chan<- prometheus.Metric) {
 		gauge(descQuality, float64(n), check)
 	}
 	gauge(descRecalc, o.Duration.Seconds())
+	gauge(descRecalcCustomers, float64(o.RecalcCustomers))
 	gauge(descStage, o.Stages.Load.Seconds(), "load")
 	gauge(descStage, o.Stages.Convert.Seconds(), "convert")
 	gauge(descStage, o.Stages.Score.Seconds(), "score")
@@ -109,6 +112,7 @@ type RecalcMetrics struct {
 	Cancelled func() int64
 
 	batches prometheus.Histogram
+	recalc  *prometheus.HistogramVec // длительность пересчёта по виду: full, partial
 }
 
 // NewRecalcMetrics создаёт метрики; workers считает воркеров по числу клиентов (risk.Workers).
@@ -120,7 +124,21 @@ func NewRecalcMetrics(workers func(n int) int) *RecalcMetrics {
 			Help:    "Длительность расчёта одной пачки клиентов воркером (секунды).",
 			Buckets: prometheus.ExponentialBuckets(0.0005, 2, 12),
 		}),
+		recalc: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "churn_recalc_mode_seconds",
+			Help:    "Длительность пересчёта целиком (секунды); mode: full — весь портфель, partial — только клиенты события.",
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 14),
+		}, []string{"mode"}),
 	}
+}
+
+// ObserveRecalc записывает длительность пересчёта: частичного (только затронутые клиенты) или полного.
+func (m *RecalcMetrics) ObserveRecalc(partial bool, took time.Duration) {
+	mode := "full"
+	if partial {
+		mode = "partial"
+	}
+	m.recalc.WithLabelValues(mode).Observe(took.Seconds())
 }
 
 // ObserveBatch записывает длительность пачки; безопасен из нескольких воркеров.
@@ -137,6 +155,7 @@ func (m *RecalcMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- descWorkers
 	ch <- descCancelled
 	m.batches.Describe(ch)
+	m.recalc.Describe(ch)
 }
 
 func (m *RecalcMetrics) Collect(ch chan<- prometheus.Metric) {
@@ -147,4 +166,5 @@ func (m *RecalcMetrics) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(descCancelled, prometheus.CounterValue, float64(m.Cancelled()))
 	}
 	m.batches.Collect(ch)
+	m.recalc.Collect(ch)
 }

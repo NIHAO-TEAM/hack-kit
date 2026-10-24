@@ -81,8 +81,9 @@ func TestPutSnapshotOrganizers(t *testing.T) {
 	}
 	select {
 	case ev := <-events:
-		if ev.Payload != got.Version {
-			t.Errorf("событие несёт %v, ждали %d", ev.Payload, got.Version)
+		ch, ok := ev.Payload.(source.Change)
+		if !ok || ch.Version != got.Version || len(ch.Accounts) != 0 {
+			t.Errorf("событие несёт %+v, ждали версию %d без клиентов (полный пересчёт)", ev.Payload, got.Version)
 		}
 	case <-time.After(time.Second):
 		t.Error("source.changed не опубликован")

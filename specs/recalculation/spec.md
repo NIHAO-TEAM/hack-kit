@@ -115,3 +115,43 @@
 - WHEN идёт `BenchmarkRecalc100k`
 - THEN выделений на операцию меньше, чем до изменения (2,46 млн против 8,53 млн, `docs/load/2026-10-24-recalc-alloc.md`), golden и parity без расхождений
 - Тест: бенчмарк `BenchmarkRecalc100k` (`internal/app/recalc_bench_test.go`), golden (`internal/risk/golden_test.go`), `TestParity10k` (`-tags parity`)
+
+### Requirement: событие клиента пересчитывает только его
+
+Пересчёт SHALL для события с известными клиентами пересчитывать только их и давать тот же итог, что полный пересчёт.
+
+#### Scenario: событие одного клиента на 100 тыс.
+
+- WHEN пришло событие по одному клиенту в портфеле на 100 000 клиентов
+- THEN пересчитан 1 клиент (`churn_recalc_customers`), сводка и очередь равны полному пересчёту до цента
+- Тест: `TestRescoreEqualsFull` (`internal/app/incremental_test.go`), `TestPartialRecalcEqualsFull` (`internal/app/recalc_partial_integration_test.go`)
+
+#### Scenario: порядок и страницы очереди после частичного пересчёта
+
+- WHEN клиентов события заменили в портфеле
+- THEN порядок по каждой сортировке, строки и обход курсором совпадают со сборкой портфеля с нуля, прежний портфель не изменился
+- Тест: `TestPatchedPortfolioMatchesFresh`, `TestCursorWalksPatchedPortfolio` (`internal/analytics/readmodel_patch_test.go`)
+
+#### Scenario: полный пересчёт
+
+- WHEN событие не называет клиентов (снимок целиком, смена весов), или затронуто больше 5 % клиентов, или частичный пересчёт отказал, или с последнего полного прошло `RECALC_FULL_EVERY` (60 с; 0 — всегда полный)
+- THEN пересчёт полный
+- Тест: `TestPartialFullWithoutAccountsOrOnOtherTopic`, `TestPartialNeedFullFallsBack`, `TestPartialFullEveryAndShare`, `TestPartialZeroFullEveryDisablesPartial` (`internal/analytics/engine_partial_test.go`), `TestPartialRecalcOffAndFullOnSnapshot`, `TestPartialRecalcFullEveryPeriod`
+
+#### Scenario: отменённый пересчёт не теряет клиентов
+
+- WHEN частичный пересчёт отменён новым событием
+- THEN клиенты отменённого прогона достаются следующему
+- Тест: `TestPartialCancelledRunKeepsAccounts`
+
+#### Scenario: события потока называют клиентов
+
+- WHEN писатель потока зафиксировал пачку
+- THEN `source.changed` несёт версию и клиентов записанных событий по возрастанию; события без записанных строк клиентов не добавляют
+- Тест: `TestIngestTouchedAccounts`, `TestIngestBatchesAndVersions`
+
+#### Scenario: метрики частичного пересчёта
+
+- WHEN пересчёт прошёл
+- THEN `churn_recalc_customers` показывает число пересчитанных клиентов, `churn_recalc_mode_seconds{mode}` — длительности частичных и полных отдельно
+- Тест: `TestRecalcCustomersAndModeMetrics`
