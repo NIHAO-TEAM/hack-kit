@@ -67,7 +67,10 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 			stages.Load = clk.Now().Sub(t0)
 		}
 		t2 := clk.Now()
-		res := risk.Score(rs, st, rs.AsOf)
+		res, err := scoreSnapshot(ctx, rs, st, metrics)
+		if err != nil {
+			return analytics.Computed[risk.Result]{}, err
+		}
 		stages.Score = clk.Now().Sub(t2)
 		return analytics.Computed[risk.Result]{
 			Result:          res,
@@ -86,6 +89,11 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 	metrics.Cancelled = r.Engine.Cancelled
 	r.observer = retention.New(pool, bus, clk, r)
 	return r
+}
+
+// scoreSnapshot считает модель конвейером: расчёт отменяется вместе с ctx, длительность пачек идёт в метрики.
+func scoreSnapshot(ctx context.Context, rs risk.Snapshot, st risk.Settings, m *analytics.RecalcMetrics) (risk.Result, error) {
+	return risk.ScoreContext(ctx, rs, st, rs.AsOf, risk.Options{OnBatch: m.ObserveBatch})
 }
 
 // Collectors — метрики пересчёта для /metrics: воркеры, отменённые прогоны, длительность пачек.
