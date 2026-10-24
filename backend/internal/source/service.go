@@ -75,40 +75,37 @@ func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedA
 		return Accepted{}, fmt.Errorf("очистка: %w", err)
 	}
 
-	accRows := make([][]any, len(s.Accounts))
-	for i, a := range s.Accounts {
-		accRows[i] = []any{a.ID, a.Email, a.Balance, a.WithdrawBalance, a.TotalReplenished, a.BonusBalance, a.BonusState}
-	}
 	if err := st.run(stageCopyAccounts, func() error {
 		_, err := tx.CopyFrom(ctx, pgx.Identifier{"accounts"},
 			[]string{"id", "email", "balance", "withdrawBalance", "totalReplenished", "bonusBalance", "bonusState"},
-			pgx.CopyFromRows(accRows))
+			pgx.CopyFromSlice(len(s.Accounts), func(i int) ([]any, error) {
+				a := s.Accounts[i]
+				return []any{a.ID, a.Email, a.Balance, a.WithdrawBalance, a.TotalReplenished, a.BonusBalance, a.BonusState}, nil
+			}))
 		return err
 	}); err != nil {
 		return Accepted{}, fmt.Errorf("accounts: %w", err)
 	}
 
-	svcRows := make([][]any, len(s.Services))
-	for i, v := range s.Services {
-		svcRows[i] = []any{v.ID, v.Name, v.OwnerID, v.PaymentTerm, v.AutoProlong, v.CreatedAt, v.ExpiresAt, v.Status, v.Price}
-	}
 	if err := st.run(stageCopyServices, func() error {
 		_, err := tx.CopyFrom(ctx, pgx.Identifier{"services"},
 			[]string{"id", "name", "ownerId", "paymentTerm", "autoProlong", "createdAt", "expiresAt", "status", "price"},
-			pgx.CopyFromRows(svcRows))
+			pgx.CopyFromSlice(len(s.Services), func(i int) ([]any, error) {
+				v := s.Services[i]
+				return []any{v.ID, v.Name, v.OwnerID, v.PaymentTerm, v.AutoProlong, v.CreatedAt, v.ExpiresAt, v.Status, v.Price}, nil
+			}))
 		return err
 	}); err != nil {
 		return Accepted{}, fmt.Errorf("services: %w", err)
 	}
 
-	txRows := make([][]any, len(s.Transactions))
-	for i, t := range s.Transactions {
-		txRows[i] = []any{t.ID, t.Amount, t.Status, t.PerformedAt, t.CreatedAt, t.Type, t.ServiceID}
-	}
 	if err := st.run(stageCopyTransactions, func() error {
 		_, err := tx.CopyFrom(ctx, pgx.Identifier{"transactions"},
 			[]string{"id", "amount", "status", "performedAt", "createdAt", "type", "serviceId"},
-			pgx.CopyFromRows(txRows))
+			pgx.CopyFromSlice(len(s.Transactions), func(i int) ([]any, error) {
+				x := s.Transactions[i]
+				return []any{x.ID, x.Amount, x.Status, x.PerformedAt, x.CreatedAt, x.Type, x.ServiceID}, nil
+			}))
 		return err
 	}); err != nil {
 		return Accepted{}, fmt.Errorf("transactions: %w", err)
