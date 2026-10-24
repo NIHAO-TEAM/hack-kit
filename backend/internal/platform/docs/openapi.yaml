@@ -535,8 +535,8 @@ components:
       enum: [renewed, refused, no_answer, not_needed]
     TaskChannel:
       type: string
-      description: "Канал контакта: почта, телефон, мессенджер, другое."
-      enum: [email, phone, messenger, other]
+      description: "Канал контакта: почта (mail), телефон, мессенджер, другое."
+      enum: [mail, phone, messenger, other]
     TaskBrief:
       type: object
       description: Открытая задача клиента в строке очереди и в карточке.
@@ -784,7 +784,7 @@ components:
           description: Логин того, кто действовал; при неудачном входе — введённый логин
         action:
           type: string
-          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions, taskCreated, taskChanged, taskEvent]
+          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions, taskCreated, taskChanged, taskRecorded]
         summary:
           type: string
           description: Запись простыми словами
