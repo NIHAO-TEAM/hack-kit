@@ -23,7 +23,7 @@
 - frontend: `pages/queue` (кнопка), `entities/customer/api`
 - контракт `api/openapi.yaml`: да, только добавление — путь `GET /customers/export.csv` (`text/csv`)
 - защищённые пути: да — `api/openapi.yaml`; причина: новый путь выгрузки
-- зависит от: `billing-queue-split` (фильтр `billing` и те же `customers.go`, `QueuePage`)
+- зависит от: `billing-queue-split` (фильтр по биллингу и те же файлы списка и очереди)
 
 ## Связанные решения
 
