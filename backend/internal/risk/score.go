@@ -84,6 +84,8 @@ type Summary struct {
 	ExposureCents     int64
 	LostCents         int64
 	QualityCounts     map[string]int
+	// LossByFeature — ожидаемая потеря по причинам; сумма равна ExpectedLossCents.
+	LossByFeature []FeatureLoss
 }
 
 // CheckItem — услуга, на которой сработала проверка.
@@ -193,6 +195,7 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 			}
 		}
 	}
+	res.Summary.LossByFeature = lossByFeature(customers)
 	for _, c := range cs {
 		h := hits[c.ID()]
 		h.Message = checkMessage(c, h.Count)
