@@ -14,6 +14,8 @@ export interface CustomerParams {
   order: CustomerOrder;
   level?: RiskLevel;
   q?: string;
+  /** Строки «к биллингу»: `exclude` — без них, `only` — только они; без параметра — все. */
+  billing?: 'exclude' | 'only';
   /** Номер страницы с 1; без него — первая. */
   page?: number;
   /** Размер страницы; по умолчанию максимум сервера (полоса «удалит биллинг» берёт все строки). */
@@ -42,6 +44,7 @@ export const customersOptions = (params: CustomerParams) =>
               order: params.order,
               level: params.level,
               q: params.q || undefined,
+              billing: params.billing,
               limit: params.limit ?? MAX_LIMIT,
               offset: customersOffset(params.page, params.limit ?? MAX_LIMIT) || undefined,
             },
