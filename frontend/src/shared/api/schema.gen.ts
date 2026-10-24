@@ -263,6 +263,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/{id}/task": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Взять клиента в работу (маркетолог, jury, администратор) */
+        post: operations["takeCustomerTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Задачи удержания с фильтрами; новые правки сверху */
+        get: operations["listTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/assignees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Кому можно назначить задачу */
+        get: operations["listTaskAssignees"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Задача с историей */
+        get: operations["getTask"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Изменить статус, ответственного, срок, заметку, итог (маркетолог, jury, администратор) */
+        patch: operations["patchTask"];
+        trace?: never;
+    };
+    "/api/v1/tasks/{taskId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Записать контакт или заметку в историю (маркетолог, jury, администратор) */
+        post: operations["addTaskEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/summary": {
         parameters: {
             query?: never;
@@ -736,6 +822,7 @@ export interface components {
             deleteAt?: string;
             /** @description Тег «к биллингу» — сбой автосписания, а не отток. */
             billing?: boolean;
+            task?: components["schemas"]["TaskBrief"];
         };
         ActionBrief: {
             id: string;
@@ -751,6 +838,150 @@ export interface components {
              * @description Версия пересчёта, по которому построена страница.
              */
             version: number;
+        };
+        /**
+         * @description В работе, связались, отложено, закрыто.
+         * @enum {string}
+         */
+        TaskStatus: "in_work" | "contacted" | "postponed" | "closed";
+        /**
+         * @description Итог закрытой задачи: продлил, отказался, не ответил, не нужно.
+         * @enum {string}
+         */
+        TaskOutcome: "renewed" | "refused" | "no_answer" | "not_needed";
+        /**
+         * @description Канал контакта: почта (mail), телефон, мессенджер, другое.
+         * @enum {string}
+         */
+        TaskChannel: "mail" | "phone" | "messenger" | "other";
+        /** @description Открытая задача клиента в строке очереди и в карточке. */
+        TaskBrief: {
+            /** Format: int64 */
+            id: number;
+            status: components["schemas"]["TaskStatus"];
+            /** @description Логин ответственного. */
+            assignee: string;
+            /** Format: date-time */
+            dueAt: string;
+            /** @description Срок прошёл (по часам сервера) и задача не закрыта. */
+            overdue: boolean;
+        };
+        TaskServiceBaseline: {
+            /** Format: int64 */
+            id: number;
+            status: components["schemas"]["ServiceStatus"];
+            autoProlong: boolean;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** @description Исходное состояние клиента в момент, когда его взяли в работу. Не меняется. */
+        TaskBaseline: {
+            /**
+             * Format: int64
+             * @description Версия пересчёта, из которого взято состояние.
+             */
+            version: number;
+            /**
+             * Format: date-time
+             * @description Время модели на этот пересчёт.
+             */
+            asOf?: string;
+            /** Format: double */
+            score?: number | null;
+            level: components["schemas"]["RiskLevel"];
+            /** Format: int64 */
+            expectedLossCents: number;
+            topAction?: components["schemas"]["ActionBrief"];
+            /** Format: int64 */
+            balance: number;
+            services: components["schemas"]["TaskServiceBaseline"][];
+        };
+        TaskEvent: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date-time */
+            at: string;
+            actor: string;
+            /** @enum {string} */
+            kind: "created" | "changed" | "contact" | "note";
+            channel?: components["schemas"]["TaskChannel"];
+            text: string;
+            /** @description Что поменялось в задаче; пусто у контакта и заметки. */
+            changes: components["schemas"]["AuditChange"][];
+        };
+        RetentionTask: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            customerId: number;
+            /** @description Email клиента на момент, когда его взяли в работу. */
+            customerEmail?: string;
+            status: components["schemas"]["TaskStatus"];
+            outcome?: components["schemas"]["TaskOutcome"];
+            assignee: string;
+            /** Format: date-time */
+            dueAt: string;
+            overdue: boolean;
+            note: string;
+            /**
+             * Format: int64
+             * @description Номер правки; передаётся в PATCH.
+             */
+            version: number;
+            /** @description Клиента нет в текущем снимке или у его ID другой email. */
+            customerMissing: boolean;
+            baseline: components["schemas"]["TaskBaseline"];
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            updatedBy: string;
+            /** Format: date-time */
+            closedAt?: string;
+            /** @description История по порядку, старые сверху. Есть в ответах по одной задаче, в списке нет. */
+            events?: components["schemas"]["TaskEvent"][];
+        };
+        /** @description Problem с текущей задачей. */
+        TaskConflict: components["schemas"]["Problem"] & {
+            task?: components["schemas"]["RetentionTask"];
+        };
+        TaskPage: {
+            items: components["schemas"]["RetentionTask"][];
+            total: number;
+        };
+        /** @description Необязательные поля; по умолчанию срок — завтра 18:00 МСК, ответственный — текущий пользователь. */
+        TaskCreate: {
+            assignee?: string;
+            /** Format: date-time */
+            dueAt?: string;
+            note?: string;
+        };
+        TaskPatch: {
+            /**
+             * Format: int64
+             * @description Версия, которую видел автор правки.
+             */
+            version: number;
+            status?: components["schemas"]["TaskStatus"];
+            outcome?: components["schemas"]["TaskOutcome"];
+            assignee?: string;
+            /** Format: date-time */
+            dueAt?: string;
+            note?: string;
+        };
+        TaskEventCreate: {
+            /** @enum {string} */
+            kind: "contact" | "note";
+            channel?: components["schemas"]["TaskChannel"];
+            text?: string;
+        };
+        TaskAssignee: {
+            login: string;
+            role: components["schemas"]["Role"];
+        };
+        TaskAssignees: {
+            items: components["schemas"]["TaskAssignee"][];
         };
         AuditChange: {
             /** @description Что поменялось (например, weights.noauto) */
@@ -768,7 +999,7 @@ export interface components {
             /** @description Логин того, кто действовал; при неудачном входе — введённый логин */
             actor: string;
             /** @enum {string} */
-            action: "login" | "loginFailed" | "logout" | "settingsChanged" | "snapshotLoaded" | "serviceChanged" | "accountChanged" | "emulatorTick" | "emulatorActions" | "customersExported";
+            action: "login" | "loginFailed" | "logout" | "settingsChanged" | "snapshotLoaded" | "serviceChanged" | "accountChanged" | "emulatorTick" | "emulatorActions" | "customersExported" | "taskCreated" | "taskChanged" | "taskRecorded";
             /** @description Запись простыми словами */
             summary: string;
             /** @description Что было и что стало; пусто, если запись без правок значений */
@@ -982,6 +1213,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description Конфликт задачи удержания; task — её текущее состояние */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["TaskConflict"];
+            };
+        };
         /** @description Снимок не прошёл проверку связей и значений; errors[] — по полям */
         UnprocessableEntity: {
             headers: {
@@ -1005,6 +1245,7 @@ export interface components {
         /** @description UUID запроса. Корректный возвращается нормализованным, иначе сервер генерирует новый. */
         RequestId: string;
         CustomerId: number;
+        TaskId: number;
         ServiceId: number;
         AccountId: number;
     };
@@ -1319,6 +1560,8 @@ export interface operations {
                 level?: components["schemas"]["RiskLevel"];
                 /** @description Подстрока email или id */
                 q?: string;
+                /** @description Задача удержания: none — без открытой, open — с открытой, mine — открытая на мне. */
+                task?: "none" | "open" | "mine";
                 sort?: "id" | "email" | "balance" | "totalReplenished" | "score" | "expectedLoss";
                 order?: "asc" | "desc";
                 limit?: number;
@@ -1410,6 +1653,180 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    takeCustomerTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TaskCreate"];
+            };
+        };
+        responses: {
+            /** @description Задача создана */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionTask"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    listTasks: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["TaskStatus"];
+                /** @description Логин ответственного или me — текущий пользователь. */
+                assignee?: string;
+                /** @description true — только просроченные открытые. */
+                overdue?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Страница задач */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    listTaskAssignees: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Сотрудники */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskAssignees"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    getTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Задача */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionTask"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    patchTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskPatch"];
+            };
+        };
+        responses: {
+            /** @description Задача после правки */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionTask"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    addTaskEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskEventCreate"];
+            };
+        };
+        responses: {
+            /** @description Задача с новым событием */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionTask"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             501: components["responses"]["NotImplemented"];
         };
     };

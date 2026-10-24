@@ -15,6 +15,8 @@ var wantAccess = map[string]struct{ marketer, analyst, jury, admin bool }{
 	"getEvents": {true, true, true, true}, "getSourceStatus": {true, true, true, true},
 	"getModelSettings": {true, true, true, true},
 	"getMetrics":       {true, true, true, true}, "getMetricsAlias": {true, true, true, true},
+	"listTasks": {true, true, true, true}, "getTask": {true, true, true, true}, "listTaskAssignees": {true, true, true, true},
+	"takeCustomerTask": {true, false, true, true}, "patchTask": {true, false, true, true}, "addTaskEvent": {true, false, true, true},
 	"patchModelSettings": {false, true, true, true},
 	"listAudit":          {false, true, true, true},
 	"putSnapshot":        {false, true, true, true},

@@ -33,7 +33,16 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 		httpx.WriteProblem(w, r, 400, "limit должен быть 1..200, offset — не меньше 0")
 		return
 	}
-	rows, bad := selectRows(pf, customerFilter{Level: p.Level, Q: p.Q, Sort: p.Sort, Order: p.Order, Billing: p.Billing})
+	f := customerFilter{Level: p.Level, Q: p.Q, Sort: p.Sort, Order: p.Order, Billing: p.Billing, Task: p.Task}
+	var err error
+	if f.Tasks, err = a.openTasks(r.Context()); err != nil && p.Task != nil {
+		httpx.WriteProblem(w, r, 500, "задачи недоступны")
+		return
+	}
+	if a.login != nil {
+		f.Me = a.login(r.Context())
+	}
+	rows, bad := selectRows(pf, f)
 	if bad != "" {
 		httpx.WriteProblem(w, r, 400, bad)
 		return
@@ -52,6 +61,11 @@ type customerFilter struct {
 	Sort    *gen.ListCustomersParamsSort
 	Order   *gen.ListCustomersParamsOrder
 	Billing *gen.ListCustomersParamsBilling
+	// Task, Tasks и Me — фильтр по задачам удержания: открытые задачи по ID клиента и логин
+	// текущего пользователя для «mine». Выгрузка их не задаёт, строки идут без task.
+	Task  *gen.ListCustomersParamsTask
+	Tasks map[int64]TaskRef
+	Me    string
 }
 
 // selectRows отбирает и сортирует строки портфеля; при неверном параметре вернёт текст для 400.
@@ -74,6 +88,10 @@ func selectRows(pf *Portfolio, f customerFilter) (rows []gen.CustomerRow, bad st
 		return nil, "неизвестное поле сортировки"
 	}
 
+	if f.Task != nil && !validTaskFilter(*f.Task) {
+		return nil, "task: none, open или mine"
+	}
+
 	pinUnscored := sortBy == "score" || sortBy == "expectedLoss"
 
 	rows = make([]gen.CustomerRow, 0, len(pf.Customers))
@@ -92,7 +110,25 @@ func selectRows(pf *Portfolio, f customerFilter) (rows []gen.CustomerRow, bad st
 			!strings.Contains(strconv.FormatInt(c.Row.Id, 10), q) {
 			continue
 		}
-		rows = append(rows, c.Row)
+		row := c.Row
+		row.Task = briefFor(f.Tasks, row)
+		if f.Task != nil {
+			switch *f.Task {
+			case "none":
+				if row.Task != nil {
+					continue
+				}
+			case "open":
+				if row.Task == nil {
+					continue
+				}
+			case "mine":
+				if row.Task == nil || row.Task.Assignee != f.Me {
+					continue
+				}
+			}
+		}
+		rows = append(rows, row)
 	}
 	slices.SortStableFunc(rows, func(x, y gen.CustomerRow) int {
 		if pinUnscored { // только по скору и потере: «нет оценки» и «потерян» внизу
@@ -135,9 +171,13 @@ func (a *AnalyticsAPI) GetCustomer(w responseWriter, r *request, id gen.Customer
 		return
 	}
 	c := pf.Customers[i]
+	row := c.Row
+	if tasks, err := a.openTasks(r.Context()); err == nil {
+		row.Task = briefFor(tasks, row)
+	}
 	d := gen.CustomerDetail{
 		Version:      pf.Version,
-		Customer:     c.Row,
+		Customer:     row,
 		Account:      &c.Account,
 		Services:     orEmpty(c.Services),
 		ServiceRisks: &c.Risks,

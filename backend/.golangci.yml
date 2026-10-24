@@ -26,6 +26,8 @@ linters:
               desc: platform не импортирует доменные модули
             - pkg: example.com/app/internal/model
               desc: platform не импортирует доменные модули
+            - pkg: example.com/app/internal/retention
+              desc: platform не импортирует доменные модули
             - pkg: example.com/app/internal/app
               desc: platform не импортирует сборку сервера
         module-auth-isolated:
@@ -90,6 +92,19 @@ linters:
             - pkg: example.com/app/internal/risk
               desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
             - pkg: example.com/app/internal/analytics
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/app
+              desc: модуль не знает о сборке сервера
+        module-retention-isolated:
+          files: ["**/internal/retention/**"]
+          deny:
+            - pkg: example.com/app/internal/auth
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/source
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/risk
+              desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
+            - pkg: example.com/app/internal/model
               desc: модуль не импортирует другой модуль, общий тип живёт в модуле-владельце
             - pkg: example.com/app/internal/app
               desc: модуль не знает о сборке сервера
