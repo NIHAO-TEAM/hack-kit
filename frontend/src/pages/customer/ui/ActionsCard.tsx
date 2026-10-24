@@ -41,25 +41,27 @@ export function ActionsCard({
             Сумма — расчётное снижение ожидаемой потери, если клиент выполнит действие полностью.
             Отклик и стоимость контакта не учтены; «на каждый €» — оценка масштаба, не окупаемость.
           </Text>
-          <table className={classes.table} aria-label="Что можно сделать">
-            <thead>
-              <tr>
-                <th scope="col">Действие</th>
-                <th scope="col" className={classes.num}>
+          <table className={classes.table} role="table" aria-label="Что можно сделать">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col" role="columnheader">
+                  Действие
+                </th>
+                <th scope="col" role="columnheader" className={classes.num}>
                   Цена
                 </th>
-                <th scope="col" className={classes.num}>
+                <th scope="col" role="columnheader" className={classes.num}>
                   Снимает потерю
                 </th>
-                <th scope="col" className={classes.num}>
+                <th scope="col" role="columnheader" className={classes.num}>
                   На каждый €
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               {actions.map((a) => (
-                <tr key={a.id}>
-                  <td>
+                <tr key={a.id} role="row">
+                  <td role="cell">
                     <Text span fw={a.id === bestId ? 600 : 400} c="var(--text-strong)">
                       {a.title}
                     </Text>
@@ -74,31 +76,31 @@ export function ActionsCard({
                       </Badge>
                     ) : null}
                   </td>
-                  <td className={classes.num} data-label="Цена">
+                  <td role="cell" className={classes.num} data-label="Цена">
                     <Money cents={a.costCents ?? 0} />
                   </td>
-                  <td className={classes.num} data-label="Снимает потерю">
+                  <td role="cell" className={classes.num} data-label="Снимает потерю">
                     <Money cents={a.effectCents} tone="effect" />
                   </td>
-                  <td className={classes.num} data-label="На каждый €">
+                  <td role="cell" className={classes.num} data-label="На каждый €">
                     {formatReturn(a.returnPerEuro)}
                   </td>
                 </tr>
               ))}
               {combo !== undefined && combo !== null ? (
-                <tr>
-                  <td>
+                <tr role="row">
+                  <td role="cell">
                     <Text span fw={600} c="var(--text-strong)">
                       Всё вместе
                     </Text>
                   </td>
-                  <td className={classes.num} data-label="Цена">
+                  <td role="cell" className={classes.num} data-label="Цена">
                     —
                   </td>
-                  <td className={classes.num} data-label="Снимает потерю">
+                  <td role="cell" className={classes.num} data-label="Снимает потерю">
                     <Money cents={combo} tone="effect" />
                   </td>
-                  <td className={classes.num} data-label="На каждый €">
+                  <td role="cell" className={classes.num} data-label="На каждый €">
                     —
                   </td>
                 </tr>
