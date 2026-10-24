@@ -199,7 +199,16 @@ export function QueueTable({
               {cell(4, <Score row={row} />)}
               {cell(5, dim ? '—' : <Money cents={row.expectedLossCents} />)}
               {cell(6, <span className={classes.reason}>{row.topReason ?? '—'}</span>)}
-              {cell(7, asOf ? <RescueWindow expiresAt={row.expiresAt ?? null} asOf={asOf} /> : '—')}
+              {cell(
+                7,
+                asOf ? (
+                  <span className={classes.window}>
+                    <RescueWindow expiresAt={row.expiresAt ?? null} asOf={asOf} />
+                  </span>
+                ) : (
+                  '—'
+                ),
+              )}
               {cell(
                 8,
                 <WorkCell

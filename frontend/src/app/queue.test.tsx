@@ -300,7 +300,7 @@ describe('очередь: фильтр по работе', () => {
     await waitFor(() => expect(seen).toContain('none'));
   });
 
-  it('клиент в работе уходит из «Без работы» и total уменьшается', async () => {
+  it('клиент в работе уходит из «Без работы»', async () => {
     signedIn();
     sessionStorage.setItem('mock-session', 'marketer');
     seedTask(2);
