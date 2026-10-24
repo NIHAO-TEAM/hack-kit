@@ -4,7 +4,7 @@
 
 ## 1. Измерение
 
-- [ ] 1.1 `BenchmarkMiddlewareDB` на текущем коде — проверка: вывод `go test -bench -benchmem` в «Найдено по ходу»
+- [x] 1.1 `BenchmarkMiddlewareDB` на текущем коде — проверка: вывод `go test -bench -benchmem` в «Найдено по ходу»
 
 ## 2. Кэш
 
