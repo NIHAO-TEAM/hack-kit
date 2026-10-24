@@ -11,7 +11,8 @@ import {
 import { useForm } from '@mantine/form';
 import { useEffect, useState } from 'react';
 import { loginErrorText } from '@entities/session';
-import { BrandPattern } from '@shared/ui';
+import { AezaMark } from '@shared/ui';
+import classes from './LoginPage.module.css';
 
 const AUTH_CONFIG_URL = '/api/v1/auth/config';
 const SSO_LOGIN_URL = '/api/v1/auth/oidc/login';
@@ -56,43 +57,49 @@ export function LoginPage({
   }
 
   return (
-    <Container size={400} px="md" mt="15vh" component="main">
-      <div style={{ marginBottom: 'var(--mantine-spacing-xl)' }}>
-        <BrandPattern />
+    <>
+      <div className={classes.backdrop} aria-hidden="true">
+        <div className={classes.planet} />
+        <div className={classes.glow} />
       </div>
-      <Paper withBorder p="xl">
-        <form onSubmit={form.onSubmit(submit)} noValidate>
-          <Stack>
-            <Title order={1} size="h3">
-              Контур удержания
-            </Title>
-            <TextInput
-              label="Логин"
-              autoComplete="username"
-              data-autofocus
-              {...form.getInputProps('login')}
-            />
-            <PasswordInput
-              label="Пароль"
-              autoComplete="current-password"
-              {...form.getInputProps('password')}
-            />
-            {error ? (
-              <Alert color="red" role="alert">
-                {error}
-              </Alert>
-            ) : null}
-            <Button type="submit" loading={pending}>
-              Войти
-            </Button>
-            {ssoEnabled ? (
-              <Button component="a" href={SSO_LOGIN_URL} variant="default">
-                Войти через SSO
+      <Container size={400} px="md" mt="8vh" component="main" className={classes.content}>
+        <div className={classes.mark}>
+          <AezaMark size={56} />
+        </div>
+        <Paper withBorder p="xl">
+          <form onSubmit={form.onSubmit(submit)} noValidate>
+            <Stack>
+              <Title order={1} size="h3">
+                Контур удержания
+              </Title>
+              <TextInput
+                label="Логин"
+                autoComplete="username"
+                data-autofocus
+                {...form.getInputProps('login')}
+              />
+              <PasswordInput
+                label="Пароль"
+                autoComplete="current-password"
+                {...form.getInputProps('password')}
+              />
+              {error ? (
+                <Alert color="red" role="alert">
+                  {error}
+                </Alert>
+              ) : null}
+              <Button type="submit" loading={pending}>
+                Войти
               </Button>
-            ) : null}
-          </Stack>
-        </form>
-      </Paper>
-    </Container>
+              {ssoEnabled ? (
+                <Button component="a" href={SSO_LOGIN_URL} variant="default">
+                  Войти через SSO
+                </Button>
+              ) : null}
+            </Stack>
+          </form>
+        </Paper>
+      </Container>
+    </>
   );
 }

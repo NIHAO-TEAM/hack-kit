@@ -1,0 +1,62 @@
+/* Фон входа (ADR-0003): размытая планета рисуется здесь, чужих картинок нет. Статично, без анимации. */
+.backdrop {
+  --planet-light: #4cc6f1;
+  --planet-dark: #182d48;
+  --planet-rim: #4cc6f1;
+  --planet-opacity: 0.85;
+  --glow-opacity: 0.18;
+
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+:root[data-mantine-color-scheme='light'] .backdrop {
+  --planet-dark: #eccfdb;
+  --planet-opacity: 0.45;
+  --glow-opacity: 0.12;
+}
+
+.planet,
+.glow {
+  position: absolute;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.planet {
+  width: 70vmax;
+  right: -20vmax;
+  bottom: -28vmax;
+  background: radial-gradient(
+    circle at 35% 30%,
+    var(--planet-light) 0%,
+    var(--planet-dark) 55%,
+    transparent 72%
+  );
+  filter: blur(48px);
+  opacity: var(--planet-opacity);
+}
+
+.glow {
+  width: 30vmax;
+  right: 8vmax;
+  bottom: 6vmax;
+  background: var(--planet-rim);
+  filter: blur(80px);
+  opacity: var(--glow-opacity);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Охранное поле значка по брендбуку: не меньше 30 px со всех сторон. */
+.mark {
+  display: flex;
+  justify-content: center;
+  padding: 30px;
+}

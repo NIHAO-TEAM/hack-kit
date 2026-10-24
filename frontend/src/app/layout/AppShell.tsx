@@ -14,7 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { TaskReminder } from '@widgets/task-reminder';
 import { can, logout, sessionKey, type Right } from '@entities/session';
-import { IconExternalLink, IconLogout } from '@shared/ui';
+import { AezaMark, IconExternalLink, IconLogout } from '@shared/ui';
 import { RealtimeProvider } from '../realtime';
 import { Route } from '../routes/_app';
 import { ThemeSwitch } from './ThemeSwitch';
@@ -67,9 +67,12 @@ export function AppShell() {
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group wrap="nowrap">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Меню" />
-            <Text fw={700} size="lg" component="div">
-              Контур удержания
-            </Text>
+            <Group gap="sm" wrap="nowrap">
+              <AezaMark size={28} />
+              <Text fw={700} size="lg" component="div">
+                Контур удержания
+              </Text>
+            </Group>
           </Group>
           <Group wrap="nowrap">
             {can(user.role, 'source.view') && (
