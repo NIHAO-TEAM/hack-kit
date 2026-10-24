@@ -128,6 +128,7 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	}
 	analyticsAPI := newAnalytics(pool, bus, clk, feed)
 	analyticsAPI.WithCollectors(source.IngestCollectors()...)
+	analyticsAPI.WithCollectors(httpx.Collectors()...)
 	analyticsAPI.WithCollectors(bus.Collector())
 	analyticsAPI.WithCollectors(o.collectors...)
 	if c, ok := feed.(collectorsProvider); ok {
@@ -183,7 +184,7 @@ func WithRequestID(next http.Handler) http.Handler {
 // New собирает полный обработчик: защитные заголовки, идентификатор запроса, проверка сессии, маршруты.
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed, opts ...Option) http.Handler {
 	mux := Routes(pool, bus, clk, authAPI, feed, opts...)
-	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, mux)))
+	return httpx.SecurityHeaders(WithRequestID(authAPI.Middleware(mux, httpx.Instrument(mux))))
 }
 
 // qualityChecker — источник проверок качества данных для /source/status; его реализует воркер пересчёта.

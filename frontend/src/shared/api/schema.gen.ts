@@ -1161,6 +1161,16 @@ export interface components {
              */
             newScore: number;
             newLevel: components["schemas"]["RiskLevel"];
+            /**
+             * Format: int64
+             * @description Что действие стоит клиенту, центы (пополнение — сумма, остальные — 0).
+             */
+            costCents?: number;
+            /**
+             * Format: double
+             * @description Снятая ожидаемая потеря на каждый евро цены, 2 знака. Нет при цене 0. Оценка сценария «клиент выполнил действие полностью», не ROI.
+             */
+            returnPerEuro?: number;
         };
         ServiceRisk: {
             /** Format: int64 */
@@ -1194,6 +1204,11 @@ export interface components {
             services: components["schemas"]["Service"][];
             features: components["schemas"]["Feature"][];
             actions: components["schemas"]["Action"][];
+            /**
+             * Format: int64
+             * @description Эффект от совместного применения всех применимых действий (потеря после − до), центы. Нет, если применимо меньше двух действий.
+             */
+            actionCombo?: number;
             explanation?: string;
         };
         Summary: {
