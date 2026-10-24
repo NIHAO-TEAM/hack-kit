@@ -1,0 +1,103 @@
+# .github/workflows/deploy-ui-100k.yml
+#
+# Экраны на портфеле 100 000 клиентов (изменение ui-at-100k-check): стенд Compose на раннере, снимок
+# `cases/analizator/generate.py --seed 42`, затем e2e/tests/ui-100k.spec.ts — время каждого экрана,
+# ошибки консоли, CSV целиком. Итог — таблица «экран — время — цель» в summary запуска.
+# Не гейт слияния: красный запуск — сигнал (как deploy-load и deploy-layout). Прод не трогает.
+# Секреты репозитория не нужны: пароли стенда одноразовые, генерируются в job и маскируются.
+
+name: Deploy UI 100k
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Deploy k8s]
+    types: [completed]
+  pull_request:
+    paths:
+      - 'e2e/tests/ui-100k.spec.ts'
+      - '.github/workflows/deploy-ui-100k.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-ui-100k-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-100k:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Секреты стенда
+        run: |
+          cp .env.example .env
+          for v in POSTGRES_PASSWORD ADMIN_PASSWORD METRICS_TOKEN SOURCE_TOKEN DEMO_MARKETER_PASSWORD DEMO_ANALYST_PASSWORD DEMO_JURY_PASSWORD; do
+            val=$(openssl rand -hex 16)
+            echo "::add-mask::$val"
+            echo "$v=$val" >> "$GITHUB_ENV"
+            sed -i "s|^$v=.*|$v=$val|" .env
+          done
+
+      - name: Стенд
+        run: docker compose up -d --build --wait --wait-timeout 600
+
+      - name: Снимок 100k
+        run: |
+          python3 cases/analizator/generate.py --accounts 100000 --services 300000 --transactions 1000000 --seed 42 --out "$RUNNER_TEMP/ui100k"
+          curl -fsS --max-time 300 -X PUT http://localhost:8080/api/v1/source/snapshot \
+            -H "Authorization: Bearer $SOURCE_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary "@$RUNNER_TEMP/ui100k/data.json" -o /dev/null
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Playwright и Firefox
+        working-directory: e2e
+        run: |
+          npm install --no-save --no-package-lock @playwright/test@1.49.1
+          npx playwright install --with-deps firefox
+
+      - name: Экраны на 100k
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://localhost:8080
+          E2E_JURY_PASSWORD: ${{ env.DEMO_JURY_PASSWORD }}
+          UI_100K_REPORT: ${{ runner.temp }}/ui-100k-report.md
+          CI: "true"
+        run: npx playwright test ui-100k --retries=0 --reporter=list
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-100k-report
+          path: ${{ runner.temp }}/ui-100k-report.md
+          if-no-files-found: ignore
+
+      - name: Скриншоты падения
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-100k-screenshots
+          path: e2e/test-results/**/*.png
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Логи при падении
+        if: failure()
+        run: docker compose logs --tail 100 app
+
+      - name: Остановка
+        if: always()
+        run: docker compose down -v
