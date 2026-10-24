@@ -65,3 +65,9 @@ body {
     min-width: 44px;
   }
 }
+
+/* Текст на заливке акцента — токен on-primary: в тёмной теме чёрный, белый на #4cc6f1 не проходит AA (ADR-0003). */
+[class~='mantine-Button-root']:not([data-variant], [data-disabled]),
+[class~='mantine-Button-root'][data-variant='filled']:not([data-disabled]) {
+  color: var(--on-primary);
+}
