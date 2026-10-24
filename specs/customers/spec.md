@@ -11,7 +11,20 @@
 #### Scenario: сортировка в обе стороны
 
 - WHEN запрошена сортировка по `id`, `email`, `balance` или `totalReplenished` с `order=asc` и `order=desc`
-- THEN строки упорядочены по полю в указанном направлении, «нет оценки» и «потерян» внизу
+- THEN весь список, включая «нет оценки» и «потерян», упорядочен по полю в указанном направлении; при равенстве — по ID
+- AND на данных организаторов `sort=id&order=asc` даёт 1, 2, …, 10, а `order=desc` — 10, 9, …, 1
+- Тест: `TestListCustomersSorts`
+
+#### Scenario: сортировка по риску
+
+- WHEN запрошена сортировка по `score` или `expectedLoss` (или сортировка не указана)
+- THEN оценённые клиенты упорядочены по полю, «нет оценки» и «потерян» — внизу
+- Тест: `TestListCustomersSorts`, `TestListCustomersDefault`
+
+#### Scenario: фильтр по уровню
+
+- WHEN запрошено `level=lost&sort=id&order=desc` на данных организаторов
+- THEN порядок 8, 7, 3, 2
 - Тест: `TestListCustomersSorts`
 
 ### Requirement: карточка клиента
