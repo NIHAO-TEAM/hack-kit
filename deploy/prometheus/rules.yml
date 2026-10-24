@@ -24,3 +24,16 @@ groups:
           severity: critical
         annotations:
           summary: "Prometheus не достаёт /metrics приложения"
+      - alert: RecalcSlow
+        # Последний пересчёт длился дольше 5 секунд.
+        expr: churn_recalc_duration_seconds > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Пересчёт риска длится дольше 5 секунд"
+  - name: churn_http
+    rules:
+      - record: churn:http_request_duration_seconds:p95_5m
+        # p95 длительности HTTP по шаблону маршрута.
+        expr: histogram_quantile(0.95, sum by (le, route) (rate(churn_http_request_duration_seconds_bucket[5m])))
