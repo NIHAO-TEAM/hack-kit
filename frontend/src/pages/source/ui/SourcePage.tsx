@@ -8,6 +8,7 @@ import { EditPanel } from './EditPanel';
 import { EmulatorPanel } from './EmulatorPanel';
 import { PollingPanel } from './PollingPanel';
 import { QualityChecks } from './QualityChecks';
+import { StreamPanel } from './StreamPanel';
 import { StatusHeader } from './StatusHeader';
 import { UploadPanel } from './UploadPanel';
 
@@ -47,6 +48,7 @@ export function SourcePage() {
             <PollingPanel status={query.data} />
             <EditPanel />
             <EmulatorPanel />
+            <StreamPanel />
           </Stack>
         </Grid.Col>
       </Grid>
