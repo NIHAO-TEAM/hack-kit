@@ -69,3 +69,39 @@
 - WHEN один снимок посчитан последовательно и параллельно
 - THEN клиенты, действия, сводка и проверки качества совпадают
 - Тест: `TestScoreParallelEqualsSequential` (`internal/app/score_scale_test.go`)
+
+### Requirement: пересчёт использует все ядра и не меняет результат
+
+Пересчёт SHALL раздавать клиентов пачками пулу воркеров по числу ядер и давать результат, идентичный последовательному расчёту.
+
+#### Scenario: результат не изменился
+
+- WHEN пересчитаны данные организаторов и синтетический снимок на 10 000 клиентов
+- THEN уровни, скоры и потери совпадают с последовательным расчётом до цента
+- Тест: `TestPipelineEqualsSequential` (`internal/app/recalc_pipeline_test.go`), `TestScoreParallelEqualsSequential`
+
+### Requirement: новый снимок отменяет текущий пересчёт
+
+Новое событие снимка или настроек SHALL отменять идущий пересчёт; отменённый прогон не публикует результат.
+
+#### Scenario: второй снимок во время пересчёта
+
+- WHEN во время пересчёта приходит второй снимок
+- THEN первый прогон отменён, опубликован результат по второму снимку, `churn_recalc_cancelled_total` вырос на 1
+- Тест: `TestNewEventCancelsRunningRecalc` (`internal/analytics/engine_test.go`), `TestScoreContextCancel`, `TestRecalcMetrics` (`internal/analytics/recalc_metrics_test.go`)
+
+#### Scenario: поток событий
+
+- WHEN подряд приходит 2 500 событий
+- THEN пересчёты не отменяются бесконечно: прогон после отменённого доходит до конца, результаты публикуются во время потока
+- Тест: `TestEventStreamStillCompletes`
+
+### Requirement: профиль и бенчмарки
+
+Сервер SHALL давать `pprof` только по токену метрик, а репозиторий — бенчмарки пересчёта на 10 000 и 100 000 клиентов.
+
+#### Scenario: профиль без токена
+
+- WHEN запрос к служебному маршруту профиля без токена
+- THEN ответ `401` или `403`
+- Тест: `TestPprofOnlyWithMetricsToken` (`internal/auth/tokens_test.go`); бенчмарки `BenchmarkRecalc10k`, `BenchmarkRecalc100k` (`internal/app/recalc_bench_test.go`)

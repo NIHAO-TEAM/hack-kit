@@ -43,9 +43,12 @@ type Calculation[R any] struct {
 // analytics не знает ни источника данных, ни хранилища настроек, ни ядра модели.
 type ComputeFunc[R any] func(ctx context.Context) (Computed[R], error)
 
-// Engine — один воркер пересчёта. Все события, из-за которых результат устарел, только
-// взводят флаг «грязно»: пачка событий даёт один пересчёт, а не очередь. Результат держится
-// в памяти и читается без блокировок.
+// Engine — один воркер пересчёта. Все события, из-за которых результат устарел, взводят флаг
+// «грязно»: пачка событий даёт один пересчёт, а не очередь. Идущий пересчёт новое событие отменяет
+// через context: его результат уже устарел, и он ничего не публикует. Отмена склеивается: прогон,
+// начатый после отменённого, не отменяется, а доходит до конца (иначе поток событий не давал бы
+// ни одному прогону завершиться); события за время такого прогона дают следующий. Результат
+// держится в памяти и читается без блокировок.
 type Engine[R any] struct {
 	compute ComputeFunc[R]
 	bus     *events.Bus
@@ -57,6 +60,12 @@ type Engine[R any] struct {
 	latest  atomic.Pointer[Calculation[R]]
 	version int64 // меняет только воркер
 	errors  atomic.Int64
+
+	cancelled atomic.Int64
+
+	mu        sync.Mutex
+	cancelRun context.CancelFunc // отмена идущего прогона; nil, пока прогона нет
+	protected bool               // идущий прогон начат после отменённого: его не отменяем
 }
 
 // NewEngine создаёт воркер. topics — темы шины, после которых результат устарел
@@ -70,6 +79,9 @@ func (e *Engine[R]) Latest() *Calculation[R] { return e.latest.Load() }
 
 // Errors — сколько расчётов закончилось ошибкой (для метрик).
 func (e *Engine[R]) Errors() int64 { return e.errors.Load() }
+
+// Cancelled — сколько пересчётов отменено новым событием (для метрик).
+func (e *Engine[R]) Cancelled() int64 { return e.cancelled.Load() }
 
 // Start подписывается на события и запускает воркер; первый пересчёт идёт сразу. Подписка
 // оформляется до возврата, поэтому событие после Start не потеряется. Воркер работает, пока
@@ -122,12 +134,33 @@ func (e *Engine[R]) markDirty() {
 	case e.signal <- struct{}{}:
 	default:
 	}
+	e.mu.Lock()
+	if e.cancelRun != nil && !e.protected {
+		e.cancelRun()
+	}
+	e.mu.Unlock()
 }
 
 // recalc считает один раз. Ошибка не стирает прежний результат: она идёт в лог и счётчик.
 func (e *Engine[R]) recalc(ctx context.Context) {
 	started := e.clk.Now()
-	c, err := e.compute(ctx)
+	runCtx, cancel := context.WithCancel(ctx)
+	e.mu.Lock()
+	e.cancelRun = cancel
+	e.mu.Unlock()
+	c, err := e.compute(runCtx)
+	e.mu.Lock()
+	e.cancelRun = nil
+	superseded := runCtx.Err() != nil && ctx.Err() == nil
+	e.protected = superseded // следующий прогон после отменённого не отменяем
+	e.mu.Unlock()
+	cancel()
+	if superseded {
+		// Данные уже устарели: ни результат, ни ошибка отменённого прогона не публикуются.
+		e.cancelled.Add(1)
+		log.Printf("analytics: пересчёт отменён новым событием через %s", e.clk.Now().Sub(started).Round(time.Millisecond))
+		return
+	}
 	if err != nil {
 		e.errors.Add(1)
 		log.Printf("analytics: пересчёт: %v", err)

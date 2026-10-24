@@ -1,6 +1,7 @@
 package risk
 
 import (
+	"context"
 	"math"
 	"runtime"
 	"sort"
@@ -117,7 +118,40 @@ func Score(s Snapshot, st Settings, asOf time.Time) Result {
 	return scoreWith(s, st, asOf, features.all(), checks.all(), actions.all())
 }
 
+// Options — необязательные настройки конвейера: размер пачки и наблюдатель за пачками (метрики).
+// Нулевое значение — пачка по умолчанию и без наблюдателя; на результат расчёта не влияет.
+type Options struct {
+	BatchSize int
+	OnBatch   func(clients int, took time.Duration)
+}
+
+// DefaultBatchSize — сколько клиентов воркер берёт за раз (подобрано бенчмарком, docs/load).
+const DefaultBatchSize = 256
+
+// Workers — сколько воркеров считает n клиентов: по числу ядер, но не больше n.
+func Workers(n int) int {
+	w := runtime.GOMAXPROCS(0)
+	if w > n {
+		w = n
+	}
+	if w < 1 {
+		w = 1
+	}
+	return w
+}
+
+// ScoreContext — Score, который можно отменить: воркеры проверяют ctx между пачками.
+// Отменённый расчёт возвращает ошибку контекста и пустой результат — частичного не бывает.
+func ScoreContext(ctx context.Context, s Snapshot, st Settings, asOf time.Time, opt Options) (Result, error) {
+	return scoreCtx(ctx, opt, s, st, asOf, features.all(), checks.all(), actions.all())
+}
+
 func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check, as []Action) Result {
+	res, _ := scoreCtx(context.Background(), Options{}, s, st, asOf, fs, cs, as)
+	return res
+}
+
+func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check, as []Action) (Result, error) {
 	svcByOwner := map[int64][]Service{}
 	for _, sv := range s.Services {
 		svcByOwner[sv.OwnerID] = append(svcByOwner[sv.OwnerID], sv)
@@ -141,7 +175,7 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 	// Клиенты не зависят друг от друга: считаем их параллельно в слайс по индексу, а сводку и
 	// проверки собираем потом по порядку индекса — результат тот же, что при последовательном счёте.
 	customers := make([]Customer, len(accounts))
-	parallelFor(len(accounts), func(i int) {
+	err := parallelFor(ctx, len(accounts), opt, func(i int) {
 		a := accounts[i]
 		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs)
 		if c.State == StateScored {
@@ -149,6 +183,9 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 		}
 		customers[i] = c
 	})
+	if err != nil {
+		return Result{}, err
+	}
 	res.Customers = customers
 	for i, a := range accounts {
 		c := customers[i]
@@ -198,44 +235,56 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 		h.Message = checkMessage(c, h.Count)
 		res.Checks = append(res.Checks, *h)
 	}
-	return res
+	return res, nil
 }
 
-// parallelFor вызывает fn(i) для i в [0, n) на runtime.GOMAXPROCS(0) воркерах; каждый берёт свой кусок индексов.
-func parallelFor(n int, fn func(i int)) {
-	workers := runtime.GOMAXPROCS(0)
-	if workers > n {
-		workers = n
+// parallelFor вызывает fn(i) для i в [0, n) пулом воркеров. Индексы нарезаны на пачки: воркер берёт
+// следующую пачку атомарным счётчиком, пишет результат в свою ячейку по индексу, общих блокировок нет.
+// Между пачками проверяется ctx: после отмены новые пачки не берутся, возвращается ошибка контекста.
+func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error {
+	batch := opt.BatchSize
+	if batch <= 0 {
+		batch = DefaultBatchSize
 	}
-	if workers <= 1 {
-		for i := 0; i < n; i++ {
+	run := func(lo, hi int) {
+		var t0 time.Time
+		if opt.OnBatch != nil {
+			t0 = time.Now()
+		}
+		for i := lo; i < hi; i++ {
 			fn(i)
 		}
-		return
+		if opt.OnBatch != nil {
+			opt.OnBatch(hi-lo, time.Since(t0))
+		}
 	}
-	const chunk = 64
+	workers := Workers(n)
+	if workers <= 1 {
+		for lo := 0; lo < n; lo += batch {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			run(lo, min(lo+batch, n))
+		}
+		return nil
+	}
 	var next atomic.Int64
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for {
-				lo := int(next.Add(chunk)) - chunk
+			for ctx.Err() == nil {
+				lo := int(next.Add(int64(batch))) - batch
 				if lo >= n {
 					return
 				}
-				hi := lo + chunk
-				if hi > n {
-					hi = n
-				}
-				for i := lo; i < hi; i++ {
-					fn(i)
-				}
+				run(lo, min(lo+batch, n))
 			}
 		}()
 	}
 	wg.Wait()
+	return ctx.Err()
 }
 
 // actionResults применяет каждое подходящее действие к копии снимка, где изменён только этот клиент.

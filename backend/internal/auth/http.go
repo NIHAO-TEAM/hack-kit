@@ -104,7 +104,7 @@ func (a *AuthAPI) Middleware(mux *http.ServeMux, next http.Handler) http.Handler
 		bearer := bearerToken(r)
 		// Служебные токены открывают ровно одну операцию и не дают сессии.
 		if known && ((op.id == "putSnapshot" && tokenEquals(bearer, a.cfg.SourceToken)) ||
-			((op.id == "getMetrics" || op.id == "getMetricsAlias") && tokenEquals(bearer, a.cfg.MetricsToken))) {
+			((op.id == "getMetrics" || op.id == "getMetricsAlias" || op.id == "pprof") && tokenEquals(bearer, a.cfg.MetricsToken))) {
 			next.ServeHTTP(w, r)
 			return
 		}
