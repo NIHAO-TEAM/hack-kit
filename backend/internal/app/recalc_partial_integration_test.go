@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"slices"
 	"testing"
@@ -214,4 +215,28 @@ func listIDs(t *testing.T, pf *analytics.Portfolio, key gen.ListCustomersParamsS
 		ids[i] = r.Id
 	}
 	return ids
+}
+
+// Замер для docs/load: задержка «событие по одному клиенту → готов новый результат» на 100 тыс. клиентов,
+// с частичным пересчётом и без него. Долгий, поэтому только по LATENCY_100K=1:
+// LATENCY_100K=1 go test -tags integration ./internal/app -run TestLatencyOneEvent100k -v
+func TestLatencyOneEvent100k(t *testing.T) {
+	if os.Getenv("LATENCY_100K") == "" {
+		t.Skip("замер включается LATENCY_100K=1")
+	}
+	for _, mode := range []struct {
+		name string
+		full time.Duration
+	}{{"полный (RECALC_FULL_EVERY=0)", 0}, {"частичный", time.Hour}} {
+		p := newPartialRig(t, 100_000, mode.full)
+		var took []time.Duration
+		for i := 0; i < 15; i++ {
+			start := time.Now() // от правки строк в базе до готового результата
+			version := p.event(t, []int64{int64(1 + p.rng.Intn(100_000))})
+			waitLatest(t, p.rc, "пересчёт", func() bool { return p.rc.Engine.Latest().DataVersion >= version })
+			took = append(took, time.Since(start))
+		}
+		slices.Sort(took)
+		t.Logf("%s: медиана %v, макс %v (15 событий)", mode.name, took[len(took)/2], took[len(took)-1])
+	}
 }
