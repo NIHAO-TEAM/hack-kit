@@ -20,17 +20,21 @@ type IngestOutcome struct {
 
 // IngestRun — итог прогона событий через приёмник.
 type IngestRun struct {
-	Outcomes   []IngestOutcome
-	BatchSizes []int   // сколько событий в каждой записанной пачке
-	Published  []int64 // версии, о которых объявлено source.changed
-	Duplicates int
+	Outcomes          []IngestOutcome
+	BatchSizes        []int     // сколько событий в каждой записанной пачке
+	Published         []int64   // версии, о которых объявлено source.changed
+	PublishedAccounts [][]int64 // клиенты каждого объявления, по возрастанию
+	Duplicates        int
 }
 
 // RunIngest прогоняет события с заданными номерами через приёмник и ждёт записи всех.
 func RunIngest(ctx context.Context, pool *pgxpool.Pool, base Snapshot, seqs []int, evs []StreamEvent) IngestRun {
 	var run IngestRun
 	g := newEventWriter(pool, newIngestState(&base), time.Now,
-		func(v int64) { run.Published = append(run.Published, v) },
+		func(ch Change) {
+			run.Published = append(run.Published, ch.Version)
+			run.PublishedAccounts = append(run.PublishedAccounts, ch.Accounts)
+		},
 		func(res []ingestResult) {
 			run.BatchSizes = append(run.BatchSizes, len(res))
 			for _, r := range res {
