@@ -57,6 +57,7 @@ var operations = map[string]struct {
 	"GET /api/v1/analytics/churn-chart":    {"getChurnChart", accessAnyRole},
 	"GET /api/v1/model/settings":           {"getModelSettings", accessAnyRole},
 	"PATCH /api/v1/model/settings":         {"patchModelSettings", accessStaff},
+	"GET /api/v1/model/sensitivity":        {"getModelSensitivity", accessStaff},
 	"PUT /api/v1/source/snapshot":          {"putSnapshot", accessStaff},
 	"GET /api/v1/source/status":            {"getSourceStatus", accessAnyRole},
 	"PUT /api/v1/source/polling":           {"setSourcePolling", accessStaff},

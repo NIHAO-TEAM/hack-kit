@@ -124,3 +124,21 @@ func TestMarketerCannotChangeModelOrData(t *testing.T) {
 		t.Errorf("GET model/settings закрыт для маркетолога: %d", get.StatusCode())
 	}
 }
+
+func TestModelSensitivityAccess(t *testing.T) {
+	s := apitest.New(t)
+	if resp := do(t, s, http.MethodGet, "/api/v1/model/sensitivity", nil); resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("без сессии: %d, ждали 401", resp.StatusCode)
+	}
+	marketer := sessionCookie(login(t, s, "marketer", apitest.Password("marketer")))
+	if resp := do(t, s, http.MethodGet, "/api/v1/model/sensitivity", func(r *http.Request) { r.AddCookie(marketer) }); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("маркетолог: %d, ждали 403", resp.StatusCode)
+	}
+	for _, role := range []string{"analyst", "jury"} {
+		c := sessionCookie(login(t, s, role, apitest.Password(role)))
+		resp := do(t, s, http.MethodGet, "/api/v1/model/sensitivity", func(r *http.Request) { r.AddCookie(c) })
+		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized {
+			t.Errorf("%s: %d, доступ должен быть", role, resp.StatusCode)
+		}
+	}
+}

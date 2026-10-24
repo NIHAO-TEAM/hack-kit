@@ -18,6 +18,7 @@ type ModelAPI struct {
 	ports Ports
 	clk   clock.Clock
 	audit audit.Recorder
+	sens  sensitivityCache
 }
 
 // WithAudit подключает журнал действий: каждая сохранённая правка настроек пишется с «было → стало».
