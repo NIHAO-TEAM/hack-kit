@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"cmp"
+	"encoding/json"
 	"slices"
 	"strings"
 	"sync"
@@ -19,6 +20,8 @@ var sortKeys = []gen.ListCustomersParamsSort{"id", "email", "balance", "totalRep
 type readModel struct {
 	// orders[ключ][0] — по возрастанию, [1] — по убыванию; при равных значениях всегда по id.
 	orders [][2][]int32
+	// raw[i] — JSON строки списка клиента i без поля task (оно зависит от запроса); собирается один раз.
+	raw [][]byte
 }
 
 // BuildIndex строит порядки сразу; без вызова они строятся при первом чтении списка.
@@ -37,6 +40,16 @@ func buildReadModel(cs []Customer) *readModel {
 	}
 	rm := &readModel{orders: make([][2][]int32, len(sortKeys))}
 	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rm.raw = make([][]byte, len(cs))
+		for i := range cs {
+			row := cs[i].Row
+			row.Task = nil
+			rm.raw[i], _ = json.Marshal(row)
+		}
+	}()
 	for k, key := range sortKeys {
 		for d := 0; d < 2; d++ {
 			wg.Add(1)

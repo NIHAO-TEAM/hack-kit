@@ -2,6 +2,9 @@ package analytics
 
 import (
 	"cmp"
+	"encoding/json"
+	"log"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -68,12 +71,45 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 		httpx.WriteProblem(w, r, 400, bad)
 		return
 	}
-	page := gen.CustomerPage{Items: res.Rows, Total: res.Total, Version: pf.Version}
+	var next *string
 	if res.More {
 		cur := encodeCursor(cursor{Version: pf.Version, Sort: res.Sort, Desc: res.Desc, Pos: res.Last})
-		page.NextCursor = &cur
+		next = &cur
 	}
-	writeJSON(w, r, page)
+	writePage(w, res.Items, next, res.Total, pf.Version)
+}
+
+// writePage собирает ответ {items,nextCursor,total,version} из готовых байтов строк; байты те же,
+// что дал бы json.Encoder для gen.CustomerPage.
+func writePage(w http.ResponseWriter, items [][]byte, next *string, total int, version int64) {
+	n := 64
+	for _, it := range items {
+		n += len(it) + 1
+	}
+	buf := make([]byte, 0, n)
+	buf = append(buf, `{"items":[`...)
+	for i, it := range items {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		buf = append(buf, it...)
+	}
+	buf = append(buf, ']')
+	if next != nil {
+		c, _ := json.Marshal(*next)
+		buf = append(buf, `,"nextCursor":`...)
+		buf = append(buf, c...)
+	}
+	buf = append(buf, `,"total":`...)
+	buf = strconv.AppendInt(buf, int64(total), 10)
+	buf = append(buf, `,"version":`...)
+	buf = strconv.AppendInt(buf, version, 10)
+	buf = append(buf, "}\n"...)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if _, err := w.Write(buf); err != nil {
+		log.Printf("analytics: ответ: %v", err)
+	}
 }
 
 // customerFilter — общие параметры списка и выгрузки: фильтры и сортировка без страниц.
@@ -162,6 +198,15 @@ func (s *selector) row(pos int32) gen.CustomerRow {
 	return row
 }
 
+// rowJSON — JSON строки: из модели чтения, если у клиента нет открытой задачи, иначе собирается с task.
+func (s *selector) rowJSON(pos int32) []byte {
+	if briefFor(s.f.Tasks, s.pf.Customers[pos].Row) == nil {
+		return s.pf.index().raw[pos]
+	}
+	b, _ := json.Marshal(s.row(pos))
+	return b
+}
+
 // selectRows отбирает и сортирует все строки портфеля (для выгрузки); при неверном параметре вернёт текст для 400.
 func selectRows(pf *Portfolio, f customerFilter) (rows []gen.CustomerRow, bad string) {
 	s, bad := newSelector(pf, f)
@@ -182,7 +227,8 @@ func selectRows(pf *Portfolio, f customerFilter) (rows []gen.CustomerRow, bad st
 type window struct{ Offset, Limit, After int }
 
 type pageResult struct {
-	Rows  []gen.CustomerRow
+	// Items — JSON строк страницы: готовые из модели чтения, а строки с задачей собираются заново.
+	Items [][]byte
 	Total int
 	// Last — позиция последней отданной строки в порядке модели чтения; More — есть ли строки дальше.
 	Last int
@@ -197,7 +243,7 @@ func selectPage(pf *Portfolio, f customerFilter, win window) (pageResult, string
 	if bad != "" {
 		return pageResult{}, bad
 	}
-	res := pageResult{Rows: make([]gen.CustomerRow, 0, win.Limit), Sort: s.sort, Desc: s.desc, Last: -1}
+	res := pageResult{Items: make([][]byte, 0, win.Limit), Sort: s.sort, Desc: s.desc, Last: -1}
 	skipped := 0
 	for k, pos := range s.order {
 		if !s.match(&pf.Customers[pos].Row) {
@@ -208,8 +254,8 @@ func selectPage(pf *Portfolio, f customerFilter, win window) (pageResult, string
 		case k <= win.After:
 		case skipped < win.Offset:
 			skipped++
-		case len(res.Rows) < win.Limit:
-			res.Rows = append(res.Rows, s.row(pos))
+		case len(res.Items) < win.Limit:
+			res.Items = append(res.Items, s.rowJSON(pos))
 			res.Last = k
 		default:
 			res.More = true

@@ -256,3 +256,23 @@ func TestReadersSeeWholeModelDuringSwap(t *testing.T) {
 	close(stop)
 	wg.Wait()
 }
+
+// Ответ из заранее собранных байтов совпадает побайтно с json.Encoder для gen.CustomerPage.
+func TestListBodyMatchesEncoder(t *testing.T) {
+	api := listAPI(tiedPortfolio(300))
+	for _, limit := range []int{1, 50, 200} {
+		rec := httptest.NewRecorder()
+		api.ListCustomers(rec, httptest.NewRequest(http.MethodGet, "/api/v1/customers", nil), gen.ListCustomersParams{Limit: ptr(limit)})
+		var page gen.CustomerPage
+		if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+			t.Fatal(err)
+		}
+		var want strings.Builder
+		if err := json.NewEncoder(&want).Encode(page); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Body.String() != want.String() {
+			t.Errorf("limit %d: тело ответа отличается от json.Encoder", limit)
+		}
+	}
+}
