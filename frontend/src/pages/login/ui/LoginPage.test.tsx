@@ -51,7 +51,7 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
   });
 
-  it('фон скрыт от читалок и с орбитой, названия и заголовок на месте, значка нет', () => {
+  it('фон скрыт от читалок и с орбитой, названия и заголовок на месте, логотип в main', () => {
     vi.stubGlobal('fetch', config(false));
     const { container } = render(
       <MantineProvider>
