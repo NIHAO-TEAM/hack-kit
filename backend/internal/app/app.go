@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -192,7 +193,11 @@ func WithRequestID(next http.Handler) http.Handler {
 func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.AuthAPI, feed analytics.Feed, opts ...Option) http.Handler {
 	mux := Routes(pool, bus, clk, authAPI, feed, opts...)
 	// Предел запросов в работе стоит до проверки сессии: перегрузка не доходит до базы сессий.
-	return httpx.SecurityHeaders(WithRequestID(httpx.Limit(httpx.LimitConfigFromEnv(), authAPI.Middleware(mux, httpx.Instrument(mux)))))
+	h := httpx.Instrument(mux)
+	if c, ok := feed.(interface{ CalculatedAt() time.Time }); ok {
+		h = httpx.DataAge(c.CalculatedAt, clk.Now, h)
+	}
+	return httpx.SecurityHeaders(WithRequestID(httpx.Limit(httpx.LimitConfigFromEnv(), authAPI.Middleware(mux, h))))
 }
 
 // qualityChecker — источник проверок качества данных для /source/status; его реализует воркер пересчёта.

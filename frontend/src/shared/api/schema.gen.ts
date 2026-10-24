@@ -441,6 +441,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/source/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Пачка событий биллинга извне (аналитик, jury или сервисный токен источника)
+         * @description Тело — NDJSON (application/x-ndjson, событие на строку) или JSON-массив (application/json); не больше 5 000 событий и 2 МБ на запрос, больше — 413. Виды событий те же, что у эмулятора потока: top_up, autoprolong_on, autoprolong_off, service_stop, service_resume, renewal_failed, prolong_wait. У события обязателен eventId: повтор уже принятого eventId не применяется и считается в duplicate. Строка с ошибкой формата или значений попадает в rejected, остальные принимаются. События идут в тот же писатель пачек, что и у эмулятора; применение асинхронное, version — версия данных, с которой событие входит в пересчёт. Очередь писателя полна дольше секунды — 503 с Retry-After, из запроса не применено ничего (всё или ничего).
+         */
+        post: operations["postSourceEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/source/status": {
         parameters: {
             query?: never;
@@ -824,6 +844,49 @@ export interface components {
         };
         EmulatorActionsRequest: {
             actions: components["schemas"]["EmulatorAction"][];
+        };
+        IngestEvent: {
+            /** @description Уникальный номер события; повтор принятого не применяется */
+            eventId: string;
+            /** @description Вид события: top_up, autoprolong_on, autoprolong_off, service_stop, service_resume, renewal_failed, prolong_wait. Строкой, а не перечислением: значения совпали бы с константами статусов услуги в сгенерированном коде. */
+            kind: string;
+            /**
+             * Format: int64
+             * @description Счёт; обязателен, если задан balance
+             */
+            accountId?: number;
+            /**
+             * Format: int64
+             * @description Новый баланс счёта в евроцентах
+             */
+            balance?: number;
+            /**
+             * Format: int64
+             * @description Услуга; обязательна, если задан status, autoProlong или expiresAt
+             */
+            serviceId?: number;
+            /** @description Новый статус услуги (как в PATCH /source/services/{id}) */
+            status?: string;
+            autoProlong?: boolean;
+            /** Format: date-time */
+            expiresAt?: string;
+        };
+        IngestRejected: {
+            /** @description Номер события в запросе, с 1 */
+            line: number;
+            error: string;
+        };
+        IngestAccepted: {
+            /** @description Сколько событий поставлено в очередь записи */
+            accepted: number;
+            /** @description Сколько событий уже были приняты раньше (по eventId) и не применены */
+            duplicate: number;
+            rejected: components["schemas"]["IngestRejected"][];
+            /**
+             * Format: int64
+             * @description Версия данных на момент ответа; применённое событие войдёт в более позднюю
+             */
+            version: number;
         };
         StreamRequest: {
             /**
@@ -2261,6 +2324,54 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             422: components["responses"]["UnprocessableEntity"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    postSourceEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-ndjson": string;
+                "application/json": components["schemas"]["IngestEvent"][];
+            };
+        };
+        responses: {
+            /** @description Пачка принята в очередь записи */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestAccepted"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Больше 5 000 событий или 2 МБ в запросе */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Очередь записи полна дольше секунды; ничего из запроса не применено, повторить через Retry-After секунд */
+            503: {
+                headers: {
+                    /** @description Через сколько секунд повторить запрос. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     getSourceStatus: {

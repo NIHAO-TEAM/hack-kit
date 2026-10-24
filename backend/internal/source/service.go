@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,6 +22,7 @@ import (
 
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/events"
+	"example.com/app/internal/platform/httpx"
 )
 
 // Источники снимка в snapshots.source.
@@ -587,6 +589,10 @@ var (
 		Help:    "Время записи одной пачки событий потока одной транзакцией (секунды).",
 		Buckets: []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5},
 	})
+	ingestDBWaits = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "churn_ingest_db_unavailable_total",
+		Help: "Сколько раз запись пачки событий упёрлась в недоступную базу и ушла на повтор (штуки).",
+	})
 	ingestQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "churn_ingest_queue_depth",
 		Help: "Сколько событий потока ждёт записи в очереди приёма (штуки).",
@@ -622,6 +628,9 @@ type eventWriter struct {
 	in   chan ingestItem
 	done chan struct{}
 
+	// offerSem — один запрос приёма ставит свои события за раз (offerAll).
+	offerSem chan struct{} // ёмкость 1; канал, а не мьютекс, чтобы ожидание укладывалось в срок
+
 	mu   sync.Mutex
 	seen map[int]struct{} // номера, которые уже были приняты в обработку
 	dups int
@@ -631,7 +640,7 @@ func newEventWriter(pool *pgxpool.Pool, st *ingestState, now func() time.Time, p
 	return &eventWriter{
 		pool: pool, state: st, now: now, publish: publish, onBatch: onBatch,
 		in: make(chan ingestItem, ingestQueueSize), done: make(chan struct{}),
-		seen: map[int]struct{}{},
+		seen: map[int]struct{}{}, offerSem: make(chan struct{}, 1),
 	}
 }
 
@@ -700,7 +709,8 @@ func (g *eventWriter) run(ctx context.Context) {
 }
 
 // write проверяет события пачки, пишет годные одной транзакцией и возвращает итог по каждому.
-// Ошибка базы на пачке: один повтор, затем все годные события пачки уходят в отказ.
+// Ошибка запроса на пачке: один повтор, затем годные события уходят в отказ. База недоступна
+// (пауза, перезапуск): пачка ждёт её возврата и пишется целиком, события не теряются.
 func (g *eventWriter) write(ctx context.Context, items []ingestItem) []ingestResult {
 	out := make([]ingestResult, len(items))
 	good := make([]int, 0, len(items))
@@ -717,12 +727,7 @@ func (g *eventWriter) write(ctx context.Context, items []ingestItem) []ingestRes
 	var skipped map[int]error
 	var err error
 	if len(good) > 0 {
-		for attempt := 0; attempt < 2; attempt++ {
-			if version, skipped, err = g.commit(ctx, items, good); err == nil {
-				break
-			}
-			log.Printf("source: приём пачки из %d событий, попытка %d: %v", len(good), attempt+1, err)
-		}
+		version, skipped, err = g.commitRetry(ctx, items, good)
 	}
 	end := g.now()
 	for _, i := range good {
@@ -746,6 +751,73 @@ func (g *eventWriter) write(ctx context.Context, items []ingestItem) []ingestRes
 		g.publish(Change{Version: version, Accounts: g.touched(items, good, skipped)})
 	}
 	return out
+}
+
+// Паузы повторов пачки при недоступной базе; после них писатель ждёт возврата базы пингом.
+var (
+	ingestRetryPauses = []time.Duration{100 * time.Millisecond, time.Second, 5 * time.Second}
+	ingestPingEvery   = time.Second
+)
+
+// commitRetry пишет пачку. Ошибка запроса — один повтор. База недоступна — повторы с растущей
+// паузой, затем ожидание pool.Ping до возврата базы или отмены ctx: пока писатель ждёт, очередь
+// заполняется и submit блокирует поток (обратное давление), а не теряет события.
+func (g *eventWriter) commitRetry(ctx context.Context, items []ingestItem, good []int) (int64, map[int]error, error) {
+	return retryCommit(ctx, len(good), func() (int64, map[int]error, error) { return g.commit(ctx, items, good) }, g.pool.Ping)
+}
+
+// retryCommit — политика повторов commitRetry, отдельно от базы: commit и ping подставляются.
+func retryCommit(ctx context.Context, n int, commit func() (int64, map[int]error, error), ping func(context.Context) error) (int64, map[int]error, error) {
+	for attempt := 0; ; attempt++ {
+		version, skipped, err := commit()
+		if err == nil || ctx.Err() != nil {
+			return version, skipped, err
+		}
+		log.Printf("source: приём пачки из %d событий, попытка %d: %v", n, attempt+1, err)
+		if !httpx.IsDBUnavailable(err) {
+			if attempt >= 1 {
+				return 0, nil, err
+			}
+			continue
+		}
+		ingestDBWaits.Inc()
+		if attempt < len(ingestRetryPauses) {
+			if !sleepCtx(ctx, ingestRetryPauses[attempt]) {
+				return 0, nil, ctx.Err()
+			}
+			continue
+		}
+		if !waitDB(ctx, ping) {
+			return 0, nil, ctx.Err()
+		}
+		attempt = len(ingestRetryPauses) // после возврата базы — снова одна попытка за раз
+	}
+}
+
+// waitDB ждёт, пока база отвечает на ping; false — ctx отменён раньше.
+func waitDB(ctx context.Context, ping func(context.Context) error) bool {
+	for {
+		pctx, cancel := context.WithTimeout(ctx, ingestPingEvery)
+		err := ping(pctx)
+		cancel()
+		if err == nil {
+			return true
+		}
+		if !sleepCtx(ctx, ingestPingEvery) {
+			return false
+		}
+	}
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // touched — клиенты записанных событий пачки по возрастанию номера, без повторов.
@@ -1188,3 +1260,54 @@ func ingest(ctx context.Context, pool *pgxpool.Pool, body io.Reader, now time.Ti
 
 // queueLen — сколько событий сейчас ждёт в очереди приёма.
 func (g *eventWriter) queueLen() int { return len(g.in) }
+
+type pgEventIDs struct{ pool *pgxpool.Pool }
+
+func (s pgEventIDs) claim(ctx context.Context, ids []string, now time.Time) ([]string, idTx, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Порядок id фиксирован: два запроса с общими id не ждут друг друга по кругу.
+	sorted := append([]string(nil), ids...)
+	sort.Strings(sorted)
+	rows, err := tx.Query(ctx, `INSERT INTO source_event_ids (event_id, seen_at)
+		SELECT id, $2 FROM unnest($1::text[]) AS id ON CONFLICT (event_id) DO NOTHING RETURNING event_id`, sorted, now)
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, nil, err
+	}
+	fresh, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, nil, err
+	}
+	return fresh, tx, nil
+}
+
+func (s pgEventIDs) clean(ctx context.Context, before time.Time) error {
+	_, err := s.pool.Exec(ctx, "DELETE FROM source_event_ids WHERE seen_at < $1", before)
+	return err
+}
+
+// newEventIntake собирает приём над пулом и запускает писателя. Писатель живёт до конца процесса.
+func newEventIntake(pool *pgxpool.Pool, now func() time.Time, publish func(Change)) *eventIntake {
+	w := newEventWriter(pool, newOpenIngestState(), now, publish, func(res []ingestResult) {
+		for _, r := range res {
+			if r.err != nil {
+				ingestAPIEvents.WithLabelValues("failed").Inc()
+				continue
+			}
+			ingestAPIEvents.WithLabelValues("applied").Inc()
+		}
+	})
+	w.in = make(chan ingestItem, ingestAPIQueueSize)
+	w.start(context.Background())
+	return &eventIntake{
+		w: w, ids: pgEventIDs{pool}, now: now, wait: eventsQueueWait,
+		version: func(ctx context.Context) (int64, bool, error) {
+			st, ok, err := currentStatus(ctx, pool)
+			return st.Version, ok, err
+		},
+	}
+}

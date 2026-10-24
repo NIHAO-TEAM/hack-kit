@@ -182,3 +182,37 @@
 - WHEN клиент начал отдавать тело снимка и замолчал дольше срока на тело (`SNAPSHOT_BODY_TIMEOUT_SEC`, по умолчанию 120 с)
 - THEN ответ 400, транзакция откатана, таблицы и версия прежние
 - Тест: `TestSnapshotIngestBodyTimeout`
+
+### Requirement: пачка событий извне
+
+Сервер SHALL принимать пачку событий биллинга `POST /source/events` (NDJSON или JSON-массив, до 5 000 событий и 2 МБ) тем же пакетным путём записи, что события эмулятора, не применяя повторно событие с уже принятым `eventId`. Доступ: служебный токен источника, аналитик, `jury`, администратор; маркетологу 403, без сессии 401.
+
+#### Scenario: повтор пачки
+
+- WHEN биллинг отправляет ту же пачку из 500 событий дважды
+- THEN первый ответ `accepted = 500`, второй `duplicate = 500`, данные изменились один раз
+- Тест: `TestPostSourceEventsRepeatedBatch`, `TestPostSourceEventsAppliesOnceAndDeduplicates` (интеграционные), `TestProcessDuplicates`
+
+#### Scenario: строка с ошибкой
+
+- WHEN в пачке есть строка с битым JSON, неизвестным видом события или недопустимым значением
+- THEN ответ 202, годные события приняты, ошибочные — в `rejected` с номером строки
+- Тест: `TestProcessPartialRejected`, `TestParseEventRejects`
+
+#### Scenario: пределы запроса
+
+- WHEN в запросе больше 5 000 событий или тело больше 2 МБ
+- THEN ответ 413, ничего не принято
+- Тест: `TestReadEventsCountLimit`, `TestPostSourceEventsBodyOverLimit`
+
+#### Scenario: перегрузка
+
+- WHEN очередь приёма полна дольше 1 с
+- THEN ответ `503` с `Retry-After`, ни одно событие запроса не применено, `eventId` запроса свободны для повтора
+- Тест: `TestProcessBackpressureAllOrNothing`, `TestPostSourceEvents503RetryAfter`
+
+#### Scenario: права
+
+- WHEN пачку шлёт токен источника, аналитик или `jury`
+- THEN ответ 202; маркетологу 403, без сессии и с токеном метрик 401
+- Тест: `TestPermissionMatrixCoversEveryOperation`, `TestSourceTokenOpensOnlySnapshot`, `TestPostSourceEventsRoles` (интеграционный)
