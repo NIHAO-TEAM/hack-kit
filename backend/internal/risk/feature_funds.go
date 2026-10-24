@@ -1,7 +1,5 @@
 package risk
 
-import "fmt"
-
 type funds struct{}
 
 func init() { Register(funds{}) }
@@ -21,5 +19,8 @@ func (funds) Eval(ctx ServiceCtx) (float64, string, bool) {
 		return 0, "", true
 	}
 	f := float64(need-have) / float64(need)
-	return f, fmt.Sprintf("Нужно %s на 7 дней, на балансе %s", euros(need), euros(have)), true
+	if ctx.NoReason {
+		return f, "", true
+	}
+	return f, "Нужно " + euros(need) + " на 7 дней, на балансе " + euros(have), true
 }
