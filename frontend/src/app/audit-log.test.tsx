@@ -17,6 +17,15 @@ describe('журнал действий', () => {
     expect(within(log).getAllByText('analyst').length).toBeGreaterThan(0);
   });
 
+  it('правка задачи читается простыми словами', async () => {
+    signedInAs('analyst');
+    renderApp('/model');
+    const log = await screen.findByRole('region', { name: 'Журнал действий' });
+    expect(await within(log).findByText('Статус задачи: В работе → Связались')).toBeInTheDocument();
+    expect(within(log).getByText('Заметка: изменена')).toBeInTheDocument();
+    expect(within(log).queryByText(/in_work/)).not.toBeInTheDocument();
+  });
+
   it('кнопки страниц журнала находятся по имени', async () => {
     signedInAs('analyst');
     const items = Array.from({ length: 25 }, (_, i) => ({

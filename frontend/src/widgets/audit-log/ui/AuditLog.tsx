@@ -43,7 +43,7 @@ export function AuditLog() {
                     <Text fw={600}>{e.summary}</Text>
                     {e.changes.map((c) => (
                       <Text key={c.field} size="sm" c="dimmed">
-                        {changeText(c)}
+                        {changeText(c, e.action)}
                       </Text>
                     ))}
                   </Stack>
