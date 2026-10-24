@@ -5,7 +5,7 @@
 1. `run()` получает `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)`; этот `ctx` уходит в `recalc.Start`, `billing.Run`, `source.OnStart`.
 2. `httpx.Readiness` — флаг `atomic.Bool` «готов» и «останавливаюсь»; `/readyz` отвечает `503`, пока нет первого пересчёта или идёт остановка. Признак первого пересчёта — подписка на `analytics.TopicRecalculated` в `main.go` (модули не трогаем).
 3. Порядок остановки: сигнал → `ready=false` → `sleep(drain)` → `srv.Shutdown(timeoutCtx)` → ожидание воркеров (`sync.WaitGroup` в `main.go`) → `pool.Close()`.
-4. SSE: `srv.RegisterOnShutdown(cancelStreams)`; обработчики потоков слушают общий `streamsCtx` и выходят. Если обработчик SSE лежит в модуле, достаточно, что он слушает `r.Context()`: `Shutdown` сам не закрывает долгие соединения, поэтому `BaseContext` сервера отменяется в `RegisterOnShutdown`.
+4. SSE: `srv.RegisterOnShutdown(cancelStreams)`; `Track` подмешивает отмену только в контекст запроса `/api/v1/events`, остальные запросы дорабатывают (`BaseContext` сервера не подменяется). `Shutdown` сам не закрывает долгие соединения, поэтому поток закрывается отменой своего контекста.
 5. Тест: сервер на `httptest`-листенере, медленный запрос 300 мс и открытый SSE; отправка остановки → медленный запрос получает `200`, SSE закрыт, `/readyz` ответил `503` до закрытия, остановка завершилась быстрее таймаута.
 
 ## Допущения
@@ -24,4 +24,4 @@
 - `/readyz` регистрируется во внешнем мультиплексоре `newServer`, а не в контракте (по `proposal.md` — вне Swagger); поэтому сессия и `permissions.go` его не касаются.
 - [ПРЕДПОЛОЖЕНО] `ReadTimeout` 30 с, `IdleTimeout` 120 с: значения в `proposal.md` не названы; загрузка снимка укладывается в 30 с на данных жюри, SSE дедлайны снимает сам (`clearDeadlines`).
 - Событие `retry: 1000` SSE-обработчик пишет при любой отмене контекста запроса (остановка или уход клиента); при уходе клиента запись безвредна.
-- [ПРОВЕРЕНО] net/http (Go 1.24): `Server.Shutdown` вызывает `RegisterOnShutdown`-функции сразу и не закрывает активные соединения — поэтому поток закрывается отменой `BaseContext`.
+- [ПРОВЕРЕНО] net/http (Go 1.24): `Server.Shutdown` вызывает `RegisterOnShutdown`-функции сразу и не закрывает активные соединения — поэтому поток закрывается отменой своего контекста.
