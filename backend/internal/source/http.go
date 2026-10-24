@@ -116,8 +116,7 @@ func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteProblem(w, r, http.StatusUnprocessableEntity, "снимок не прошёл проверку", fe...)
 		return
 	case err != nil:
-		log.Printf("source: запись снимка: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не записан, прежние данные сохранены")
+		httpx.WriteFailure(w, r, err, "снимок не записан, прежние данные сохранены")
 		return
 	}
 	a.record(r, audit.ActionSnapshotLoaded,
@@ -161,8 +160,7 @@ func pollingBody(st PollStatus) *gen.SourcePolling {
 func (a *SourceAPI) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
 	st, ok, err := currentStatus(r.Context(), a.pool)
 	if err != nil {
-		log.Printf("source: статус: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "статус недоступен")
+		httpx.WriteFailure(w, r, err, "статус недоступен")
 		return
 	}
 	now := a.clk.Now()
