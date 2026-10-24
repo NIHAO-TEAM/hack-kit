@@ -64,6 +64,10 @@ func (r *Recalc) Portfolio() *analytics.Portfolio {
 	if c := r.cache.Load(); c != nil && c.version == calc.Version {
 		return c.pf
 	}
+	if pf, ok := calc.Extra.(*analytics.Portfolio); ok {
+		r.cache.Store(&portfolioCache{calc.Version, pf}) // частичный пересчёт собрал портфель сам
+		return pf
+	}
 	snap, ok := r.snaps.get(calc.DataVersion)
 	if !ok {
 		return nil
