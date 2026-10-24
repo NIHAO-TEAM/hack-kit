@@ -15,6 +15,7 @@ tags:
   - name: model
   - name: source
   - name: audit
+  - name: tasks
   - name: platform
 components:
   securitySchemes:
@@ -46,6 +47,13 @@ components:
         format: uuid
     CustomerId:
       name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    TaskId:
+      name: taskId
       in: path
       required: true
       schema:
@@ -96,6 +104,12 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: Конфликт задачи удержания; task — её текущее состояние
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/TaskConflict"
     UnprocessableEntity:
       description: Снимок не прошёл проверку связей и значений; errors[] — по полям
       content:
@@ -484,6 +498,8 @@ components:
         billing:
           type: boolean
           description: Тег «к биллингу» — сбой автосписания, а не отток.
+        task:
+          $ref: "#/components/schemas/TaskBrief"
     ActionBrief:
       type: object
       required: [id, title, effectCents]
@@ -509,6 +525,237 @@ components:
           type: integer
           format: int64
           description: Версия пересчёта, по которому построена страница.
+    TaskStatus:
+      type: string
+      description: "В работе, связались, отложено, закрыто."
+      enum: [in_work, contacted, postponed, closed]
+    TaskOutcome:
+      type: string
+      description: "Итог закрытой задачи: продлил, отказался, не ответил, не нужно."
+      enum: [renewed, refused, no_answer, not_needed]
+    TaskChannel:
+      type: string
+      description: "Канал контакта: почта, телефон, мессенджер, другое."
+      enum: [email, phone, messenger, other]
+    TaskBrief:
+      type: object
+      description: Открытая задача клиента в строке очереди и в карточке.
+      required: [id, status, assignee, dueAt, overdue]
+      properties:
+        id:
+          type: integer
+          format: int64
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        assignee:
+          type: string
+          description: Логин ответственного.
+        dueAt:
+          type: string
+          format: date-time
+        overdue:
+          type: boolean
+          description: Срок прошёл (по часам сервера) и задача не закрыта.
+    TaskServiceBaseline:
+      type: object
+      required: [id, status, autoProlong, expiresAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        status:
+          $ref: "#/components/schemas/ServiceStatus"
+        autoProlong:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+    TaskBaseline:
+      type: object
+      description: Исходное состояние клиента в момент, когда его взяли в работу. Не меняется.
+      required: [version, level, expectedLossCents, balance, services]
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: Версия пересчёта, из которого взято состояние.
+        asOf:
+          type: string
+          format: date-time
+          description: Время модели на этот пересчёт.
+        score:
+          type: number
+          format: double
+          nullable: true
+        level:
+          $ref: "#/components/schemas/RiskLevel"
+        expectedLossCents:
+          type: integer
+          format: int64
+        topAction:
+          $ref: "#/components/schemas/ActionBrief"
+        balance:
+          type: integer
+          format: int64
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskServiceBaseline"
+    TaskEvent:
+      type: object
+      required: [id, at, actor, kind, text, changes]
+      properties:
+        id:
+          type: integer
+          format: int64
+        at:
+          type: string
+          format: date-time
+        actor:
+          type: string
+        kind:
+          type: string
+          enum: [created, changed, contact, note]
+        channel:
+          $ref: "#/components/schemas/TaskChannel"
+        text:
+          type: string
+        changes:
+          type: array
+          description: Что поменялось в задаче; пусто у контакта и заметки.
+          items:
+            $ref: "#/components/schemas/AuditChange"
+    RetentionTask:
+      type: object
+      required: [id, customerId, status, assignee, dueAt, overdue, note, version, customerMissing, baseline, createdBy, createdAt, updatedAt, updatedBy]
+      properties:
+        id:
+          type: integer
+          format: int64
+        customerId:
+          type: integer
+          format: int64
+        customerEmail:
+          type: string
+          description: Email клиента на момент, когда его взяли в работу.
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        outcome:
+          $ref: "#/components/schemas/TaskOutcome"
+        assignee:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+        overdue:
+          type: boolean
+        note:
+          type: string
+        version:
+          type: integer
+          format: int64
+          description: Номер правки; передаётся в PATCH.
+        customerMissing:
+          type: boolean
+          description: Клиента нет в текущем снимке или у его ID другой email.
+        baseline:
+          $ref: "#/components/schemas/TaskBaseline"
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+        closedAt:
+          type: string
+          format: date-time
+        events:
+          type: array
+          description: История по порядку, старые сверху. Есть в ответах по одной задаче, в списке нет.
+          items:
+            $ref: "#/components/schemas/TaskEvent"
+    TaskConflict:
+      description: Problem с текущей задачей.
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          properties:
+            task:
+              $ref: "#/components/schemas/RetentionTask"
+    TaskPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RetentionTask"
+        total:
+          type: integer
+    TaskCreate:
+      type: object
+      description: Необязательные поля; по умолчанию срок — завтра 18:00 МСК, ответственный — текущий пользователь.
+      properties:
+        assignee:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+          maxLength: 2000
+    TaskPatch:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: Версия, которую видел автор правки.
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        outcome:
+          $ref: "#/components/schemas/TaskOutcome"
+        assignee:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+          maxLength: 2000
+    TaskEventCreate:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [contact, note]
+        channel:
+          $ref: "#/components/schemas/TaskChannel"
+        text:
+          type: string
+          maxLength: 2000
+    TaskAssignee:
+      type: object
+      required: [login, role]
+      properties:
+        login:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+    TaskAssignees:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskAssignee"
     AuditChange:
       type: object
       required: [field, from, to]
@@ -537,7 +784,7 @@ components:
           description: Логин того, кто действовал; при неудачном входе — введённый логин
         action:
           type: string
-          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions]
+          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions, taskCreated, taskChanged, taskEvent]
         summary:
           type: string
           description: Запись простыми словами
@@ -1066,6 +1313,12 @@ paths:
           description: Подстрока email или id
           schema:
             type: string
+        - name: task
+          in: query
+          description: "Задача удержания: none — без открытой, open — с открытой, mine — открытая на мне."
+          schema:
+            type: string
+            enum: [none, open, mine]
         - name: sort
           in: query
           schema:
@@ -1125,6 +1378,200 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/customers/{id}/task:
+    post:
+      operationId: takeCustomerTask
+      tags: [tasks]
+      summary: Взять клиента в работу (маркетолог, jury, администратор)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskCreate"
+      responses:
+        "201":
+          description: Задача создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionTask"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: Задачи удержания с фильтрами; новые правки сверху
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/TaskStatus"
+        - name: assignee
+          in: query
+          description: Логин ответственного или me — текущий пользователь.
+          schema:
+            type: string
+        - name: overdue
+          in: query
+          description: true — только просроченные открытые.
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Страница задач
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/tasks/assignees:
+    get:
+      operationId: listTaskAssignees
+      tags: [tasks]
+      summary: Кому можно назначить задачу
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Сотрудники
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAssignees"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/tasks/{taskId}:
+    get:
+      operationId: getTask
+      tags: [tasks]
+      summary: Задача с историей
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Задача
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionTask"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    patch:
+      operationId: patchTask
+      tags: [tasks]
+      summary: Изменить статус, ответственного, срок, заметку, итог (маркетолог, jury, администратор)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskPatch"
+      responses:
+        "200":
+          description: Задача после правки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionTask"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/tasks/{taskId}/events:
+    post:
+      operationId: addTaskEvent
+      tags: [tasks]
+      summary: Записать контакт или заметку в историю (маркетолог, jury, администратор)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskEventCreate"
+      responses:
+        "201":
+          description: Задача с новым событием
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionTask"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/analytics/summary:
