@@ -63,3 +63,19 @@ func TestWindowRecorderKeeps60AndSums(t *testing.T) {
 	}
 	_ = total
 }
+
+// Прогон короче секунды: единственный (финальный) tick сбрасывает всё накопленное в одну точку.
+func TestWindowRecorderShortRunFinalTick(t *testing.T) {
+	w := newWindowRecorder(0)
+	for i := 0; i < 2500; i++ {
+		w.addAccepted()
+	}
+	w.addBatch(2490, 10)
+	pts := w.tick(0, 5)
+	if len(pts) != 1 {
+		t.Fatalf("точек окна: %d, нужна 1", len(pts))
+	}
+	if pts[0].Accepted != 2500 || pts[0].Applied+pts[0].Failed != 2500 || pts[0].Recalcs != 5 {
+		t.Fatalf("точка: %+v", pts[0])
+	}
+}

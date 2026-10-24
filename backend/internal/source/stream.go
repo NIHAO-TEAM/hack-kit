@@ -332,6 +332,15 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 			progress(false)
 		})
 	ing.start(ctx)
+	publishWindow := func() {
+		recalcs := startRecalcs
+		if v, ok := a.observer.StreamLatest(); ok {
+			recalcs = v.Recalcs
+		}
+		pts := win.tick(ing.queueLen(), recalcs)
+		st := a.stream.update(func(s *gen.StreamState) { s.Window = &pts })
+		a.bus.Publish(TopicStreamProgress, st)
+	}
 	stopTick := make(chan struct{})
 	tickDone := make(chan struct{})
 	go func() {
@@ -343,19 +352,16 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 			case <-stopTick:
 				return
 			case <-t.C:
-				recalcs := startRecalcs
-				if v, ok := a.observer.StreamLatest(); ok {
-					recalcs = v.Recalcs
-				}
-				pts := win.tick(ing.queueLen(), recalcs)
-				st := a.stream.update(func(s *gen.StreamState) { s.Window = &pts })
-				a.bus.Publish(TopicStreamProgress, st)
+				publishWindow()
 			}
 		}
 	}()
+	// stopWindow останавливает тикер и сбрасывает последнюю неполную секунду отдельной точкой:
+	// короткий прогон (меньше секунды) всё равно оставляет в окне хотя бы одну точку.
 	stopWindow := func() {
 		close(stopTick)
 		<-tickDone
+		publishWindow()
 	}
 	var gap time.Duration
 	if rate > 0 {
@@ -381,11 +387,12 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		win.addAccepted()
 	}
 	ing.finish()
-	stopWindow()
 	progress(true)
 	elapsed := time.Since(started)
 
+	// тикер окна живёт до конца сверки: очередь и пересчёты видны, пока идёт settleAndVerify
 	after, cons, err := a.settleAndVerify(ctx)
+	stopWindow()
 	close(stopWatch)
 	<-watchDone
 	if err != nil {
@@ -404,6 +411,8 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		LossBeforeCents: before.ExpectedLossCents, LossAfterCents: after.ExpectedLossCents,
 		Consistency: cons,
 	}
+	p99 := ms(percentile(applyDur, 99))
+	rep.ApplyP99Ms = &p99
 	if p95 := percentile(lag.lags, 95); len(lag.lags) > 0 {
 		v := ms(p95)
 		rep.QueueLagP95Ms = &v

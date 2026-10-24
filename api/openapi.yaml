@@ -552,6 +552,9 @@ components:
           type: number
         applyP95Ms:
           type: number
+        applyP99Ms:
+          type: number
+          description: p99 длительности применения одного события
         applyMaxMs:
           type: number
         recalcs:
