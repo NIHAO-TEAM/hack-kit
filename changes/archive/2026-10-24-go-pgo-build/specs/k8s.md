@@ -10,4 +10,4 @@
 
 - WHEN выкачена новая версия
 - THEN `go version -m` бинаря показывает сборку с PGO, в окружении пода есть `GOMEMLIMIT`
-- Тест: шаг проверки в CI сборки образа и `helm template`
+- Тест: CI держит шаг `grep -- "-pgo="` в `Dockerfile`; `GOMEMLIMIT` проверяется ревью (`helm template` его только рендерит)

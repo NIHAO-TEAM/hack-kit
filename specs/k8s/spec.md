@@ -57,4 +57,4 @@
 - WHEN выкачена новая версия
 - THEN `go version -m` бинаря показывает сборку с PGO, в окружении пода есть `GOMEMLIMIT`
 
-Держат: шаг `go version -m /out/api | grep -- "-pgo="` в `Dockerfile` (сборка образа падает без профиля), `GOMEMLIMIT` в `deploy/helm/churn/values.yaml` (`helm template`, `deploy-k8s-values.yml`).
+Держит CI: шаг `go version -m /out/api | grep -- "-pgo="` в `Dockerfile` (сборка образа падает без профиля). `GOMEMLIMIT` в `deploy/helm/churn/values.yaml` проверяется ревью: `helm template` его только рендерит.
