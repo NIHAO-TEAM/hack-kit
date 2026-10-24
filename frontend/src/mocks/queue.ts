@@ -159,6 +159,13 @@ export const queueHandlers = [
       expectedLossCents: all.reduce((s, r) => s + r.expectedLossCents, 0),
       atRiskCents: 359907,
       lostCents: 120450,
+      lossByFeature: [
+        { featureId: 'susp', lossCents: 184419, customers: 2, sharePercent: 51.24 },
+        { featureId: 'funds', lossCents: 134738, customers: 1, sharePercent: 37.44 },
+        { featureId: 'noauto', lossCents: 38321, customers: 5, sharePercent: 10.65 },
+        { featureId: 'pwait', lossCents: 2003, customers: 2, sharePercent: 0.56 },
+        { featureId: 'fail', lossCents: 426, customers: 3, sharePercent: 0.12 },
+      ],
       asOf: MOCK_AS_OF,
       retention: retention(all),
       version: 1,

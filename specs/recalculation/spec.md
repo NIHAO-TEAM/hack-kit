@@ -69,3 +69,89 @@
 - WHEN один снимок посчитан последовательно и параллельно
 - THEN клиенты, действия, сводка и проверки качества совпадают
 - Тест: `TestScoreParallelEqualsSequential` (`internal/app/score_scale_test.go`)
+
+### Requirement: пересчёт использует все ядра и не меняет результат
+
+Пересчёт SHALL раздавать клиентов пачками пулу воркеров по числу ядер и давать результат, идентичный последовательному расчёту.
+
+#### Scenario: результат не изменился
+
+- WHEN пересчитаны данные организаторов и синтетический снимок на 10 000 клиентов
+- THEN уровни, скоры и потери совпадают с последовательным расчётом до цента
+- Тест: `TestPipelineEqualsSequential` (`internal/app/recalc_pipeline_test.go`), `TestScoreParallelEqualsSequential`
+
+### Requirement: новый снимок отменяет текущий пересчёт
+
+Новое событие снимка или настроек SHALL отменять идущий пересчёт; отменённый прогон не публикует результат.
+
+#### Scenario: второй снимок во время пересчёта
+
+- WHEN во время пересчёта приходит второй снимок
+- THEN первый прогон отменён, опубликован результат по второму снимку, `churn_recalc_cancelled_total` вырос на 1
+- Тест: `TestNewEventCancelsRunningRecalc` (`internal/analytics/engine_test.go`), `TestScoreContextCancel`, `TestRecalcMetrics` (`internal/analytics/recalc_metrics_test.go`)
+
+#### Scenario: поток событий
+
+- WHEN подряд приходит 2 500 событий
+- THEN пересчёты не отменяются бесконечно: прогон после отменённого доходит до конца, результаты публикуются во время потока
+- Тест: `TestEventStreamStillCompletes`
+
+### Requirement: профиль и бенчмарки
+
+Сервер SHALL давать `pprof` только по токену метрик, а репозиторий — бенчмарки пересчёта на 10 000 и 100 000 клиентов.
+
+#### Scenario: профиль без токена
+
+- WHEN запрос к служебному маршруту профиля без токена
+- THEN ответ `401` или `403`
+- Тест: `TestPprofOnlyWithMetricsToken` (`internal/auth/tokens_test.go`); бенчмарки `BenchmarkRecalc10k`, `BenchmarkRecalc100k` (`internal/app/recalc_bench_test.go`)
+
+### Requirement: пересчёт не выделяет память на каждую услугу
+
+Пересчёт SHALL переиспользовать буферы воркера между клиентами пачки и давать результат, побитово равный эталону.
+
+#### Scenario: пересчёт 100 000 клиентов
+
+- WHEN идёт `BenchmarkRecalc100k`
+- THEN выделений на операцию меньше, чем до изменения (2,46 млн против 8,53 млн, `docs/load/2026-10-24-recalc-alloc.md`), golden и parity без расхождений
+- Тест: бенчмарк `BenchmarkRecalc100k` (`internal/app/recalc_bench_test.go`), golden (`internal/risk/golden_test.go`), `TestParity10k` (`-tags parity`)
+
+### Requirement: событие клиента пересчитывает только его
+
+Пересчёт SHALL для события с известными клиентами пересчитывать только их и давать тот же итог, что полный пересчёт.
+
+#### Scenario: событие одного клиента на 100 тыс.
+
+- WHEN пришло событие по одному клиенту в портфеле на 100 000 клиентов
+- THEN пересчитан 1 клиент (`churn_recalc_customers`), сводка и очередь равны полному пересчёту до цента
+- Тест: `TestRescoreEqualsFull` (`internal/app/incremental_test.go`), `TestPartialRecalcEqualsFull` (`internal/app/recalc_partial_integration_test.go`)
+
+#### Scenario: порядок и страницы очереди после частичного пересчёта
+
+- WHEN клиентов события заменили в портфеле
+- THEN порядок по каждой сортировке, строки и обход курсором совпадают со сборкой портфеля с нуля, прежний портфель не изменился
+- Тест: `TestPatchedPortfolioMatchesFresh`, `TestCursorWalksPatchedPortfolio` (`internal/analytics/readmodel_patch_test.go`)
+
+#### Scenario: полный пересчёт
+
+- WHEN событие не называет клиентов (снимок целиком, смена весов), или затронуто больше 5 % клиентов, или частичный пересчёт отказал, или с последнего полного прошло `RECALC_FULL_EVERY` (60 с; 0 — всегда полный)
+- THEN пересчёт полный
+- Тест: `TestPartialFullWithoutAccountsOrOnOtherTopic`, `TestPartialNeedFullFallsBack`, `TestPartialFullEveryAndShare`, `TestPartialZeroFullEveryDisablesPartial` (`internal/analytics/engine_partial_test.go`), `TestPartialRecalcOffAndFullOnSnapshot`, `TestPartialRecalcFullEveryPeriod`
+
+#### Scenario: отменённый пересчёт не теряет клиентов
+
+- WHEN частичный пересчёт отменён новым событием
+- THEN клиенты отменённого прогона достаются следующему
+- Тест: `TestPartialCancelledRunKeepsAccounts`
+
+#### Scenario: события потока называют клиентов
+
+- WHEN писатель потока зафиксировал пачку
+- THEN `source.changed` несёт версию и клиентов записанных событий по возрастанию; события без записанных строк клиентов не добавляют
+- Тест: `TestIngestTouchedAccounts`, `TestIngestBatchesAndVersions`
+
+#### Scenario: метрики частичного пересчёта
+
+- WHEN пересчёт прошёл
+- THEN `churn_recalc_customers` показывает число пересчитанных клиентов, `churn_recalc_mode_seconds{mode}` — длительности частичных и полных отдельно
+- Тест: `TestRecalcCustomersAndModeMetrics`

@@ -4,6 +4,7 @@
     {
       "actions": [
         {
+          "costCents": 0,
           "levelAfter": "low",
           "lossDeltaCents": -37508,
           "scoreAfter": 40.0,
@@ -22,18 +23,19 @@
         },
         "11": {
           "fail": 0.0,
-          "flight": 0.174108,
-          "funds": 0.0
+          "flight": 0.174108
         },
         "21": {
           "fail": 1.0,
           "flight": 0.174108,
-          "funds": 0.0,
           "noauto": 0.0
         }
       },
       "id": 1,
       "level": "medium",
+      "lossByFeature": {
+        "noauto": 37508
+      },
       "lostCents": 0,
       "score": 54.84,
       "state": "scored"
@@ -45,6 +47,7 @@
       "features": {},
       "id": 2,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 1840,
       "score": null,
       "state": "lost"
@@ -56,6 +59,7 @@
       "features": {},
       "id": 3,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 53153,
       "score": null,
       "state": "lost"
@@ -74,19 +78,20 @@
         "24": {
           "fail": 1.0,
           "flight": 0.037648,
-          "funds": 0.0,
           "susp": 1.0
         },
         "4": {
           "fail": 0.0,
           "flight": 0.037648,
-          "funds": 0.0,
           "noauto": 0.0,
           "susp": 1.0
         }
       },
       "id": 4,
       "level": "medium",
+      "lossByFeature": {
+        "susp": 699
+      },
       "lostCents": 0,
       "score": 61.0,
       "state": "scored"
@@ -94,6 +99,7 @@
     {
       "actions": [
         {
+          "costCents": 0,
           "levelAfter": "high",
           "lossDeltaCents": -83,
           "scoreAfter": 88.0,
@@ -126,6 +132,11 @@
       },
       "id": 5,
       "level": "high",
+      "lossByFeature": {
+        "fail": 86,
+        "noauto": 277,
+        "pwait": 1100
+      },
       "lostCents": 0,
       "score": 91.0,
       "state": "scored"
@@ -133,6 +144,7 @@
     {
       "actions": [
         {
+          "costCents": 0,
           "levelAfter": "low",
           "lossDeltaCents": -4,
           "scoreAfter": 40.0,
@@ -145,8 +157,7 @@
       "features": {
         "16": {
           "fail": 0.0,
-          "flight": 0.660725,
-          "funds": 0.0
+          "flight": 0.660725
         },
         "26": {
           "fail": 0.0,
@@ -157,12 +168,14 @@
         "6": {
           "fail": 1.0,
           "flight": 0.660725,
-          "funds": 0.0,
           "noauto": 0.0
         }
       },
       "id": 6,
       "level": "low",
+      "lossByFeature": {
+        "noauto": 4
+      },
       "lostCents": 0,
       "score": 40.0,
       "state": "scored"
@@ -174,6 +187,7 @@
       "features": {},
       "id": 7,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 680874,
       "score": null,
       "state": "lost"
@@ -185,14 +199,17 @@
       "features": {},
       "id": 8,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 967,
       "score": null,
       "state": "lost"
     },
     {
+      "actionComboCents": -102932,
       "actions": [
         {
           "amountCents": 52984,
+          "costCents": 52984,
           "levelAfter": "high",
           "lossDeltaCents": -102749,
           "scoreAfter": 82.45,
@@ -200,6 +217,7 @@
           "type": "top_up"
         },
         {
+          "costCents": 0,
           "levelAfter": "high",
           "lossDeltaCents": -135,
           "scoreAfter": 71.01,
@@ -221,7 +239,6 @@
           "bonus_locked": 1.0,
           "fail": 0.0,
           "flight": 0.605337,
-          "funds": 0.366697,
           "susp": 1.0
         },
         "9": {
@@ -235,6 +252,12 @@
       },
       "id": 9,
       "level": "high",
+      "lossByFeature": {
+        "fail": 189,
+        "funds": 134738,
+        "noauto": 263,
+        "susp": 183720
+      },
       "lostCents": 0,
       "score": 86.95,
       "state": "scored"
@@ -242,6 +265,7 @@
     {
       "actions": [
         {
+          "costCents": 0,
           "levelAfter": "high",
           "lossDeltaCents": -64,
           "scoreAfter": 88.0,
@@ -275,6 +299,11 @@
       },
       "id": 10,
       "level": "high",
+      "lossByFeature": {
+        "fail": 151,
+        "noauto": 269,
+        "pwait": 903
+      },
       "lostCents": 0,
       "score": 94.6,
       "state": "scored"
@@ -293,14 +322,19 @@
       },
       "id": 1001,
       "level": "low",
+      "lossByFeature": {
+        "pwait": 390
+      },
       "lostCents": 0,
       "score": 43.33,
       "state": "scored"
     },
     {
+      "actionComboCents": -70719,
       "actions": [
         {
           "amountCents": 18660,
+          "costCents": 18660,
           "levelAfter": "low",
           "lossDeltaCents": -28856,
           "scoreAfter": 48.45,
@@ -308,6 +342,7 @@
           "type": "top_up"
         },
         {
+          "costCents": 0,
           "levelAfter": "medium",
           "lossDeltaCents": -14739,
           "scoreAfter": 64.79,
@@ -327,6 +362,10 @@
       },
       "id": 1002,
       "level": "high",
+      "lossByFeature": {
+        "funds": 40462,
+        "noauto": 30257
+      },
       "lostCents": 0,
       "score": 81.85,
       "state": "scored"
@@ -338,12 +377,12 @@
       "features": {
         "1003": {
           "fail": 0.0,
-          "flight": 0.0,
-          "funds": 0.0
+          "flight": 0.0
         }
       },
       "id": 1003,
       "level": "low",
+      "lossByFeature": {},
       "lostCents": 0,
       "score": 0.0,
       "state": "scored"
@@ -355,6 +394,7 @@
       "features": {},
       "id": 1004,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 0,
       "score": null,
       "state": "unscored"
@@ -363,6 +403,7 @@
       "actions": [
         {
           "amountCents": 500,
+          "costCents": 500,
           "levelAfter": "low",
           "lossDeltaCents": -1400,
           "scoreAfter": 0.0,
@@ -382,6 +423,9 @@
       },
       "id": 1005,
       "level": "low",
+      "lossByFeature": {
+        "funds": 1400
+      },
       "lostCents": 0,
       "score": 43.75,
       "state": "scored"
@@ -393,12 +437,12 @@
       "features": {
         "1006": {
           "fail": 0.0,
-          "flight": 0.0,
-          "funds": 0.0
+          "flight": 0.0
         }
       },
       "id": 1006,
       "level": "low",
+      "lossByFeature": {},
       "lostCents": 0,
       "score": 0.0,
       "state": "scored"
@@ -431,6 +475,33 @@
       "medium": 2,
       "unscored": 1
     },
+    "lossByFeature": [
+      {
+        "customers": 2,
+        "id": "susp",
+        "lossCents": 184419
+      },
+      {
+        "customers": 3,
+        "id": "funds",
+        "lossCents": 176600
+      },
+      {
+        "customers": 6,
+        "id": "noauto",
+        "lossCents": 68578
+      },
+      {
+        "customers": 3,
+        "id": "pwait",
+        "lossCents": 2393
+      },
+      {
+        "customers": 3,
+        "id": "fail",
+        "lossCents": 426
+      }
+    ],
     "lostCents": 736834
   }
 }

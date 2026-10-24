@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -42,8 +43,52 @@ func modelPorts(pool *pgxpool.Pool) model.Ports {
 		Preview: func(ctx context.Context, cur, next json.RawMessage) (model.DryRun, error) {
 			return preview(ctx, reader, cur, next)
 		},
+		SnapshotVersion: func(ctx context.Context) (int64, error) {
+			if reader == nil {
+				return 0, model.ErrNoData
+			}
+			v, err := reader.Version(ctx)
+			if errors.Is(err, source.ErrNoSnapshot) {
+				return 0, model.ErrNoData
+			}
+			return v, err
+		},
+		Sensitivity: func(ctx context.Context, body json.RawMessage) (model.Sensitivity, error) {
+			return sensitivity(ctx, reader, body)
+		},
 		Actor: auth.LoginFrom,
 	}
+}
+
+// sensitivity считает чувствительность очереди к весам на текущем снимке: чистое чтение.
+func sensitivity(ctx context.Context, reader *source.Reader, body json.RawMessage) (model.Sensitivity, error) {
+	if reader == nil {
+		return model.Sensitivity{}, model.ErrNoData
+	}
+	var st risk.Settings
+	if err := json.Unmarshal(body, &st); err != nil {
+		return model.Sensitivity{}, fmt.Errorf("настройки: %w", err)
+	}
+	snap, version, err := reader.Load(ctx)
+	if errors.Is(err, source.ErrNoSnapshot) {
+		return model.Sensitivity{}, model.ErrNoData
+	}
+	if err != nil {
+		return model.Sensitivity{}, err
+	}
+	rs := ToRiskSnapshot(snap)
+	return toModelSensitivity(risk.Sensitivity(rs, st, rs.AsOf), version), nil
+}
+
+func toModelSensitivity(r risk.SensitivityResult, snapshotVersion int64) model.Sensitivity {
+	shift := func(s risk.Shift) model.ShiftResult {
+		return model.ShiftResult{LevelChanges: s.LevelChanges, TopThreeChanged: s.TopThreeChanged, LossDeltaCents: s.LossDeltaCents}
+	}
+	out := model.Sensitivity{Sampled: r.Sampled, Customers: r.Customers, SnapshotVersion: snapshotVersion}
+	for _, f := range r.Features {
+		out.Features = append(out.Features, model.FeatureSensitivity{ID: f.ID, Weight: f.Weight, Down: shift(f.Down), Up: shift(f.Up)})
+	}
+	return out
 }
 
 func knownFeatures() []string {

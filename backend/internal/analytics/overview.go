@@ -17,6 +17,17 @@ type Overview struct {
 	AtRiskCents       int64
 	LostCents         int64
 	QualityCounts     map[string]int
+	LossByFeature     []FeatureLoss // по убыванию потери; сумма равна ExpectedLossCents
+	// RecalcCustomers — сколько клиентов пересчитал последний прогон; Partial — только затронутые.
+	RecalcCustomers int
+	Partial         bool
+}
+
+// FeatureLoss — часть ожидаемой потери, отнесённая к одной причине (признаку модели).
+type FeatureLoss struct {
+	ID        string
+	LossCents int64
+	Customers int
 }
 
 // OverviewFunc возвращает последний результат; nil, пока ни один расчёт не удался.

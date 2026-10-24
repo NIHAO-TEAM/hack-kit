@@ -110,6 +110,13 @@ export const handlers = [
       expectedLossCents: all.reduce((s, r) => s + r.expectedLossCents, 0),
       atRiskCents: all.filter((r) => r.level !== 'low').reduce((s, r) => s + r.balance, 0),
       lostCents: 0,
+      lossByFeature: [
+        { featureId: 'susp', lossCents: 184419, customers: 2, sharePercent: 51.24 },
+        { featureId: 'funds', lossCents: 134738, customers: 1, sharePercent: 37.44 },
+        { featureId: 'noauto', lossCents: 38321, customers: 5, sharePercent: 10.65 },
+        { featureId: 'pwait', lossCents: 2003, customers: 2, sharePercent: 0.56 },
+        { featureId: 'fail', lossCents: 426, customers: 3, sharePercent: 0.12 },
+      ],
       version: 1,
     });
   }),

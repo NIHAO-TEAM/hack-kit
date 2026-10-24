@@ -18,6 +18,7 @@ const (
 	ActionAccountChange     = "accountChanged"
 	ActionEmulatorTick      = "emulatorTick"
 	ActionEmulatorAction    = "emulatorActions"
+	ActionEmulatorStream    = "emulatorStream"
 	ActionCustomersExported = "customersExported"
 	ActionTaskCreated       = "taskCreated"
 	ActionTaskChanged       = "taskChanged"

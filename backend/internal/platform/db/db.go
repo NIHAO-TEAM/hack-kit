@@ -5,17 +5,48 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib" // драйвер database/sql для goose
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 
 	"example.com/app/migrations"
 )
 
+const (
+	defaultMaxConns    = 16
+	defaultMaxConnLife = 30 * time.Minute
+)
+
+// poolConfig разбирает DSN и задаёт размер пула из DB_MAX_CONNS (по умолчанию 16).
+func poolConfig(dsn string) (*pgxpool.Config, error) {
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MaxConns = defaultMaxConns
+	if v := os.Getenv("DB_MAX_CONNS"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 1000 {
+			return nil, fmt.Errorf("DB_MAX_CONNS=%q: нужно целое от 1 до 1000", v)
+		}
+		cfg.MaxConns = int32(n)
+	}
+	cfg.MaxConnLifetime = defaultMaxConnLife
+	return cfg, nil
+}
+
 // Open создаёт пул соединений.
 func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+	cfg, err := poolConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("db: пул: %w", err)
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("db: пул: %w", err)
 	}
@@ -27,7 +58,12 @@ func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 }
 
 func provider(sqlDB *sql.DB) (*goose.Provider, error) {
-	return goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS)
+	// Сессионная блокировка: две реплики на старте не гонят миграции одновременно.
+	locker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		return nil, err
+	}
+	return goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS, goose.WithSessionLocker(locker))
 }
 
 // Up применяет все новые миграции.

@@ -20,6 +20,8 @@ const (
 	accessStaff
 	// accessWork — работа с клиентом: маркетолог, jury, администратор. Аналитик только читает.
 	accessWork
+	// accessService — только служебный токен сборщика метрик; ни одна роль с сессией не допущена.
+	accessService
 )
 
 // operations — таблица «шаблон маршрута ServeMux → операция». Маршрут, которого здесь нет,
@@ -57,6 +59,7 @@ var operations = map[string]struct {
 	"GET /api/v1/analytics/churn-chart":    {"getChurnChart", accessAnyRole},
 	"GET /api/v1/model/settings":           {"getModelSettings", accessAnyRole},
 	"PATCH /api/v1/model/settings":         {"patchModelSettings", accessStaff},
+	"GET /api/v1/model/sensitivity":        {"getModelSensitivity", accessStaff},
 	"PUT /api/v1/source/snapshot":          {"putSnapshot", accessStaff},
 	"GET /api/v1/source/status":            {"getSourceStatus", accessAnyRole},
 	"PUT /api/v1/source/polling":           {"setSourcePolling", accessStaff},
@@ -64,10 +67,13 @@ var operations = map[string]struct {
 	"PATCH /api/v1/source/accounts/{id}":   {"patchAccount", accessStaff},
 	"POST /api/v1/source/emulator/tick":    {"emulatorTick", accessStaff},
 	"POST /api/v1/source/emulator/actions": {"emulatorActions", accessStaff},
+	"POST /api/v1/source/emulator/stream":  {"startEmulatorStream", accessStaff},
+	"GET /api/v1/source/emulator/stream":   {"getEmulatorStream", accessStaff},
 	"GET /api/v1/audit":                    {"listAudit", accessStaff},
 	"GET /api/v1/events":                   {"getEvents", accessAnyRole},
 	"GET /metrics":                         {"getMetrics", accessAnyRole},
 	"GET /metics":                          {"getMetricsAlias", accessAnyRole},
+	"GET /debug/pprof/":                    {"pprof", accessService},
 }
 
 // can решает, может ли роль выполнить операцию с сессией. Публичные операции доступны всем.

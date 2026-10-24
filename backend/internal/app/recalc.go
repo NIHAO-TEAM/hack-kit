@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"example.com/app/internal/analytics"
 	"example.com/app/internal/model"
@@ -26,13 +27,18 @@ type Recalc struct {
 	snaps    *snapshots
 	cache    cacheHolder
 	observer *retention.Service
+	bus      *events.Bus
 	reads    *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
+	metrics  *analytics.RecalcMetrics
+	reader   *source.Reader
+	clk      clock.Clock
 }
 
 // NewRecalc собирает воркер: настройки из model_settings, снимок из таблиц организаторов.
 func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 	snaps := &snapshots{}
 	reads := &atomic.Int64{}
+	metrics := analytics.NewRecalcMetrics(risk.Workers)
 	store := model.NewStore(pool, bus, ValidateSettings)
 	reader := source.NewReader(pool)
 	compute := func(ctx context.Context) (analytics.Computed[risk.Result], error) {
@@ -64,24 +70,43 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 			stages.Load = clk.Now().Sub(t0)
 		}
 		t2 := clk.Now()
-		res := risk.Score(rs, st, rs.AsOf)
+		res, err := scoreSnapshot(ctx, rs, st, metrics)
+		if err != nil {
+			return analytics.Computed[risk.Result]{}, err
+		}
 		stages.Score = clk.Now().Sub(t2)
 		return analytics.Computed[risk.Result]{
 			Result:          res,
 			DataVersion:     dataVersion,
 			SettingsVersion: settingsVersion,
 			Stages:          stages,
+			Customers:       len(res.Customers),
 		}, nil
 	}
 	r := &Recalc{
 		Engine:   analytics.NewEngine(compute, bus, clk, source.TopicChanged, model.TopicChanged),
 		Settings: store,
 		snaps:    snaps,
+		bus:      bus,
 		reads:    reads,
+		metrics:  metrics,
+		reader:   reader,
+		clk:      clk,
 	}
+	r.WithFullEvery(fullEveryFromEnv())
+	r.Engine.WithObserver(func(c *analytics.Calculation[risk.Result]) { metrics.ObserveRecalc(c.Partial, c.Duration) })
+	metrics.Cancelled = r.Engine.Cancelled
 	r.observer = retention.New(pool, bus, clk, r)
 	return r
 }
+
+// scoreSnapshot считает модель конвейером: расчёт отменяется вместе с ctx, длительность пачек идёт в метрики.
+func scoreSnapshot(ctx context.Context, rs risk.Snapshot, st risk.Settings, m *analytics.RecalcMetrics) (risk.Result, error) {
+	return risk.ScoreContext(ctx, rs, st, rs.AsOf, risk.Options{OnBatch: m.ObserveBatch})
+}
+
+// Collectors — метрики пересчёта для /metrics: воркеры, отменённые прогоны, длительность пачек.
+func (r *Recalc) Collectors() []prometheus.Collector { return []prometheus.Collector{r.metrics} }
 
 // TableReads — сколько раз пересчёт читал таблицы снимка целиком; смена настроек их не читает.
 func (r *Recalc) TableReads() int64 { return r.reads.Load() }
@@ -91,14 +116,38 @@ func (r *Recalc) TableReads() int64 { return r.reads.Load() }
 // Канал закрывается, когда остановились оба.
 func (r *Recalc) Start(ctx context.Context) <-chan struct{} {
 	observed := r.observer.StartObserver(ctx) // подписка до первого расчёта, иначе его событие потеряется
+	warmed := r.warmReadModel(ctx)
 	engine := r.Engine.Start(ctx)
 	stopped := make(chan struct{})
 	go func() {
 		<-engine
 		<-observed
+		<-warmed
 		close(stopped)
 	}()
 	return stopped
+}
+
+// warmReadModel после каждого пересчёта собирает портфель и модель чтения заранее, в фоне:
+// первый запрос списка не ждёт сортировок. Подписка оформляется до возврата.
+func (r *Recalc) warmReadModel(ctx context.Context) <-chan struct{} {
+	ch, cancel := r.bus.Subscribe(analytics.TopicRecalculated)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer cancel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ch:
+				if pf := r.Portfolio(); pf != nil {
+					pf.BuildIndex()
+				}
+			}
+		}
+	}()
+	return done
 }
 
 // ValidateSettings проверяет тело настроек модели.
@@ -170,6 +219,9 @@ func (r *Recalc) Overview() *analytics.Overview {
 		AtRiskCents:       s.ExposureCents,
 		LostCents:         s.LostCents,
 		QualityCounts:     s.QualityCounts,
+		LossByFeature:     lossByFeature(s.LossByFeature),
+		RecalcCustomers:   c.Customers,
+		Partial:           c.Partial,
 	}
 }
 
@@ -199,6 +251,56 @@ func qualityChecks(in []risk.CheckResult) []gen.QualityCheck {
 			q.Items = &items
 		}
 		out = append(out, q)
+	}
+	return out
+}
+
+// StreamLatest отдаёт потоку событий эмулятора последний готовый результат пересчёта.
+func (r *Recalc) StreamLatest() (source.StreamView, bool) {
+	c := r.Engine.Latest()
+	if c == nil {
+		return source.StreamView{}, false
+	}
+	v := streamView(c.Result)
+	v.DataVersion, v.Recalcs = c.DataVersion, c.Version
+	return v, true
+}
+
+// StreamFresh считает модель над снимком с нуля: свежий вызов ядра с текущими настройками,
+// без состояния воркера.
+func (r *Recalc) StreamFresh(ctx context.Context, s source.Snapshot) (source.StreamView, error) {
+	st, _, err := currentSettings(ctx, r.Settings)
+	if err != nil {
+		return source.StreamView{}, err
+	}
+	rs := ToRiskSnapshot(s)
+	return streamView(risk.Score(rs, st, rs.AsOf)), nil
+}
+
+var _ source.StreamObserver = (*Recalc)(nil)
+
+func streamView(res risk.Result) source.StreamView {
+	v := source.StreamView{
+		Levels:            res.Summary.Levels,
+		ExpectedLossCents: res.Summary.ExpectedLossCents,
+		ExposureCents:     res.Summary.ExposureCents,
+		LostCents:         res.Summary.LostCents,
+		Customers:         make(map[int64]string, len(res.Customers)),
+	}
+	for _, c := range res.Customers {
+		level := c.State
+		if c.Level != nil {
+			level = *c.Level
+		}
+		v.Customers[c.ID] = level
+	}
+	return v
+}
+
+func lossByFeature(in []risk.FeatureLoss) []analytics.FeatureLoss {
+	out := make([]analytics.FeatureLoss, len(in))
+	for i, f := range in {
+		out[i] = analytics.FeatureLoss{ID: f.ID, LossCents: f.LossCents, Customers: f.Customers}
 	}
 	return out
 }
