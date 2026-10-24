@@ -116,6 +116,7 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 	}
 	analyticsAPI := newAnalytics(pool, bus, clk, feed)
 	analyticsAPI.WithCollectors(source.IngestCollectors()...)
+	analyticsAPI.WithCollectors(bus.Collector())
 	if rec != nil {
 		analyticsAPI.WithAudit(rec)
 	}
