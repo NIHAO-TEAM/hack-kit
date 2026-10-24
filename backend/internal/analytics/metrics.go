@@ -1,6 +1,9 @@
 package analytics
 
 import (
+	"math"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -96,4 +99,52 @@ func (a *AnalyticsAPI) GetMetricsAlias(w responseWriter, r *request) { a.GetMetr
 func (a *AnalyticsAPI) registry() *prometheus.Registry {
 	a.regOnce.Do(func() { a.reg = newRegistry(a.overview, a.clk, a.extra...) })
 	return a.reg
+}
+
+// RecalcMetrics — метрики конвейера пересчёта: число воркеров, отменённые прогоны, длительность пачек.
+// Модуль не знает ядро модели: число воркеров и счётчик отмен ему передаёт сборка сервера.
+type RecalcMetrics struct {
+	// Workers даёт число воркеров для снимка из n клиентов; nil — не показывать.
+	Workers   func(n int) int
+	Cancelled func() int64
+
+	batches prometheus.Histogram
+}
+
+// NewRecalcMetrics создаёт метрики; workers считает воркеров по числу клиентов (risk.Workers).
+func NewRecalcMetrics(workers func(n int) int) *RecalcMetrics {
+	return &RecalcMetrics{
+		Workers: workers,
+		batches: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "churn_recalc_batch_seconds",
+			Help:    "Длительность расчёта одной пачки клиентов воркером (секунды).",
+			Buckets: prometheus.ExponentialBuckets(0.0005, 2, 12),
+		}),
+	}
+}
+
+// ObserveBatch записывает длительность пачки; безопасен из нескольких воркеров.
+func (m *RecalcMetrics) ObserveBatch(_ int, took time.Duration) { m.batches.Observe(took.Seconds()) }
+
+var (
+	descWorkers = prometheus.NewDesc("churn_recalc_workers",
+		"Число воркеров пересчёта (по числу ядер, runtime.GOMAXPROCS).", nil, nil)
+	descCancelled = prometheus.NewDesc("churn_recalc_cancelled_total",
+		"Сколько пересчётов отменено новым событием снимка или настроек.", nil, nil)
+)
+
+func (m *RecalcMetrics) Describe(ch chan<- *prometheus.Desc) {
+	ch <- descWorkers
+	ch <- descCancelled
+	m.batches.Describe(ch)
+}
+
+func (m *RecalcMetrics) Collect(ch chan<- prometheus.Metric) {
+	if m.Workers != nil {
+		ch <- prometheus.MustNewConstMetric(descWorkers, prometheus.GaugeValue, float64(m.Workers(math.MaxInt32)))
+	}
+	if m.Cancelled != nil {
+		ch <- prometheus.MustNewConstMetric(descCancelled, prometheus.CounterValue, float64(m.Cancelled()))
+	}
+	m.batches.Collect(ch)
 }

@@ -115,7 +115,8 @@ func TestBurstOfEventsMakesOneExtraRecalc(t *testing.T) {
 	}
 	close(gate)
 
-	waitFor(t, "пересчёт после пачки", func() bool { return e.Latest().Version == 3 })
+	// Второй расчёт отменён первым событием пачки и ничего не опубликовал: версия 2 — расчёт после пачки.
+	waitFor(t, "пересчёт после пачки", func() bool { return e.Latest().Version == 2 })
 	// Останов движка вместо Sleep: после него новых расчётов быть не может.
 	cancel()
 	<-done
@@ -154,4 +155,74 @@ func TestErrorKeepsPreviousResult(t *testing.T) {
 	if e.Latest().Version != before.Version+1 {
 		t.Errorf("версия после ошибки: %d, ждали %d", e.Latest().Version, before.Version+1)
 	}
+}
+
+// Новое событие отменяет идущий пересчёт: он ничего не публикует, следующий считает свежие данные.
+func TestNewEventCancelsRunningRecalc(t *testing.T) {
+	in := &inputs{}
+	var calls atomic.Int64
+	entered := make(chan struct{}, 10)
+	compute := func(ctx context.Context) (analytics.Computed[string], error) {
+		if calls.Add(1) == 2 {
+			entered <- struct{}{}
+			<-ctx.Done() // долгий расчёт, который ждёт отмены
+			return analytics.Computed[string]{}, ctx.Err()
+		}
+		return in.compute(ctx)
+	}
+	e, bus, recalculated := start(t, compute)
+	waitFor(t, "пересчёт при старте", func() bool { return e.Latest() != nil })
+	<-recalculated
+
+	in.data.Store(1)
+	bus.Publish(topicData, int64(1))
+	<-entered
+	in.data.Store(2)
+	bus.Publish(topicData, int64(2)) // второй снимок, пока считается первый
+
+	waitFor(t, "пересчёт по второму снимку", func() bool { return e.Latest().DataVersion == 2 })
+	if e.Cancelled() != 1 {
+		t.Errorf("отменённых пересчётов %d, ждали 1", e.Cancelled())
+	}
+	if e.Errors() != 0 {
+		t.Errorf("отмена засчитана как ошибка: %d", e.Errors())
+	}
+	if got := e.Latest(); got.Version != 2 {
+		t.Errorf("версия %d, ждали 2: отменённый прогон не должен публиковаться", got.Version)
+	}
+}
+
+// Поток событий не отменяет пересчёты бесконечно: прогон после отменённого доходит до конца.
+func TestEventStreamStillCompletes(t *testing.T) {
+	in := &inputs{}
+	compute := func(ctx context.Context) (analytics.Computed[string], error) {
+		select { // расчёт 5 мс, отменяется
+		case <-time.After(5 * time.Millisecond):
+		case <-ctx.Done():
+			return analytics.Computed[string]{}, ctx.Err()
+		}
+		return in.compute(ctx)
+	}
+	e, _, _ := start(t, compute)
+	waitFor(t, "пересчёт при старте", func() bool { return e.Latest() != nil })
+
+	stop := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		for i := int64(1); i <= 2500; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			in.data.Store(i)
+			e.MarkDirty()
+			time.Sleep(100 * time.Microsecond)
+		}
+	}()
+	defer func() { close(stop); <-finished }()
+
+	// Пока идёт поток, результаты публикуются (не только после его конца).
+	waitFor(t, "публикации во время потока", func() bool { return e.Latest().Version >= 3 })
 }
