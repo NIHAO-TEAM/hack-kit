@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -82,7 +83,34 @@ func TestListCustomersDefault(t *testing.T) {
 
 func TestListCustomersSorts(t *testing.T) {
 	a := api(organizersPortfolio(t))
-	for _, field := range []gen.ListCustomersParamsSort{gen.Id, gen.Email, gen.Balance, "totalReplenished", gen.Score, gen.ExpectedLoss} {
+	// Порядок выписан из cases/analizator/data.json: весь список, независимо от уровня.
+	full := map[gen.ListCustomersParamsSort][]int64{
+		gen.Id:             {1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+		gen.Email:          {1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+		gen.Balance:        {6, 10, 5, 2, 8, 7, 4, 1, 3, 9},
+		"totalReplenished": {4, 1, 2, 6, 3, 9, 7, 5, 10, 8},
+	}
+	for field, asc := range full {
+		desc := make([]int64, len(asc))
+		for i, id := range asc {
+			desc[len(asc)-1-i] = id
+		}
+		for order, want := range map[gen.ListCustomersParamsOrder][]int64{gen.Asc: asc, gen.Desc: desc} {
+			f, o := field, order
+			if got := ids(list(t, a, gen.ListCustomersParams{Sort: &f, Order: &o})); !slices.Equal(got, want) {
+				t.Errorf("%s %s: %v, ждали %v", f, o, got, want)
+			}
+		}
+	}
+
+	lost, id, desc := gen.Lost, gen.Id, gen.Desc
+	got := ids(list(t, a, gen.ListCustomersParams{Level: &lost, Sort: &id, Order: &desc}))
+	if want := []int64{8, 7, 3, 2}; !slices.Equal(got, want) {
+		t.Errorf("level=lost id desc: %v, ждали %v", got, want)
+	}
+
+	// Скор и потеря: «потерян»/«нет оценки» внизу.
+	for _, field := range []gen.ListCustomersParamsSort{gen.Score, gen.ExpectedLoss} {
 		for _, order := range []gen.ListCustomersParamsOrder{gen.Asc, gen.Desc} {
 			f, o := field, order
 			page := list(t, a, gen.ListCustomersParams{Sort: &f, Order: &o})
