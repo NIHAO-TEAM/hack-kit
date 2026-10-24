@@ -27,6 +27,7 @@ type Recalc struct {
 	snaps    *snapshots
 	cache    cacheHolder
 	observer *retention.Service
+	bus      *events.Bus
 	reads    *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
 	metrics  *analytics.RecalcMetrics
 }
@@ -83,6 +84,7 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 		Engine:   analytics.NewEngine(compute, bus, clk, source.TopicChanged, model.TopicChanged),
 		Settings: store,
 		snaps:    snaps,
+		bus:      bus,
 		reads:    reads,
 		metrics:  metrics,
 	}
@@ -107,14 +109,38 @@ func (r *Recalc) TableReads() int64 { return r.reads.Load() }
 // Канал закрывается, когда остановились оба.
 func (r *Recalc) Start(ctx context.Context) <-chan struct{} {
 	observed := r.observer.StartObserver(ctx) // подписка до первого расчёта, иначе его событие потеряется
+	warmed := r.warmReadModel(ctx)
 	engine := r.Engine.Start(ctx)
 	stopped := make(chan struct{})
 	go func() {
 		<-engine
 		<-observed
+		<-warmed
 		close(stopped)
 	}()
 	return stopped
+}
+
+// warmReadModel после каждого пересчёта собирает портфель и модель чтения заранее, в фоне:
+// первый запрос списка не ждёт сортировок. Подписка оформляется до возврата.
+func (r *Recalc) warmReadModel(ctx context.Context) <-chan struct{} {
+	ch, cancel := r.bus.Subscribe(analytics.TopicRecalculated)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer cancel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ch:
+				if pf := r.Portfolio(); pf != nil {
+					pf.BuildIndex()
+				}
+			}
+		}
+	}()
+	return done
 }
 
 // ValidateSettings проверяет тело настроек модели.

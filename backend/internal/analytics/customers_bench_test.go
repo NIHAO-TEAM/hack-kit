@@ -37,6 +37,7 @@ func bigPortfolio(n int) *analytics.Portfolio {
 func benchList(b *testing.B, p gen.ListCustomersParams) {
 	pf := bigPortfolio(100_000)
 	api := analytics.New(nil, nil, clock.NewFake(asOf)).WithFeed(fakeFeed{pf})
+	pf.BuildIndex() // сборка модели чтения — отдельный замер BenchmarkBuildReadModel100k
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers", nil)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -54,4 +55,14 @@ func BenchmarkListByLoss100k(b *testing.B) { benchList(b, gen.ListCustomersParam
 func BenchmarkListByEmail100k(b *testing.B) {
 	s := gen.ListCustomersParamsSort("email")
 	benchList(b, gen.ListCustomersParams{Sort: &s})
+}
+
+func BenchmarkBuildReadModel100k(b *testing.B) {
+	cs := bigPortfolio(100_000).Customers
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		pf := &analytics.Portfolio{Version: 1, Customers: cs}
+		pf.BuildIndex()
+	}
 }
