@@ -4,7 +4,7 @@
 
 ## 1. Измерение
 
-- [ ] 1.1 `BenchmarkPublish{1,100,1000}Subs`, `BenchmarkPublishParallel` на текущем коде — проверка: вывод `go test -bench -benchmem` в «Найдено по ходу»
+- [x] 1.1 `BenchmarkPublish{1,100,1000}Subs`, `BenchmarkPublishParallel` на текущем коде — проверка: вывод `go test -bench -benchmem` в «Найдено по ходу»
 
 ## 2. Шина
 
