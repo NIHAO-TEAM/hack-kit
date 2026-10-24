@@ -5,6 +5,7 @@
   oracle.py <snapshot.json> --as-of <ISO> --per-customer                по строке JSON на клиента (сверка с Go)
   oracle.py --check                                                     сверить все golden
   oracle.py --regen                                                     пересчитать golden
+  oracle.py <snapshot.json> --as-of <ISO> --sensitivity                 чувствительность к весам ±20 %
 """
 import argparse
 import calendar
@@ -229,6 +230,49 @@ def compute(snap, as_of, settings=None):
     return {'asOf': fmt(as_of), 'settings': st, 'customers': customers, 'summary': summary}
 
 
+SHIFT = 0.2
+TOP_N = 3
+
+
+def sensitivity(snap, as_of, settings=None):
+    """Сдвиг веса каждого признака с ненулевым весом на −20 % и +20 %: сколько клиентов сменили уровень,
+    изменилась ли первая тройка по потере, на сколько сдвинулась суммарная потеря. Без выборки."""
+    st = merge_settings(settings)
+    base = calc_all(snap, as_of, st)
+
+    def top(res):
+        scored = [(-r['expectedLossCents'], aid) for aid, r in res.items() if r['state'] == 'scored']
+        return [aid for _, aid in sorted(scored)[:TOP_N]]
+
+    def shifted(feature, factor):
+        s2 = copy.deepcopy(st)
+        s2['weights'][feature] = min(1.0, max(0.0, st['weights'][feature] * factor))
+        res = calc_all(snap, as_of, s2)
+        return {
+            'levelChanges': sum(1 for aid, r in res.items() if r['level'] is not None and r['level'] != base[aid]['level']),
+            'topThreeChanged': top(res) != top(base),
+            'lossDeltaCents': sum(r['expectedLossCents'] for r in res.values()) - sum(r['expectedLossCents'] for r in base.values()),
+        }
+
+    feats = []
+    for k in sorted(st['weights']):
+        w = st['weights'][k]
+        if w == 0:
+            continue
+        feats.append({'id': k, 'weight': w, 'down': shifted(k, 1 - SHIFT), 'up': shifted(k, 1 + SHIFT)})
+    return {'asOf': fmt(as_of), 'customers': len(base), 'features': feats, 'sampled': False, 'settings': st}
+
+
+def sensitivity_files():
+    return sorted(glob.glob(os.path.join(GOLDEN_DIR, 'sensitivity', '*.json')))
+
+
+def build_sensitivity(path):
+    g = json.load(open(path, encoding='utf-8'))
+    snap = json.load(open(os.path.join(ROOT, g['source']), encoding='utf-8'))
+    return dict(sensitivity(snap, parse(g['asOf']), g.get('settings')), source=g['source'])
+
+
 def dump(obj):
     return json.dumps(obj, ensure_ascii=False, indent=2, sort_keys=True) + '\n'
 
@@ -252,6 +296,7 @@ def main():
     ap.add_argument('--per-customer', action='store_true')
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--regen', action='store_true')
+    ap.add_argument('--sensitivity', action='store_true')
     args = ap.parse_args()
     if args.check or args.regen:
         bad = 0
@@ -263,13 +308,24 @@ def main():
             elif dump(new) != open(p, encoding='utf-8').read():
                 bad += 1
                 print('РАСХОЖДЕНИЕ', os.path.relpath(p, ROOT), file=sys.stderr)
+        for p in sensitivity_files():
+            new = build_sensitivity(p)
+            if args.regen:
+                open(p, 'w', encoding='utf-8').write(dump(new))
+                print('записан', os.path.relpath(p, ROOT))
+            elif dump(new) != open(p, encoding='utf-8').read():
+                bad += 1
+                print('РАСХОЖДЕНИЕ', os.path.relpath(p, ROOT), file=sys.stderr)
         if args.check:
-            print('golden: %d, расхождений: %d' % (len(golden_files()), bad))
+            print('golden: %d, расхождений: %d' % (len(golden_files()) + len(sensitivity_files()), bad))
         return 1 if bad else 0
     if not args.snapshot or not args.as_of:
         ap.error('нужны snapshot и --as-of')
     snap = json.load(open(args.snapshot, encoding='utf-8'))
     st = json.load(open(args.settings, encoding='utf-8')) if args.settings else None
+    if args.sensitivity:
+        sys.stdout.write(dump(sensitivity(snap, parse(args.as_of), st)))
+        return 0
     out = compute(snap, parse(args.as_of), st)
     if args.per_customer:
         for c in out['customers']:
