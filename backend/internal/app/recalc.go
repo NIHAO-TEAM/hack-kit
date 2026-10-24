@@ -12,6 +12,7 @@ import (
 	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/events"
+	"example.com/app/internal/retention"
 	"example.com/app/internal/risk"
 	"example.com/app/internal/source"
 )
@@ -23,6 +24,7 @@ type Recalc struct {
 	Settings *model.Store
 	snaps    *snapshots
 	cache    cacheHolder
+	observer *retention.Service
 }
 
 // NewRecalc собирает воркер: настройки из model_settings, снимок из таблиц организаторов.
@@ -47,15 +49,29 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 			SettingsVersion: settingsVersion,
 		}, nil
 	}
-	return &Recalc{
+	r := &Recalc{
 		Engine:   analytics.NewEngine(compute, bus, clk, source.TopicChanged, model.TopicChanged),
 		Settings: store,
 		snaps:    snaps,
 	}
+	r.observer = retention.New(pool, bus, clk, r)
+	return r
 }
 
 // Start запускает воркер: первый пересчёт идёт сразу, дальше по событиям.
-func (r *Recalc) Start(ctx context.Context) <-chan struct{} { return r.Engine.Start(ctx) }
+// Вместе с ним работает наблюдатель за открытыми задачами удержания: он читает результат каждого пересчёта.
+// Канал закрывается, когда остановились оба.
+func (r *Recalc) Start(ctx context.Context) <-chan struct{} {
+	observed := r.observer.StartObserver(ctx) // подписка до первого расчёта, иначе его событие потеряется
+	engine := r.Engine.Start(ctx)
+	stopped := make(chan struct{})
+	go func() {
+		<-engine
+		<-observed
+		close(stopped)
+	}()
+	return stopped
+}
 
 // ValidateSettings проверяет тело настроек модели.
 func ValidateSettings(body []byte) error {

@@ -34,7 +34,7 @@ func TestObserve(t *testing.T) {
 		"пополнение": {1000, cust(func(c *analytics.Customer) { c.Row.Balance = 61000 }),
 			[]Observation{{"balance:61000", "Баланс пополнен на 600,00 €"}}},
 		"пополнение уже записано": {61000, cust(func(c *analytics.Customer) { c.Row.Balance = 61000 }), nil},
-		"баланс упал": {1000, cust(func(c *analytics.Customer) { c.Row.Balance = 10 }), nil},
+		"баланс упал":             {1000, cust(func(c *analytics.Customer) { c.Row.Balance = 10 }), nil},
 		"автопродление": {1000, cust(func(c *analytics.Customer) { c.Services[0].AutoProlong = true }),
 			[]Observation{{"autoprolong:7", "Включено автопродление услуги VPS-1"}}},
 		"продление": {1000, cust(func(c *analytics.Customer) { c.Services[0].ExpiresAt = exp.AddDate(0, 1, 0) }),
