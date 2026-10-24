@@ -117,6 +117,7 @@ func TestValidate(t *testing.T) {
 		{"performed без даты", func(s *Snapshot) { s.Transactions[0].Status = "performed" }, "transactions[0].performedAt"},
 		{"чужая услуга в транзакции", func(s *Snapshot) { s.Transactions[0].ServiceID = 7 }, "transactions[0].serviceId"},
 		{"сумма вне диапазона", func(s *Snapshot) { s.Transactions[0].Amount = 1001 }, "transactions[0].amount"},
+		{"отрицательная сумма транзакции", func(s *Snapshot) { s.Transactions[0].Amount = -1 }, "transactions[0].amount"},
 		{"повтор email", func(s *Snapshot) { s.Accounts = append(s.Accounts, Account{ID: 2, Email: "a@x", BonusState: "locked"}) }, "accounts[1].email"},
 		{"повтор id аккаунта", func(s *Snapshot) { s.Accounts = append(s.Accounts, s.Accounts[0]) }, "accounts[1].id"},
 		{"expiresAt раньше createdAt", func(s *Snapshot) { s.Services[0].ExpiresAt = t0.Add(-time.Hour) }, "services[0].expiresAt"},

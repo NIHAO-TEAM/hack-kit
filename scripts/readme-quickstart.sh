@@ -9,15 +9,34 @@ SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
 README="${README_FILE:-README.md}"
 FAILS=0
 JAR="$(mktemp)"
-trap 'rm -f "$JAR"' EXIT
+BODY="$(mktemp)" # тело последнего ответа code(): при провале проверки печатается в лог
+trap 'rm -f "$JAR" "$BODY"' EXIT
 
 echo '| Проверка | Итог |' >>"$SUMMARY"
 echo '|---|---|' >>"$SUMMARY"
 
 ok() { echo "ok   $1"; echo "| $1 | ✅ |" >>"$SUMMARY"; }
 bad() { echo "FAIL $1"; echo "| $1 | ❌ $2 |" >>"$SUMMARY"; FAILS=$((FAILS + 1)); }
+# Начало тела последнего ответа без значений секретов из .env (токены и пароли).
+body_head() {
+  local out key val
+  out="$(head -c 300 "$BODY" 2>/dev/null | tr '\n' ' ')"
+  for key in POSTGRES_PASSWORD ADMIN_PASSWORD DEMO_MARKETER_PASSWORD DEMO_ANALYST_PASSWORD \
+    DEMO_JURY_PASSWORD METRICS_TOKEN SOURCE_TOKEN; do
+    val="$(grep "^${key}=" .env 2>/dev/null | head -1 | cut -d= -f2-)"
+    [ -n "$val" ] && out="${out//"$val"/***}"
+  done
+  printf '%s' "$out"
+}
 # check <название> <ожидаемый код> <фактический код>
-check() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "ждали $2, пришло $3"; fi; }
+check() {
+  if [ "$2" = "$3" ]; then
+    ok "$1"
+  else
+    bad "$1" "ждали $2, пришло $3"
+    echo "     HTTP $3, тело: $(body_head)"
+  fi
+}
 rand() { openssl rand -hex 16; }
 
 # --- 1. Шаги README как написаны
@@ -63,7 +82,7 @@ done
 check "GET /healthz" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/healthz")"
 
 # --- 3. Обязательные эндпоинты
-code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+code() { curl -s -o "$BODY" -w '%{http_code}' "$@"; }
 check "GET / (веб-клиент)" 200 "$(code "$BASE/")"
 check "GET /api/v1/docs (Swagger)" 200 "$(code "$BASE/api/v1/docs")"
 
@@ -120,7 +139,7 @@ check "GET /metrics по токену" 200 "$(code -H "Authorization: Bearer $(e
 # PUT /source/snapshot по сервисному токену: один счёт, одна услуга, один платёж
 snap='{"accounts":[{"id":900001,"email":"quickstart@example.com","balance":1000,"withdrawBalance":0,"totalReplenished":5000,"bonusBalance":0,"bonusState":"locked"}],
 "services":[{"id":900001,"name":"vps","ownerId":900001,"paymentTerm":"month","autoProlong":true,"createdAt":"2026-01-01T00:00:00Z","expiresAt":"2030-01-01T00:00:00Z","status":"active","price":500}],
-"transactions":[{"id":900001,"amount":500,"status":"performed","createdAt":"2026-01-01T00:00:00Z","type":"order","serviceId":900001}]}'
+"transactions":[{"id":900001,"amount":500,"status":"performed","createdAt":"2026-01-01T00:00:00Z","performedAt":"2026-01-01T00:00:00Z","type":"order","serviceId":900001}]}'
 check "PUT /api/v1/source/snapshot по токену" 200 "$(code -X PUT -H "Authorization: Bearer $(envval SOURCE_TOKEN)" \
   -H 'Content-Type: application/json' -d "$snap" "$BASE/api/v1/source/snapshot")"
 
