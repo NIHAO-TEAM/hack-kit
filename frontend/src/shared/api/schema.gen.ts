@@ -882,6 +882,8 @@ export interface components {
             eventsPerSecond: number;
             applyP50Ms: number;
             applyP95Ms: number;
+            /** @description p99 длительности применения одного события */
+            applyP99Ms?: number;
             applyMaxMs: number;
             /** @description Сколько пересчётов выполнил движок за прогон (пересчёт склеивает пачки событий) */
             recalcs: number;
@@ -909,6 +911,32 @@ export interface components {
             startedAt?: string;
             error?: string;
             report?: components["schemas"]["StreamReport"];
+            /** @description Секундные отсчёты за последние 60 с прогона, старые первыми; нет у прогона, который ещё не набрал первую секунду. */
+            window?: components["schemas"]["StreamWindowPoint"][];
+        };
+        StreamWindowPoint: {
+            /** @description Секунда прогона, с которой отсчёт закончился (1 — первая). */
+            t: number;
+            /** @description Событий принято в очередь приёма за секунду. */
+            accepted: number;
+            /** @description Событий записано в базу за секунду. */
+            applied: number;
+            /** @description Событий не применено за секунду. */
+            failed: number;
+            /** @description Событий ждало в очереди приёма в конце секунды. */
+            queueDepth: number;
+            /**
+             * Format: float
+             * @description Средний размер записанной пачки за секунду; 0, если пачек не было.
+             */
+            batchSize: number;
+            /**
+             * Format: float
+             * @description Задержка «событие → очередь маркетолога», p95 по событиям, учтённым за секунду, мс; 0, если таких не было.
+             */
+            lagP95Ms: number;
+            /** @description Пересчётов движка за секунду. */
+            recalcs: number;
         };
         /** @enum {string} */
         RiskLevel: "high" | "medium" | "low" | "unscored" | "lost";
@@ -964,6 +992,8 @@ export interface components {
              * @description Версия пересчёта, по которому построена страница.
              */
             version: number;
+            /** @description Курсор следующей страницы; нет, если страница последняя. */
+            nextCursor?: string;
         };
         /**
          * @description В работе, связались, отложено, закрыто.
@@ -1161,6 +1191,16 @@ export interface components {
              */
             newScore: number;
             newLevel: components["schemas"]["RiskLevel"];
+            /**
+             * Format: int64
+             * @description Что действие стоит клиенту, центы (пополнение — сумма, остальные — 0).
+             */
+            costCents?: number;
+            /**
+             * Format: double
+             * @description Снятая ожидаемая потеря на каждый евро цены, 2 знака. Нет при цене 0. Оценка сценария «клиент выполнил действие полностью», не ROI.
+             */
+            returnPerEuro?: number;
         };
         ServiceRisk: {
             /** Format: int64 */
@@ -1194,6 +1234,11 @@ export interface components {
             services: components["schemas"]["Service"][];
             features: components["schemas"]["Feature"][];
             actions: components["schemas"]["Action"][];
+            /**
+             * Format: int64
+             * @description Эффект от совместного применения всех применимых действий (потеря после − до), центы. Нет, если применимо меньше двух действий.
+             */
+            actionCombo?: number;
             explanation?: string;
         };
         Summary: {
@@ -1769,6 +1814,8 @@ export interface operations {
                 offset?: number;
                 /** @description Строки «к биллингу» (сбой автосписания): `exclude` — без них, `only` — только они, не задан — все. `total` считается после фильтра. */
                 billing?: "exclude" | "only";
+                /** @description Курсор следующей страницы из `nextCursor` предыдущего ответа. Заменяет `offset` (вместе с ним — 400); сортировка и порядок должны быть те же, что у страницы, из которой он получен. Курсор привязан к версии пересчёта: после нового пересчёта — 409, начните с первой страницы. */
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -1787,6 +1834,15 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            /** @description Курсор построен по другой версии пересчёта */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             501: components["responses"]["NotImplemented"];
         };
     };

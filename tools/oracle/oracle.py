@@ -126,7 +126,8 @@ def score_customer(a, svc, tx, as_of, st):
         if s['status'] == 'prolong_wait':
             left = (exp + timedelta(days=5) - as_of).total_seconds() / 86400
             f['pwait'] = 1.0 if left <= 0 else min(1.0, max(0.0, 1 - left / 5))
-        f['funds'] = ffunds
+        if s['status'] == 'prolong_wait' or charges(s, as_of, st['fundsHours']) > 0:
+            f['funds'] = ffunds
         if not s['autoProlong']:
             days = (exp - as_of).total_seconds() / 86400
             f['noauto'] = 0.0 if days > 7 else min(1.0, 1 - days / 7)
@@ -171,10 +172,14 @@ def calc_all(snap, as_of, st):
     return {a['id']: score_customer(a, by_acc.get(a['id'], []), tx, as_of, st) for a in snap['accounts']}
 
 
+combo = {}  # id клиента -> эффект сочетания действий; заполняет actions()
+
+
 def actions(snap, as_of, st, base):
     """Действия с ценой: пополнить / включить автопродление; эффект = потеря после − потеря до."""
     by_acc, tx = prepare(snap)
     out = {}
+    combo.clear()
     for a in snap['accounts']:
         r = base[a['id']]
         if r['state'] != 'scored':
@@ -190,15 +195,26 @@ def actions(snap, as_of, st, base):
                  'scoreBefore': r['score'], 'scoreAfter': r2['score'], 'levelAfter': r2['level']}
             if amount_cents is not None:
                 d['amountCents'] = amount_cents
+            d['costCents'] = amount_cents or 0
             return d
 
-        if any(f['funds'] > 0 for f in feats.values()):
+        if any(f.get('funds', 0) > 0 for f in feats.values()):
             top = r['_need'] - r['_have']
             acts.append(effect('top_up', top, dict(a, balance=a['balance'] + top), svc))
         if any(f.get('noauto', 0) > 0 for f in feats.values()):
             svc2 = [dict(s, autoProlong=True) for s in svc]
             acts.append(effect('enable_autoprolong', None, a, svc2))
         out[a['id']] = acts
+        # сочетание: все применимые действия подряд — автопродление, затем пополнение «нужно − есть»
+        # по данным после автопродления (в Go сначала биллинг, он данных не меняет)
+        if len(acts) >= 2:
+            svc2 = [dict(s, autoProlong=True) for s in svc] if any(x['type'] == 'enable_autoprolong' for x in acts) else svc
+            a2 = a
+            if any(x['type'] == 'top_up' for x in acts):
+                mid = score_customer(a, svc2, tx, as_of, st)
+                a2 = dict(a, balance=a['balance'] + max(mid['_need'] - mid['_have'], 0))
+            r2 = score_customer(a2, svc2, tx, as_of, st)
+            combo[a['id']] = r2['expectedLossCents'] - r['expectedLossCents']
     return out
 
 
@@ -212,6 +228,8 @@ def compute(snap, as_of, settings=None):
         c = {'id': aid, 'state': r['state'], 'score': r['score'], 'level': r['level'],
              'expectedLossCents': r['expectedLossCents'], 'exposureCents': r['exposureCents'], 'lostCents': r['lostCents'],
              'features': r['features'], 'lossByFeature': r.get('lossByFeature', {}), 'actions': acts[aid]}
+        if aid in combo:
+            c['actionComboCents'] = combo[aid]
         customers.append(c)
     lv = collections.Counter(c['level'] or c['state'] for c in customers)
     by_feature = {}

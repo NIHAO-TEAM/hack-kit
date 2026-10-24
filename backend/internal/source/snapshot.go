@@ -86,16 +86,46 @@ type rawTransaction struct {
 	ServiceID   *int64     `json:"serviceId"`
 }
 
-// ParseSnapshot читает тело потоково: массивы разбираются по одной записи, тело целиком
-// в памяти не держится. Ошибки формата и обязательных полей собираются в []FieldError;
-// ошибка второго результата — тело не JSON и не форма снимка.
-func ParseSnapshot(r io.Reader) (*Snapshot, []FieldError, error) {
+// table — массив верхнего уровня снимка.
+type table int
+
+const (
+	tableAccounts table = iota
+	tableServices
+	tableTransactions
+)
+
+var tableKeys = [...]string{"accounts", "services", "transactions"}
+
+func (t table) String() string { return tableKeys[t] }
+
+// streamHandler принимает записи по мере разбора. Ошибка обработчика прерывает разбор.
+// begin и end обрамляют каждый массив; индекс записи — её место в массиве.
+type streamHandler interface {
+	begin(t table) error
+	account(i int, a Account) error
+	service(i int, v Service) error
+	transaction(i int, x Transaction) error
+	end(t table) error
+}
+
+// parseStream читает тело потоком: массивы accounts, services и transactions идут в любом порядке,
+// каждая запись уходит в обработчик сразу после разбора и в памяти не накапливается.
+// Ошибки обязательных полей собираются в []FieldError (не более maxFieldErrs, 0 — без предела);
+// ошибка третьего результата — тело не JSON и не форма снимка либо отказ обработчика.
+func parseStream(r io.Reader, h streamHandler, maxFieldErrs int) (asOf *time.Time, errs []FieldError, err error) {
 	dec := json.NewDecoder(r)
 	if err := expectDelim(dec, '{'); err != nil {
 		return nil, nil, err
 	}
-	s := &Snapshot{}
-	var errs []FieldError
+	add := func(e []FieldError) {
+		for _, fe := range e {
+			if maxFieldErrs > 0 && len(errs) >= maxFieldErrs {
+				return
+			}
+			errs = append(errs, fe)
+		}
+	}
 	seen := map[string]bool{}
 	for dec.More() {
 		tok, err := dec.Token()
@@ -110,43 +140,43 @@ func ParseSnapshot(r io.Reader) (*Snapshot, []FieldError, error) {
 			if err := dec.Decode(&t); err != nil {
 				return nil, nil, fmt.Errorf("asOf: %w", err)
 			}
-			s.AsOf = t
+			asOf = t
 		case "accounts":
-			if err := streamArray(dec, func(i int) error {
-				var a rawAccount
+			var a rawAccount // одна переиспользуемая запись: Decode обнуляет указатели сам
+			if err := streamArray(dec, h, tableAccounts, func(i int) error {
+				a = rawAccount{}
 				if err := dec.Decode(&a); err != nil {
 					return err
 				}
 				acc, e := a.convert(i)
-				s.Accounts = append(s.Accounts, acc)
-				errs = append(errs, e...)
-				return nil
+				add(e)
+				return h.account(i, acc)
 			}); err != nil {
 				return nil, nil, fmt.Errorf("accounts: %w", err)
 			}
 		case "services":
-			if err := streamArray(dec, func(i int) error {
-				var v rawService
+			var v rawService
+			if err := streamArray(dec, h, tableServices, func(i int) error {
+				v = rawService{}
 				if err := dec.Decode(&v); err != nil {
 					return err
 				}
 				svc, e := v.convert(i)
-				s.Services = append(s.Services, svc)
-				errs = append(errs, e...)
-				return nil
+				add(e)
+				return h.service(i, svc)
 			}); err != nil {
 				return nil, nil, fmt.Errorf("services: %w", err)
 			}
 		case "transactions":
-			if err := streamArray(dec, func(i int) error {
-				var v rawTransaction
+			var v rawTransaction
+			if err := streamArray(dec, h, tableTransactions, func(i int) error {
+				v = rawTransaction{}
 				if err := dec.Decode(&v); err != nil {
 					return err
 				}
 				tx, e := v.convert(i)
-				s.Transactions = append(s.Transactions, tx)
-				errs = append(errs, e...)
-				return nil
+				add(e)
+				return h.transaction(i, tx)
 			}); err != nil {
 				return nil, nil, fmt.Errorf("transactions: %w", err)
 			}
@@ -160,11 +190,43 @@ func ParseSnapshot(r io.Reader) (*Snapshot, []FieldError, error) {
 	if err := expectDelim(dec, '}'); err != nil {
 		return nil, nil, err
 	}
-	for _, k := range []string{"accounts", "services", "transactions"} {
+	for _, k := range tableKeys {
 		if !seen[k] {
-			errs = append(errs, FieldError{Field: k, Message: "обязательное поле"})
+			add([]FieldError{{Field: k, Message: "обязательное поле"}})
 		}
 	}
+	return asOf, errs, nil
+}
+
+// collector собирает записи в Snapshot для ParseSnapshot.
+type collector struct{ s *Snapshot }
+
+func (c collector) begin(table) error { return nil }
+func (c collector) end(table) error   { return nil }
+func (c collector) account(_ int, a Account) error {
+	c.s.Accounts = append(c.s.Accounts, a)
+	return nil
+}
+func (c collector) service(_ int, v Service) error {
+	c.s.Services = append(c.s.Services, v)
+	return nil
+}
+func (c collector) transaction(_ int, x Transaction) error {
+	c.s.Transactions = append(c.s.Transactions, x)
+	return nil
+}
+
+// ParseSnapshot читает тело потоком (parseStream) и собирает весь снимок в памяти — для малых тел:
+// сид, опрос биллинга, эмулятор, правки. Приём PUT /source/snapshot в память целиком не собирает (ingest.go).
+// Ошибки формата и обязательных полей собираются в []FieldError;
+// ошибка второго результата — тело не JSON и не форма снимка.
+func ParseSnapshot(r io.Reader) (*Snapshot, []FieldError, error) {
+	s := &Snapshot{}
+	asOf, errs, err := parseStream(r, collector{s}, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	s.AsOf = asOf
 	return s, errs, nil
 }
 
@@ -179,14 +241,18 @@ func expectDelim(dec *json.Decoder, want json.Delim) error {
 	return nil
 }
 
-// streamArray вызывает f для каждого элемента массива; null вместо массива — пустой массив.
-func streamArray(dec *json.Decoder, f func(i int) error) error {
+// streamArray вызывает f для каждого элемента массива, обрамляя вызовы h.begin и h.end;
+// null вместо массива — пустой массив.
+func streamArray(dec *json.Decoder, h streamHandler, t table, f func(i int) error) error {
 	tok, err := dec.Token()
 	if err != nil {
 		return err
 	}
+	if err := h.begin(t); err != nil {
+		return err
+	}
 	if tok == nil {
-		return nil
+		return h.end(t)
 	}
 	if d, ok := tok.(json.Delim); !ok || d != '[' {
 		return errors.New("ожидался массив")
@@ -196,7 +262,10 @@ func streamArray(dec *json.Decoder, f func(i int) error) error {
 			return err
 		}
 	}
-	return expectDelim(dec, ']')
+	if err := expectDelim(dec, ']'); err != nil {
+		return err
+	}
+	return h.end(t)
 }
 
 // field собирает ошибки «поле обязательно» для одной записи.

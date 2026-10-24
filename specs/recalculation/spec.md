@@ -105,3 +105,13 @@
 - WHEN запрос к служебному маршруту профиля без токена
 - THEN ответ `401` или `403`
 - Тест: `TestPprofOnlyWithMetricsToken` (`internal/auth/tokens_test.go`); бенчмарки `BenchmarkRecalc10k`, `BenchmarkRecalc100k` (`internal/app/recalc_bench_test.go`)
+
+### Requirement: пересчёт не выделяет память на каждую услугу
+
+Пересчёт SHALL переиспользовать буферы воркера между клиентами пачки и давать результат, побитово равный эталону.
+
+#### Scenario: пересчёт 100 000 клиентов
+
+- WHEN идёт `BenchmarkRecalc100k`
+- THEN выделений на операцию меньше, чем до изменения (2,46 млн против 8,53 млн, `docs/load/2026-10-24-recalc-alloc.md`), golden и parity без расхождений
+- Тест: бенчмарк `BenchmarkRecalc100k` (`internal/app/recalc_bench_test.go`), golden (`internal/risk/golden_test.go`), `TestParity10k` (`-tags parity`)

@@ -15,7 +15,7 @@ func TestFunds(t *testing.T) {
 		{"баланс пуст", 500, 0, 1, "Нужно 5,00 € на 7 дней, на балансе 0,00 €"},
 	}
 	for _, c := range cases {
-		f, reason, ok := funds{}.Eval(ServiceCtx{Funds: FundsCtx{Need: c.need, Have: c.have}})
+		f, reason, ok := funds{}.Eval(ServiceCtx{AsOf: asOfT, Service: Service{Status: StatusProlongWait}, Funds: FundsCtx{Need: c.need, Have: c.have}})
 		if !ok || (f-c.want > 5e-7 || c.want-f > 5e-7) || reason != c.reason {
 			t.Errorf("%s: f=%v %q ok=%v", c.name, f, reason, ok)
 		}
@@ -32,5 +32,23 @@ func TestFundsBonusLocked(t *testing.T) {
 	a.BonusState = "unlocked"
 	if got := accountFunds(a, []Service{sv}, asOfT, Defaults()); got.Have != 100100 {
 		t.Fatalf("открытый бонус не учтён: %+v", got)
+	}
+}
+
+func TestFundsOnlyInWindow(t *testing.T) {
+	fc := FundsCtx{Need: 1000, Have: 0}
+	far := Service{ID: 1, PaymentTerm: "year", Status: StatusActive, Price: 1000, ExpiresAt: asOfT.AddDate(0, 0, 25)}
+	if _, _, ok := (funds{}).Eval(ServiceCtx{AsOf: asOfT, Service: far, Funds: fc}); ok {
+		t.Fatal("услуга без списания в окне 7 дней получила funds")
+	}
+	near := far
+	near.ExpiresAt = asOfT.AddDate(0, 0, 3)
+	if f, _, ok := (funds{}).Eval(ServiceCtx{AsOf: asOfT, Service: near, Funds: fc}); !ok || f != 1 {
+		t.Fatalf("услуга со списанием в окне: f=%v ok=%v", f, ok)
+	}
+	wait := far
+	wait.Status = StatusProlongWait
+	if _, _, ok := (funds{}).Eval(ServiceCtx{AsOf: asOfT, Service: wait, Funds: fc}); !ok {
+		t.Fatal("prolong_wait без funds")
 	}
 }
