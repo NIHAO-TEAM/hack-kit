@@ -123,3 +123,29 @@ snap='{"accounts":[{"id":900001,"email":"quickstart@example.com","balance":1000,
 "transactions":[{"id":900001,"amount":500,"status":"performed","createdAt":"2026-01-01T00:00:00Z","type":"order","serviceId":900001}]}'
 check "PUT /api/v1/source/snapshot по токену" 200 "$(code -X PUT -H "Authorization: Bearer $(envval SOURCE_TOKEN)" \
   -H 'Content-Type: application/json' -d "$snap" "$BASE/api/v1/source/snapshot")"
+
+# --- 4. Выход и настройки после перезапуска
+mut() { curl -s -b "$JAR" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" "$@"; }
+want=0.37
+code_patch="$(mut -o /dev/null -w '%{http_code}' -X PATCH -d "{\"weights\":{\"noauto\":$want}}" "$BASE/api/v1/model/settings")"
+check "PATCH /api/v1/model/settings" 200 "$code_patch"
+docker compose restart app >/dev/null 2>&1 || bad "docker compose restart app" "ошибка"
+for _ in $(seq 1 60); do
+  [ "$(code "$BASE/healthz")" = 200 ] && break
+  sleep 2
+done
+# сессии могут не пережить перезапуск — входим заново
+CSRF="$(curl -s -c "$JAR" -H 'Content-Type: application/json' -d "$login_body" "$BASE/api/v1/auth/login" | jq -r '.csrfToken // empty')"
+got="$(get /api/v1/model/settings | jq -r '.weights.noauto // empty')"
+if [ -n "$got" ] && [ "$(jq -n "$got == $want")" = true ]; then
+  ok "настройки модели пережили restart app"
+else
+  bad "настройки модели пережили restart app" "noauto=$got, ждали $want"
+fi
+
+check "POST /api/v1/auth/logout" 204 "$(code -b "$JAR" -X POST -H "X-CSRF-Token: $CSRF" "$BASE/api/v1/auth/logout")"
+check "после logout 401" 401 "$(gcode /api/v1/auth/me)"
+
+echo
+[ "$FAILS" -eq 0 ] && echo "все проверки пройдены" || echo "провалено проверок: $FAILS"
+exit $((FAILS > 0))
