@@ -62,7 +62,8 @@ describe('LoginPage', () => {
     expect(backdrop).not.toBeNull();
     expect(backdrop?.querySelectorAll('div').length).toBeGreaterThanOrEqual(3);
     expect(backdrop?.querySelector('svg ellipse')).not.toBeNull();
-    expect(container.querySelector('main img')).toBeNull();
+    expect(backdrop?.querySelector('img')).toBeNull();
+    expect(container.querySelector('main img[alt="aéza"]')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Личный кабинет' })).toBeInTheDocument();
     expect(screen.getByText('Контур удержания')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Контур удержания' })).not.toBeInTheDocument();
