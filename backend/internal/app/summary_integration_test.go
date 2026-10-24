@@ -24,7 +24,7 @@ func TestSummaryAndMetricsOnSeed(t *testing.T) {
 			t.Errorf("уровень %s = %d, ждали %d", k, o.Levels[k], v)
 		}
 	}
-	if o.ExpectedLossCents != 387973 || o.AtRiskCents != 690046 || o.LostCents != 736834 {
+	if o.ExpectedLossCents != 359907 || o.AtRiskCents != 690046 || o.LostCents != 736834 {
 		t.Errorf("суммы: потеря %d, под угрозой %d, потеряно %d", o.ExpectedLossCents, o.AtRiskCents, o.LostCents)
 	}
 }

@@ -3,7 +3,7 @@
 ## 1. Модель
 
 - [x] 1.1 Оракул: вес `flight` 0, golden перегенерирован — проверка: `python3 -I tools/oracle/oracle.py --check` — 0 расхождений
-- [ ] 1.2 `flight.DefaultWeight()` = 0, честный текст причины — проверка: `go test ./internal/risk ./internal/app` по новому golden
+- [x] 1.2 `flight.DefaultWeight()` = 0, честный текст причины — проверка: `go test ./internal/risk ./internal/app` по новому golden
 - [ ] 1.3 Список новых контрольных чисел из оракула — в «Найдено по ходу» `proposal.md`
 
 ## 2. Тексты и числа
