@@ -298,6 +298,76 @@ func (r *Reader) Load(ctx context.Context) (Snapshot, int64, error) {
 	return snap, version, nil
 }
 
+// LoadAccounts читает строки только указанных клиентов: счета, их услуги и платежи этих услуг, и
+// версию снимка, на которой они согласованы (одна транзакция REPEATABLE READ). Счёта, которого нет в
+// таблице, в ответе нет — решает вызывающий. AsOf — как у Load.
+func (r *Reader) LoadAccounts(ctx context.Context, ids []int64) (Snapshot, int64, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return Snapshot{}, 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var (
+		version  int64
+		asOf     *time.Time
+		loadedAt time.Time
+	)
+	err = tx.QueryRow(ctx, "SELECT version, as_of, loaded_at FROM snapshots ORDER BY version DESC LIMIT 1").
+		Scan(&version, &asOf, &loadedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Snapshot{}, 0, ErrNoSnapshot
+	}
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: версия снимка: %w", err)
+	}
+	at := loadedAt.UTC()
+	if asOf != nil {
+		at = asOf.UTC()
+	}
+	snap := Snapshot{AsOf: &at}
+
+	rows, err := tx.Query(ctx, `SELECT id, email, balance, "withdrawBalance", "totalReplenished", "bonusBalance", "bonusState"
+		FROM accounts WHERE id = ANY($1) ORDER BY id`, ids)
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: accounts: %w", err)
+	}
+	snap.Accounts, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (a Account, err error) {
+		err = row.Scan(&a.ID, &a.Email, &a.Balance, &a.WithdrawBalance, &a.TotalReplenished, &a.BonusBalance, &a.BonusState)
+		return a, err
+	})
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: accounts: %w", err)
+	}
+
+	rows, err = tx.Query(ctx, `SELECT id, name, "ownerId", "paymentTerm", "autoProlong", "createdAt", "expiresAt", status, price
+		FROM services WHERE "ownerId" = ANY($1) ORDER BY id`, ids)
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: services: %w", err)
+	}
+	snap.Services, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (v Service, err error) {
+		err = row.Scan(&v.ID, &v.Name, &v.OwnerID, &v.PaymentTerm, &v.AutoProlong, &v.CreatedAt, &v.ExpiresAt, &v.Status, &v.Price)
+		return v, err
+	})
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: services: %w", err)
+	}
+
+	rows, err = tx.Query(ctx, `SELECT t.id, t.amount, t.status, t."performedAt", t."createdAt", t.type, t."serviceId"
+		FROM transactions t WHERE t."serviceId" IN (SELECT id FROM services WHERE "ownerId" = ANY($1)) ORDER BY t.id`, ids)
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: transactions: %w", err)
+	}
+	snap.Transactions, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (t Transaction, err error) {
+		err = row.Scan(&t.ID, &t.Amount, &t.Status, &t.PerformedAt, &t.CreatedAt, &t.Type, &t.ServiceID)
+		return t, err
+	})
+	if err != nil {
+		return Snapshot{}, 0, fmt.Errorf("source: transactions: %w", err)
+	}
+	return snap, version, nil
+}
+
 // Adapter опрашивает REST-биллинг.
 type Adapter struct {
 	pool *pgxpool.Pool
