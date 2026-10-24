@@ -1,4 +1,4 @@
-Статус: в работе
+Статус: на ревью
 
 # Сравнение действий с ценой в карточке клиента
 
@@ -32,3 +32,5 @@
 - Зависит от `loss-by-reason` из-за общего `openapi.yaml`.
 
 ## Найдено по ходу
+
+- Пересчёт golden (`organizers.json`, `stand.json`) с полями `costCents` и `actionComboCents` — причина в `docs/model-rules.md`, раздел 9.
