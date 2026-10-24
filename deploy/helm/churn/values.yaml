@@ -23,6 +23,8 @@ env:
   COOKIE_SECURE: "true"
   TRUSTED_PROXY: "true"
   SEED_ORGANIZERS: "false"
+  # Мягкий предел памяти Go: ≈80 % от resources.limits.memory (1536Mi). Меняя лимит, меняйте и его.
+  GOMEMLIMIT: "1200MiB"
   # Встраивание в контур — те же ключи, пример значений в values-aeza.example.yaml:
   #   BILLING_URL, BILLING_POLL_SECONDS — источник REST (токен BILLING_TOKEN — в Secret);
   #   OIDC_ISSUER_URL, OIDC_CLIENT_ID, OIDC_REDIRECT_URL — внешний IdP (OIDC_CLIENT_SECRET — в Secret).

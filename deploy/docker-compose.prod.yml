@@ -47,6 +47,8 @@ services:
       HTTP_ADDR: ":8080"
       APP_VERSION: ${APP_TAG:-dev}
       DB_MAX_CONNS: "16"
+      # Мягкий предел памяти Go (ниже mem_limit контейнера); меняется в .env.
+      GOMEMLIMIT: ${GOMEMLIMIT:-1GiB}
     mem_limit: 1536m
     expose:
       - "8080"

@@ -57,3 +57,14 @@
 - WHEN на проде портфель 100 000 клиентов и идёт поток 10 000 событий
 - THEN под приложения не перезапускается (нет OOMKill)
 Держат: замер в `docs/load/2026-10-24-capacity.md` (пока не выполнен) и `restartCount` после `Deploy k8s`.
+
+### Requirement: бинарь собран по профилю и знает предел памяти
+
+Образ приложения SHALL собираться с профилем `default.pgo`, а под — получать `GOMEMLIMIT` ниже лимита памяти контейнера.
+
+#### Scenario: выкат
+
+- WHEN выкачена новая версия
+- THEN `go version -m` бинаря показывает сборку с PGO, в окружении пода есть `GOMEMLIMIT`
+
+Держит CI: шаг `go version -m /out/api | grep -- "-pgo="` в `Dockerfile` (сборка образа падает без профиля). `GOMEMLIMIT` в `deploy/helm/churn/values.yaml` проверяется ревью: `helm template` его только рендерит.
