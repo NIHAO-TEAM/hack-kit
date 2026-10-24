@@ -4,7 +4,7 @@
 
 ## 1. Измерение до правки
 
-- [ ] 1.1 Бенчмарки `BenchmarkListByLoss100k`, `BenchmarkListByEmail100k` на текущем коде — проверка: вывод `-bench -benchmem`
+- [x] 1.1 Бенчмарки `BenchmarkListByLoss100k`, `BenchmarkListByEmail100k` на текущем коде — проверка: вывод `-bench -benchmem`
 
 ## 2. Модель чтения
 
