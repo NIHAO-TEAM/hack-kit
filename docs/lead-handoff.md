@@ -28,7 +28,7 @@
 
 ## Доска на снимок
 
-- 24.10 19:15 МСК (сессия пахана в облаке; `gh` только REST — GraphQL закрыт, `gh pr list` не работает, брать `gh api repos/NIHAO-TEAM/hack-kit/pulls`).
+- 24.10 19:40 МСК (сессия пахана в облаке; `gh` только REST — GraphQL закрыт, `gh pr list` не работает, брать `gh api repos/NIHAO-TEAM/hack-kit/pulls`).
   - `main` ce4b39f: CI, Deploy k8s → ingress → smoke, layout, `Demo e2e` зелёные. Слиты с 18:30: #140, #142, #145, #146, #151, #153 (сверка Go с эталоном: 10k/100k/300k — 0 расхождений, `docs/load/2026-10-24-oracle-parity.md`).
   - Владелец со слов эксперта: выиграет тот, у кого «больше гонится и ничего не падает», важно ядро. Главное слабое место (проверено по коду): поток эмулятора переписывает снимок на каждое событие (`source/stream.go` → `commitStep` → `replace`), 30–35 событий/с. Ответ — #155 `event-ingest-delta` (точечная запись пачками, `synchronous_commit off`), затем #156 `load-burst-proof` (залпы 3/10/50 тыс. на 100k, 0 × 5xx), #157 `pod-kill-under-load`, #154 `incremental-recalc`.
   - Ещё в этапе 8: #147 (готовый JSON в модели чтения — `[lead]`-дополнение), #148 (UNLOGGED-загрузка — `[lead]`), #150 `graceful-shutdown`, #152 `runtime-dashboard`, #158 `session-cache`, #159 `funds-window` (← #143, #144), #160 `go-pgo-build`, #149 README последним (ждёт и #155–#157, решение владельца 24.10).
