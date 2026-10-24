@@ -298,7 +298,7 @@ func TestTaskEventsAndList(t *testing.T) {
 		t.Errorf("просроченные до срока: %+v", p)
 	}
 	r.Clock.Advance(48 * time.Hour)
-	marketer = r.As(t, auth.RoleMarketer) // сессия жила меньше двух суток
+	marketer, jury = r.As(t, auth.RoleMarketer), r.As(t, auth.RoleJury) // сессии жили меньше двух суток
 	p := list(gen.ListTasksParams{Overdue: &yes})
 	if p.Total != 2 || !p.Items[0].Overdue {
 		t.Errorf("просроченные после срока: %+v", p)
