@@ -18,13 +18,13 @@ const root = path.resolve(__dirname, '../..');
 const NUM = {
   lossOrganizers: '3 599,07 €', // docs/model.md после funds-window (#159)
   parityMax: '300 000', // docs/load/2026-10-24-oracle-parity.md
-  recalc100k: '0,85 с', // docs/load/2026-10-24-recalc-bench.md, BenchmarkRecalc100k после
+  recalc100k: '0,65 с', // docs/load/2026-10-24-recalc-alloc.md, BenchmarkRecalc100k после
+  snap100k: '5 с', // docs/load/2026-10-24-snapshot-stream.md, 100k: 4,6–5,4 с
   topShare: 'ЗАПОЛНИТЬ', // docs/model-check.md (#168): доля денег в верхних 10 %
   topShareRule: 'ЗАПОЛНИТЬ', // там же: лучшее простое правило
   eventsPerSec: 'ЗАПОЛНИТЬ', // docs/load/2026-10-24-burst.md (#156)
   burstSize: 'ЗАПОЛНИТЬ', // там же: самый большой залп без ошибок
   readP95: 'ЗАПОЛНИТЬ', // там же: p95 чтения под залпом
-  shedding: 'ЗАПОЛНИТЬ', // «503», если overload-shedding (#163) слит и зелёный; иначе заменить карточку
 };
 
 const C = {
@@ -63,10 +63,18 @@ function stat(s, x, y, w, value, label, color) {
   s.addText(value, { x: x + 0.3, y: y + 0.2, w: w - 0.6, h: 0.8, fontSize: 36, bold: true, color: pending ? C.warn : (color || C.accent), margin: 0, isTextBox: true });
   s.addText(label, { x: x + 0.3, y: y + 1.0, w: w - 0.6, h: 0.6, fontSize: 14, color: C.muted, margin: 0, valign: 'top', isTextBox: true });
 }
+const crops = {};
+// Рабочая область экрана без бокового меню и шапки (скриншоты 1280×800 при масштабе 2), соотношение 1,6.
+async function crop(file) {
+  const meta = await sharp(img(file)).metadata();
+  const left = 440, top = 112, width = meta.width - left, height = Math.min(Math.round(width / 1.6), meta.height - top);
+  const buf = await sharp(img(file)).extract({ left, top, width, height }).png().toBuffer();
+  crops[file] = 'image/png;base64,' + buf.toString('base64');
+}
 function shot(s, file, x, y, w) {
-  const h = w / 1.6; // скриншоты 1440×900
+  const h = w / 1.6;
   s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: x - 0.04, y: y - 0.04, w: w + 0.08, h: h + 0.08, rectRadius: 0.08, fill: { color: C.line }, line: { color: C.line } });
-  s.addImage({ path: img(file), x, y, w, h, altText: 'Скриншот продукта' });
+  s.addImage({ data: crops[file], x, y, w, h, altText: 'Скриншот продукта' });
 }
 function bullets(s, items, x, y, w, h, size = 18) {
   s.addText(items.map((t, i) => ({ text: t, options: { bullet: { indent: 18 }, breakLine: i < items.length - 1 } })), {
@@ -78,6 +86,7 @@ function bullets(s, items, x, y, w, h, size = 18) {
   const logo = await sharp(path.join(root, 'frontend/src/shared/ui/aeza-logo/aeza-logo.svg'), { density: 600 })
     .resize({ width: 1200 }).png().toBuffer();
   const logoData = 'image/png;base64,' + logo.toString('base64');
+  for (const f of ['queue.png', 'card.png', 'model.png']) await crop(f);
 
   // 1. Титул
   {
@@ -213,16 +222,38 @@ function bullets(s, items, x, y, w, h, size = 18) {
     s.addText('Kafka, Redis, ClickHouse — не нужны на этих объёмах; когда нужны — ADR-0009', { x: M, y: 6.4, w: W - 2 * M, h: 0.5, fontSize: 15, color: C.muted, margin: 0, isTextBox: true });
   }
 
+  // 8б. Путь одного изменения
+  {
+    const s = base('Путь изменения из README «Как это устроено внутри»: у каждого шага файл и тест. Здесь Go работает по максимуму: каналы с обратным давлением, воркеры по ядрам с отменой, атомарная публикация результата.');
+    title(s, 'Путь изменения: от биллинга до экрана');
+    const steps = [
+      ['Приём', 'снимок потоком, каналы с обратным давлением — память не растёт'],
+      ['Запись', 'COPY в одной транзакции, ошибка — откат всего'],
+      ['Сигнал', 'шина в памяти, медленный подписчик не тормозит'],
+      ['Пересчёт', 'воркеры по ядрам, отмена через context'],
+      ['Модель', 'признаки → риск → деньги в центах, сверка с эталоном'],
+      ['Выдача', 'атомарная публикация, REST и SSE без блокировок'],
+    ];
+    steps.forEach(([h, t], i) => {
+      const col = i % 3, row = Math.floor(i / 3);
+      const x = M + col * 4.1, y = 1.6 + row * 2.6;
+      card(s, x, y, 3.8, 2.3);
+      s.addText(String(i + 1), { x: x + 0.3, y: y + 0.2, w: 0.6, h: 0.7, fontSize: 32, bold: true, color: C.accent, margin: 0, isTextBox: true });
+      s.addText(h, { x: x + 0.95, y: y + 0.25, w: 2.6, h: 0.6, fontSize: 22, bold: true, color: C.text, margin: 0, valign: 'middle', isTextBox: true });
+      s.addText(t, { x: x + 0.3, y: y + 1.0, w: 3.2, h: 1.15, fontSize: 16, color: C.muted, valign: 'top', margin: 0, isTextBox: true });
+    });
+  }
+
   // 9. Нагрузка
   {
     const s = base('Числа только из docs/load с железом: 4 vCPU. Недостигнутые цели называем.');
     title(s, 'Гонится и не падает', 'Портфель 100 000 клиентов, параллельное чтение и живая лента · 4 vCPU (docs/load)');
-    stat(s, M, 2.0, 3.9, NUM.eventsPerSec, 'событий в секунду на 100 000 клиентов');
-    stat(s, M + 4.1, 2.0, 3.9, NUM.burstSize, 'событий в залпе: 0 ошибок, 0 потерянных, итог совпал до цента', C.good);
-    stat(s, M + 8.2, 2.0, 3.9, NUM.readP95, 'p95 чтения очереди во время залпа');
-    stat(s, M, 4.1, 3.9, NUM.recalc100k, 'расчёт 100 000 клиентов на всех ядрах');
-    stat(s, M + 4.1, 4.1, 3.9, '0', 'расхождений с эталоном на ' + NUM.parityMax + ' клиентов', C.good);
-    stat(s, M + 8.2, 4.1, 3.9, NUM.shedding, 'при перегрузке — быстрый отказ, а не падение', C.accent);
+    stat(s, M, 2.0, 3.9, NUM.snap100k, 'загрузка снимка 100 000 клиентов, 1,4 млн строк (было 42–45 с)');
+    stat(s, M + 4.1, 2.0, 3.9, NUM.recalc100k, 'расчёт 100 000 клиентов на всех ядрах');
+    stat(s, M + 8.2, 2.0, 3.9, '0', 'расхождений с эталоном на ' + NUM.parityMax + ' клиентов', C.good);
+    stat(s, M, 4.1, 3.9, NUM.eventsPerSec, 'событий в секунду на 100 000 клиентов');
+    stat(s, M + 4.1, 4.1, 3.9, NUM.burstSize, 'событий в залпе: 0 ошибок, 0 потерянных, итог совпал до цента', C.good);
+    stat(s, M + 8.2, 4.1, 3.9, NUM.readP95, 'p95 чтения очереди во время залпа');
   }
 
   // 10. Встраивание
