@@ -48,7 +48,8 @@ if [ -n "${SOURCE_TOKEN:-}" ] && [ -n "${SNAPSHOT:-}" ]; then
   esac
 fi
 TOKEN=$(curl_api -X POST "$API/auth/login" -H 'Content-Type: application/json' \
-  -d "{\"login\":\"$LOGIN\",\"password\":\"$ADMIN_PASSWORD\"}" | jq -r .token)
+  -d "{\"login\":\"$LOGIN\",\"password\":\"$ADMIN_PASSWORD\"}" | jq -r .token) \
+  || { fail "вход под $LOGIN не прошёл (401: проверь, что в Secret заданы ADMIN_LOGIN и ADMIN_PASSWORD)"; exit 1; }
 echo "::add-mask::$TOKEN"
 AUTH="Authorization: Bearer $TOKEN"
 
