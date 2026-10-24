@@ -59,9 +59,13 @@ type ActionResult struct {
 	ID             string
 	Title          string
 	LossDeltaCents int64
-	ScoreBefore    *float64
-	ScoreAfter     *float64
-	LevelAfter     *string
+	// CostCents — что действие стоит клиенту (пополнение — сумма, остальные — 0).
+	CostCents int64
+	// ReturnPerEuro — снятая потеря на каждый евро цены, 2 знака; nil при нулевой цене.
+	ReturnPerEuro *float64
+	ScoreBefore   *float64
+	ScoreAfter    *float64
+	LevelAfter    *string
 }
 
 // Customer — результат по клиенту. ExposureCents — Σ R по живым услугам клиента.
@@ -76,6 +80,9 @@ type Customer struct {
 	Services          []ServiceResult
 	Quality           []ServiceQuality
 	Actions           []ActionResult
+	// ActionComboCents — эффект от совместного применения всех применимых действий
+	// (потеря после − до); nil, если применимо меньше двух действий.
+	ActionComboCents *int64
 }
 
 // Summary — сводка. ExposureCents («под угрозой») — только клиенты high и medium.
@@ -181,7 +188,7 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 		a := accounts[i]
 		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs)
 		if c.State == StateScored {
-			c.Actions = actionResults(s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
+			c.Actions, c.ActionComboCents = actionResults(s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
 		}
 		customers[i] = c
 	})
@@ -295,8 +302,9 @@ func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error 
 // клиента от остальных не зависят, а копировать весь снимок на каждое действие — квадратичная
 // работа (на 10 000 аккаунтов пересчёт шёл минуту с лишним).
 func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]Transaction, st Settings, asOf time.Time,
-	a Account, c Customer, funds FundsCtx, fs []Feature, cs []Check, as []Action) []ActionResult {
+	a Account, c Customer, funds FundsCtx, fs []Feature, cs []Check, as []Action) ([]ActionResult, *int64) {
 	out := []ActionResult{}
+	var applicable []Action
 	ctx := CustomerCtx{Account: a, Customer: c, Funds: funds}
 	ctx.Services = append(ctx.Services, svcs...)
 	s := Snapshot{AsOf: snapAsOf, Accounts: []Account{a}, Services: ctx.Services}
@@ -308,17 +316,19 @@ func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]T
 		if !act.Applies(ctx) {
 			continue
 		}
-		var applied Snapshot
-		if sa, ok := act.(settingsAction); ok {
-			applied = sa.ApplyWith(s, a.ID, st)
-		} else {
-			applied = act.Apply(s, a.ID)
+		applicable = append(applicable, act)
+		after := scoreOne(applyAction(act, s, a.ID, st), a.ID, st, asOf, fs, cs)
+		var cost int64
+		if ca, ok := act.(costAction); ok {
+			cost = ca.CostCents(ctx)
 		}
-		after := scoreOne(applied, a.ID, st, asOf, fs, cs)
+		delta := after.ExpectedLossCents - c.ExpectedLossCents
 		out = append(out, ActionResult{
 			ID:             act.ID(),
 			Title:          act.Title(ctx),
-			LossDeltaCents: after.ExpectedLossCents - c.ExpectedLossCents,
+			LossDeltaCents: delta,
+			CostCents:      cost,
+			ReturnPerEuro:  returnPerEuro(delta, cost),
 			ScoreBefore:    c.Score,
 			ScoreAfter:     after.Score,
 			LevelAfter:     after.Level,
@@ -326,7 +336,46 @@ func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]T
 	}
 	// первое — главное действие: наибольшее снижение потери (правило 9)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].LossDeltaCents < out[j].LossDeltaCents })
-	return out
+	return out, actionCombo(applicable, s, a.ID, st, asOf, c, fs, cs)
+}
+
+func applyAction(act Action, s Snapshot, accountID int64, st Settings) Snapshot {
+	if sa, ok := act.(settingsAction); ok {
+		return sa.ApplyWith(s, accountID, st)
+	}
+	return act.Apply(s, accountID)
+}
+
+// returnPerEuro — снятая потеря на евро цены, округлено до 2 знаков; nil при цене 0.
+func returnPerEuro(deltaCents, costCents int64) *float64 {
+	if costCents <= 0 {
+		return nil
+	}
+	v := math.Round(float64(-deltaCents)/float64(costCents)*100) / 100
+	return &v
+}
+
+// actionCombo — эффект применения всех применимых действий подряд (порядок comboOrder),
+// каждое к результату предыдущего. Меньше двух действий — сочетания нет.
+func actionCombo(applicable []Action, s Snapshot, accountID int64, st Settings, asOf time.Time, c Customer,
+	fs []Feature, cs []Check) *int64 {
+	if len(applicable) < 2 {
+		return nil
+	}
+	ordered := append([]Action(nil), applicable...)
+	rank := func(a Action) int {
+		if r, ok := comboOrder[a.ID()]; ok {
+			return r
+		}
+		return len(comboOrder)
+	}
+	sort.SliceStable(ordered, func(i, j int) bool { return rank(ordered[i]) < rank(ordered[j]) })
+	cur := s
+	for _, act := range ordered {
+		cur = applyAction(act, cur, accountID, st)
+	}
+	d := scoreOne(cur, accountID, st, asOf, fs, cs).ExpectedLossCents - c.ExpectedLossCents
+	return &d
 }
 
 // scoreOne считает одного клиента без действий.
