@@ -13,11 +13,26 @@ describe('экран «Карточка клиента»', () => {
     renderApp('/queue/9');
     expect(await screen.findByRole('heading', { name: 'Клиент 9' })).toBeInTheDocument();
     expect(screen.getAllByText(/3\s189,10\s€/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Пополнить на 529,84/)).toBeInTheDocument();
-    expect(screen.getByText(/−1\s027,49\s€/)).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Что можно сделать' });
+    expect(within(table).getByText(/Пополнить на 529,84/)).toBeInTheDocument();
+    expect(within(table).getByText(/−1\s027,49\s€/)).toBeInTheDocument();
     expect(screen.getByText(/платежи на 30 дней × вероятность срыва/i)).toBeInTheDocument();
     expect(screen.getByText(/расчётное снижение ожидаемой потери/i)).toBeInTheDocument();
     expect(screen.queryByText(/сохранит/i)).not.toBeInTheDocument();
+  });
+
+  it('клиент 9: таблица действий — цена, «на каждый €», лучшее и «Всё вместе»', async () => {
+    renderApp('/queue/9');
+    const table = await screen.findByRole('table', { name: 'Что можно сделать' });
+    const rows = within(table).getAllByRole('row');
+    expect(within(rows[1]!).getByText(/Пополнить на 529,84/)).toBeInTheDocument();
+    expect(within(rows[1]!).getAllByRole('cell')[1]).toHaveTextContent(/^529,84\s€$/);
+    expect(within(rows[1]!).getByText(/1,94\s€/)).toBeInTheDocument();
+    expect(within(rows[1]!).getByText('лучшее по эффекту')).toBeInTheDocument();
+    expect(within(table).getByText('Всё вместе')).toBeInTheDocument();
+    expect(within(table).getByText(/−1\s029,32\s€/)).toBeInTheDocument();
+    expect(screen.getByText(/если клиент выполнит действие полностью/i)).toBeInTheDocument();
+    expect(screen.getByText(/не окупаемость/i)).toBeInTheDocument();
   });
 
   it('в карточке нет цикла «взять в работу», кнопок закрытия и блока наблюдений (ADR-0004)', async () => {

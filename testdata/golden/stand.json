@@ -4,6 +4,7 @@
     {
       "actions": [
         {
+          "costCents": 0,
           "levelAfter": "low",
           "lossDeltaCents": -37508,
           "scoreAfter": 40.0,
@@ -22,13 +23,11 @@
         },
         "11": {
           "fail": 0.0,
-          "flight": 0.174108,
-          "funds": 0.0
+          "flight": 0.174108
         },
         "21": {
           "fail": 1.0,
           "flight": 0.174108,
-          "funds": 0.0,
           "noauto": 0.0
         }
       },
@@ -79,13 +78,11 @@
         "24": {
           "fail": 1.0,
           "flight": 0.037648,
-          "funds": 0.0,
           "susp": 1.0
         },
         "4": {
           "fail": 0.0,
           "flight": 0.037648,
-          "funds": 0.0,
           "noauto": 0.0,
           "susp": 1.0
         }
@@ -102,6 +99,7 @@
     {
       "actions": [
         {
+          "costCents": 0,
           "levelAfter": "high",
           "lossDeltaCents": -83,
           "scoreAfter": 88.0,
@@ -146,6 +144,7 @@
     {
       "actions": [
         {
+          "costCents": 0,
           "levelAfter": "low",
           "lossDeltaCents": -4,
           "scoreAfter": 40.0,
@@ -158,8 +157,7 @@
       "features": {
         "16": {
           "fail": 0.0,
-          "flight": 0.660725,
-          "funds": 0.0
+          "flight": 0.660725
         },
         "26": {
           "fail": 0.0,
@@ -170,7 +168,6 @@
         "6": {
           "fail": 1.0,
           "flight": 0.660725,
-          "funds": 0.0,
           "noauto": 0.0
         }
       },
@@ -208,9 +205,11 @@
       "state": "lost"
     },
     {
+      "actionComboCents": -102932,
       "actions": [
         {
           "amountCents": 52984,
+          "costCents": 52984,
           "levelAfter": "high",
           "lossDeltaCents": -102749,
           "scoreAfter": 82.45,
@@ -218,6 +217,7 @@
           "type": "top_up"
         },
         {
+          "costCents": 0,
           "levelAfter": "high",
           "lossDeltaCents": -135,
           "scoreAfter": 71.01,
@@ -239,7 +239,6 @@
           "bonus_locked": 1.0,
           "fail": 0.0,
           "flight": 0.605337,
-          "funds": 0.366697,
           "susp": 1.0
         },
         "9": {
@@ -266,6 +265,7 @@
     {
       "actions": [
         {
+          "costCents": 0,
           "levelAfter": "high",
           "lossDeltaCents": -64,
           "scoreAfter": 88.0,
@@ -330,9 +330,11 @@
       "state": "scored"
     },
     {
+      "actionComboCents": -70719,
       "actions": [
         {
           "amountCents": 18660,
+          "costCents": 18660,
           "levelAfter": "low",
           "lossDeltaCents": -28856,
           "scoreAfter": 48.45,
@@ -340,6 +342,7 @@
           "type": "top_up"
         },
         {
+          "costCents": 0,
           "levelAfter": "medium",
           "lossDeltaCents": -14739,
           "scoreAfter": 64.79,
@@ -374,8 +377,7 @@
       "features": {
         "1003": {
           "fail": 0.0,
-          "flight": 0.0,
-          "funds": 0.0
+          "flight": 0.0
         }
       },
       "id": 1003,
@@ -401,6 +403,7 @@
       "actions": [
         {
           "amountCents": 500,
+          "costCents": 500,
           "levelAfter": "low",
           "lossDeltaCents": -1400,
           "scoreAfter": 0.0,
@@ -434,8 +437,7 @@
       "features": {
         "1006": {
           "fail": 0.0,
-          "flight": 0.0,
-          "funds": 0.0
+          "flight": 0.0
         }
       },
       "id": 1006,

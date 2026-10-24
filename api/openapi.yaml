@@ -473,13 +473,13 @@ components:
         events:
           type: integer
           minimum: 100
-          maximum: 5000
+          maximum: 100000
           default: 2500
           description: Сколько событий применить
         ratePerSecond:
           type: integer
           minimum: 0
-          maximum: 2000
+          maximum: 20000
           default: 100
           description: Скорость, событий в секунду; 0 — без пауз между событиями
         seed:
@@ -994,6 +994,14 @@ components:
           description: Риск после действия, 0..100.
         newLevel:
           $ref: "#/components/schemas/RiskLevel"
+        costCents:
+          type: integer
+          format: int64
+          description: Что действие стоит клиенту, центы (пополнение — сумма, остальные — 0).
+        returnPerEuro:
+          type: number
+          format: double
+          description: Снятая ожидаемая потеря на каждый евро цены, 2 знака. Нет при цене 0. Оценка сценария «клиент выполнил действие полностью», не ROI.
     ServiceRisk:
       type: object
       required: [serviceId, probability, rCents, lossCents, features, quality]
@@ -1050,6 +1058,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Action"
+        actionCombo:
+          type: integer
+          format: int64
+          description: Эффект от совместного применения всех применимых действий (потеря после − до), центы. Нет, если применимо меньше двух действий.
         explanation:
           type: string
     Summary:

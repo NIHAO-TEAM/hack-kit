@@ -7,7 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Этапы загрузки снимка в метрике (разбор читает тело потоком, отдельного read нет) churn_snapshot_ingest_stage_seconds{stage}.
+// Этапы загрузки снимка в метрике (разбор читает тело потоком, отдельного read нет; parse и validate —
+// время работы без ожиданий, copy_* — время COPY вместе с ожиданием разбора: этапы идут одновременно) churn_snapshot_ingest_stage_seconds{stage}.
 const (
 	stageParse            = "parse"
 	stageValidate         = "validate"
@@ -27,7 +28,9 @@ var ingestStage = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 }, []string{"stage"})
 
 // IngestCollectors — метрики этапов загрузки для /metrics.
-func IngestCollectors() []prometheus.Collector { return []prometheus.Collector{ingestStage} }
+func IngestCollectors() []prometheus.Collector {
+	return []prometheus.Collector{ingestStage, ingestPeakHeap}
+}
 
 // stages копит длительности этапов одной загрузки и пишет их в лог одной строкой.
 type stages struct {
@@ -35,14 +38,18 @@ type stages struct {
 	durs  []time.Duration
 }
 
+// add записывает длительность этапа, измеренную снаружи (этапы конвейера идут одновременно).
+func (s *stages) add(name string, d time.Duration) {
+	ingestStage.WithLabelValues(name).Observe(d.Seconds())
+	s.names = append(s.names, name)
+	s.durs = append(s.durs, d)
+}
+
 // run выполняет f и записывает длительность этапа name (в том числе при ошибке).
 func (s *stages) run(name string, f func() error) error {
 	start := time.Now()
 	err := f()
-	d := time.Since(start)
-	ingestStage.WithLabelValues(name).Observe(d.Seconds())
-	s.names = append(s.names, name)
-	s.durs = append(s.durs, d)
+	s.add(name, time.Since(start))
 	return err
 }
 
