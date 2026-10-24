@@ -82,7 +82,9 @@ export const handlers = [
   }),
   http.get(`${API}/auth/me`, () => {
     const current = getCurrent();
-    return current ? HttpResponse.json(current) : problem(401, 'Нет сессии');
+    return current
+      ? HttpResponse.json(current, { headers: { 'X-CSRF-Token': 'mock-csrf' } })
+      : problem(401, 'Нет сессии');
   }),
   http.post(`${API}/auth/logout`, () => {
     setCurrent(null);
