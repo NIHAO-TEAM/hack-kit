@@ -12,6 +12,8 @@ import (
 type Portfolio struct {
 	Version   int64
 	Customers []Customer
+	// Reasons — идентификаторы всех причин (признаков модели) для фильтра `reason`; клиентов по ним может не быть.
+	Reasons []string
 
 	// Модель чтения (readmodel.go): строится один раз, после этого не меняется.
 	once sync.Once
@@ -29,6 +31,8 @@ type Customer struct {
 	Actions  []gen.Action
 	// ActionCombo — эффект совместного применения действий, центы; nil, если действий меньше двух.
 	ActionCombo *int64
+	// Loss — ожидаемая потеря по причинам (признак → центы), только ненулевые; сумма равна потере по живым услугам.
+	Loss map[string]int64
 }
 
 // Feed отдаёт последний портфель; nil, пока ни один расчёт не удался.
