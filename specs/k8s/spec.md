@@ -47,3 +47,14 @@
 - THEN манифесты проходят `kubeconform`, у приложения заданы `BILLING_URL` и `OIDC_ISSUER_URL`, есть ServiceMonitor, нет спутников и своего Postgres
 
 Держит: `.github/workflows/deploy-k8s-values.yml`.
+
+### Requirement: бинарь собран по профилю и знает предел памяти
+
+Образ приложения SHALL собираться с профилем `default.pgo`, а под — получать `GOMEMLIMIT` ниже лимита памяти контейнера.
+
+#### Scenario: выкат
+
+- WHEN выкачена новая версия
+- THEN `go version -m` бинаря показывает сборку с PGO, в окружении пода есть `GOMEMLIMIT`
+
+Держит CI: шаг `go version -m /out/api | grep -- "-pgo="` в `Dockerfile` (сборка образа падает без профиля). `GOMEMLIMIT` в `deploy/helm/churn/values.yaml` проверяется ревью: `helm template` его только рендерит.
