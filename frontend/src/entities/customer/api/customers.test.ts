@@ -71,3 +71,44 @@ describe('customersExportHref', () => {
     expect([...url.searchParams.keys()]).toEqual(['sort', 'order']);
   });
 });
+
+describe('причина в очереди', () => {
+  it('reason уходит на сервер, а sort по потере по причине — нет', async () => {
+    let query = new URLSearchParams();
+    server.use(
+      http.get('/api/v1/customers', ({ request }) => {
+        query = new URL(request.url).searchParams;
+        return HttpResponse.json({ items: [], total: 0 });
+      }),
+    );
+    await new QueryClient().fetchQuery(
+      customersOptions({ sort: 'reasonLoss', order: 'desc', reason: 'susp' }),
+    );
+    expect(query.get('reason')).toBe('susp');
+    expect(query.has('sort')).toBe(false);
+  });
+
+  it('явная сортировка остаётся вместе с причиной', async () => {
+    let query = new URLSearchParams();
+    server.use(
+      http.get('/api/v1/customers', ({ request }) => {
+        query = new URL(request.url).searchParams;
+        return HttpResponse.json({ items: [], total: 0 });
+      }),
+    );
+    await new QueryClient().fetchQuery(
+      customersOptions({ sort: 'balance', order: 'asc', reason: 'susp' }),
+    );
+    expect(query.get('sort')).toBe('balance');
+    expect(query.get('reason')).toBe('susp');
+  });
+
+  it('CSV несёт причину и не несёт sort по причине', () => {
+    const url = new URL(
+      customersExportHref({ sort: 'reasonLoss', order: 'desc', reason: 'susp' }),
+      'http://x',
+    );
+    expect(url.searchParams.get('reason')).toBe('susp');
+    expect(url.searchParams.has('sort')).toBe(false);
+  });
+});

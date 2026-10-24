@@ -77,3 +77,20 @@
 - WHEN очередь открыта на 820 px
 - THEN сортировку по ID, email, балансу, пополнениям, скору и потере можно выбрать в обе стороны элементами не меньше 44 px
 - Тест: frontend/src/app/queue.test.tsx: «блок «Сортировка» для узкого экрана…»; frontend/src/pages/queue/ui/SortControl.test.tsx
+
+### Requirement: очередь по причине
+
+Очередь SHALL фильтроваться по причине риска с сортировкой по потере по этой причине, а клик по причине на «Сводке» SHALL открывать очередь с этим фильтром.
+
+#### Scenario: приостановленные услуги
+
+- WHEN маркетолог на «Сводке» нажимает «услуга приостановлена»
+- THEN открывается очередь только с клиентами, у которых эта причина, по убыванию потери по ней; в строке видна потеря по причине
+- Тест: e2e/tests/demo.spec.ts, шаг «Сводка: где теряем деньги»; frontend/src/app/queue.test.tsx: «причина в адресе…»; frontend/src/app/summary.test.tsx: «причина в блоке «Где теряем деньги» ведёт в очередь с фильтром»
+
+#### Scenario: неизвестная причина и CSV
+
+- WHEN запрос `GET /customers?reason=nope`
+- THEN ответ 400 с перечнем допустимых причин; `GET /customers/export.csv?reason=susp` отдаёт только клиентов этой причины
+- Тест: backend/internal/app/reason_filter_test.go: `TestListUnknownReasonIs400`, `TestExportRespectsReason`
+

@@ -90,7 +90,7 @@ func buildPortfolio(res risk.Result, snap risk.Snapshot, version int64) *analyti
 	for _, sv := range snap.Services {
 		services[sv.OwnerID] = append(services[sv.OwnerID], sv)
 	}
-	pf := &analytics.Portfolio{Version: version, Customers: make([]analytics.Customer, 0, len(res.Customers))}
+	pf := &analytics.Portfolio{Version: version, Customers: make([]analytics.Customer, 0, len(res.Customers)), Reasons: knownFeatures()}
 	for _, c := range res.Customers {
 		pf.Customers = append(pf.Customers, buildCustomer(c, accounts[c.ID], services[c.ID]))
 	}
@@ -125,6 +125,18 @@ func buildCustomer(c risk.Customer, a risk.Account, svcs []risk.Service) analyti
 			AutoProlong: sv.AutoProlong, CreatedAt: sv.CreatedAt, ExpiresAt: sv.ExpiresAt,
 			Status: gen.ServiceStatus(sv.Status), Price: sv.Price,
 		})
+	}
+
+	// потеря по причинам — тем же разбором, что в сводке «Где теряем деньги»
+	for _, sr := range c.Services {
+		for i, v := range risk.AllocateLoss(sr.LossCents, sr.Features) {
+			if v > 0 {
+				if out.Loss == nil {
+					out.Loss = map[string]int64{}
+				}
+				out.Loss[sr.Features[i].ID] += v
+			}
+		}
 	}
 
 	top := -1

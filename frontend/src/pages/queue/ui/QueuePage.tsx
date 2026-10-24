@@ -23,6 +23,7 @@ import {
   StateLoading,
   StateOffline,
 } from '@shared/ui';
+import { featureTitle } from '@entities/model-config';
 import { summaryOptions } from '@entities/summary';
 import { BillingGroup } from './BillingGroup';
 import { DeletionStrip } from './DeletionStrip';
@@ -47,6 +48,7 @@ const firstOrder: Record<CustomerSort, 'asc' | 'desc'> = {
   totalReplenished: 'desc',
   score: 'desc',
   expectedLoss: 'desc',
+  reasonLoss: 'desc',
 };
 
 export function QueuePage({
@@ -85,6 +87,11 @@ export function QueuePage({
     customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'only' }),
   );
 
+  // Причины — те, что есть в сводке «Где теряем деньги»; выбранная из адреса остаётся в списке всегда.
+  const reasonIds = (summary.data?.lossByFeature ?? []).map((f) => f.featureId);
+  if (params.reason && !reasonIds.includes(params.reason)) reasonIds.push(params.reason);
+  const reasonOptions = reasonIds.map((id) => ({ value: id, label: featureTitle(id) }));
+
   const [whatIf, setWhatIf] = useState(false);
   const [search, setSearch] = useState(params.q ?? '');
   const [debounced] = useDebouncedValue(search, 300);
@@ -95,15 +102,19 @@ export function QueuePage({
   }, [debounced]);
 
   const open = (id: number) => void router.navigate({ href: `/queue/${id}` });
-  const onSort = (column: CustomerSort) =>
+  const onSort = (column: CustomerSort) => {
+    // Колонка «Потеря» при сортировке по потере по причине считается активной: клик меняет направление.
+    const target =
+      column === 'expectedLoss' && params.sort === 'reasonLoss' ? 'reasonLoss' : column;
     onParams(
       withView({
         ...params,
-        sort: column,
+        sort: target,
         order:
-          params.sort === column ? (params.order === 'asc' ? 'desc' : 'asc') : firstOrder[column],
+          params.sort === target ? (params.order === 'asc' ? 'desc' : 'asc') : firstOrder[target],
       }),
     );
+  };
 
   const onToggleOrder = () =>
     onParams(withView({ ...params, order: params.order === 'asc' ? 'desc' : 'asc' }));
@@ -132,10 +143,8 @@ export function QueuePage({
       );
   } else if (customers.data && customers.data.items.length === 0) {
     body =
-      params.q || params.level ? (
-        <StateEmpty title="Никого не нашли">
-          Измените поиск, уровень риска или фильтр по работе.
-        </StateEmpty>
+      params.q || params.level || params.reason ? (
+        <StateEmpty title="Никого не нашли">Измените поиск, уровень риска или причину.</StateEmpty>
       ) : (
         <StateEmpty title="Сегодня некого спасать">
           Клиентов под риском нет. Очередь обновится сама, когда данные изменятся.
@@ -151,6 +160,7 @@ export function QueuePage({
             onParams(withView({ ...params, sort: column, order: firstOrder[column] }))
           }
           onToggleOrder={onToggleOrder}
+          reason={params.reason}
         />
         <QueueTable
           rows={customers.data.items}
@@ -214,6 +224,28 @@ export function QueuePage({
           value={params.level ?? null}
           onChange={(value) =>
             onParams(withView({ ...params, level: (value as RiskLevel | null) ?? undefined }))
+          }
+        />
+        <Select
+          label="Причина"
+          placeholder="Все"
+          clearable
+          data={reasonOptions}
+          value={params.reason ?? null}
+          onChange={(value) =>
+            onParams(
+              withView({
+                ...params,
+                reason: value ?? undefined,
+                // Смена причины возвращает порядок по умолчанию: по потере по ней, а без неё — по потере клиента.
+                sort: value
+                  ? 'reasonLoss'
+                  : params.sort === 'reasonLoss'
+                    ? 'expectedLoss'
+                    : params.sort,
+                order: params.sort === 'reasonLoss' || !value ? 'desc' : params.order,
+              }),
+            )
           }
         />
         <Button

@@ -21,12 +21,15 @@ export function SortControl({
   order,
   onField,
   onToggleOrder,
+  reason,
 }: {
   sort: CustomerSort;
   order: CustomerOrder;
   /** Выбор поля: направление по умолчанию задаёт страница, как при клике по заголовку. */
   onField: (column: CustomerSort) => void;
   onToggleOrder: () => void;
+  /** Причина в фильтре: появляется сортировка по потере по ней. */
+  reason?: string;
 }) {
   const Icon = order === 'asc' ? IconArrowUp : IconArrowDown;
   return (
@@ -35,7 +38,7 @@ export function SortControl({
         className={classes.field}
         classNames={{ input: classes.input }}
         aria-label="Сортировать по"
-        data={fields}
+        data={reason ? [...fields, { value: 'reasonLoss', label: 'Потеря по причине' }] : fields}
         value={sort}
         onChange={(e) => onField(e.currentTarget.value as CustomerSort)}
       />

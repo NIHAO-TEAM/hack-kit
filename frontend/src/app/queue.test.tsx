@@ -295,4 +295,18 @@ describe('очередь: группа «У биллинга»', () => {
     expect(await screen.findByText('У биллинга — не загрузилось')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
   });
+
+  it('причина в адресе: только её клиенты, потеря по причине в строке, по убыванию', async () => {
+    signedIn();
+    renderApp('/queue?reason=susp');
+    const table = await screen.findByRole('table', { name: 'Клиенты под риском оттока' });
+    await waitFor(() => expect(within(table).getAllByText(/по причине:/)).toHaveLength(2));
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(rows).toHaveLength(2);
+    expect(within(table).getByRole('columnheader', { name: /Потеря/ })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+    expect(await screen.findByDisplayValue('Услуга приостановлена')).toBeInTheDocument();
+  });
 });

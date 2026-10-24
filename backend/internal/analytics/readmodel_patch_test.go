@@ -114,3 +114,51 @@ func TestCursorWalksPatchedPortfolio(t *testing.T) {
 		}
 	}
 }
+
+// Фильтр по причине после PatchPortfolio совпадает со сборкой с нуля: причины сохранены, индекс пересчитан
+// (потеря по причине у клиента появилась, исчезла и изменилась).
+func TestPatchedPortfolioReasonMatchesFresh(t *testing.T) {
+	mk := func() *analytics.Portfolio {
+		pf := tiedPortfolio(60)
+		byID(pf)
+		pf.Reasons = []string{"susp", "debt"}
+		for i := range pf.Customers {
+			if i%3 == 0 {
+				pf.Customers[i].Loss = map[string]int64{"susp": int64(100 + i)}
+			}
+		}
+		return pf
+	}
+	prev := mk()
+	prev.BuildIndex()
+	fresh := mk()
+	var changed []analytics.Customer
+	set := func(i int, loss map[string]int64) {
+		c := prev.Customers[i]
+		c.Loss = loss
+		changed = append(changed, c)
+		fresh.Customers[i] = c
+	}
+	set(0, nil)                                    // исчезла
+	set(1, map[string]int64{"susp": 5})            // появилась
+	set(3, map[string]int64{"susp": 9999})         // изменилась
+	set(4, map[string]int64{"debt": 7, "susp": 1}) // новая причина
+	patched := analytics.PatchPortfolio(prev, 9, changed)
+	if patched == nil {
+		t.Fatal("PatchPortfolio вернул nil")
+	}
+	for _, reason := range []string{"susp", "debt"} {
+		for _, order := range []gen.ListCustomersParamsOrder{gen.Asc, gen.Desc} {
+			r := reason
+			p := gen.ListCustomersParams{Reason: &r, Order: &order, Limit: ptr(200)}
+			got, code := list(t, listAPI(patched), p)
+			want, wcode := list(t, listAPI(fresh), p)
+			if code != 200 || wcode != 200 || got.Total != want.Total || !slices.Equal(ids(got.Items), ids(want.Items)) {
+				t.Fatalf("reason=%s %s: код %d, получили %v, ждали %v", reason, order, code, ids(got.Items), ids(want.Items))
+			}
+			if reason == "susp" && got.Total == 0 {
+				t.Fatalf("reason=susp: пусто")
+			}
+		}
+	}
+}

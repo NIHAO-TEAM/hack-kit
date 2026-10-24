@@ -114,6 +114,12 @@ function retention(all: ReturnType<typeof rows>) {
   };
 }
 
+/** Клиенты по причинам (условно) и доля их потери, приходящаяся на причину; как в `reason` сервера. */
+const reasonShare: Record<string, Record<number, number>> = {
+  susp: { 2: 0.6, 1: 0.3 },
+  funds: { 2: 0.4 },
+};
+
 export const queueHandlers = [
   http.get(`${API}/customers`, ({ request }) => {
     const url = new URL(request.url);
@@ -123,17 +129,34 @@ export const queueHandlers = [
     const q = (url.searchParams.get('q') ?? '').toLowerCase();
     const billing = url.searchParams.get('billing');
     const task = url.searchParams.get('task');
+    const reason = url.searchParams.get('reason');
+    if (reason && !(reason in reasonShare)) {
+      return HttpResponse.json(
+        { type: 'about:blank', title: 'reason: неизвестная причина', status: 400 },
+        { status: 400, headers: { 'Content-Type': 'application/problem+json' } },
+      );
+    }
+    const share = reason ? reasonShare[reason]! : null;
     const key = sortKey[sort] ?? sortKey['expectedLoss']!;
+    const byReason = (r: { id: number; expectedLossCents: number }) =>
+      Math.round(r.expectedLossCents * (share?.[r.id] ?? 0));
     const items = rows()
-      .map((r) => ({ ...r, task: openTaskBrief(r.id) }))
+      .map((r) => ({
+        ...r,
+        task: openTaskBrief(r.id),
+        ...(share ? { reasonLossCents: byReason(r) } : {}),
+      }))
       .filter(
         (r) =>
+          (!share || r.id in share) &&
           (!level || r.level === level) &&
           r.email.toLowerCase().includes(q) &&
           taskFilterMatches(task, r.task) &&
           (!billing || Boolean(r.billing) === (billing === 'only')),
       )
       .sort((a, b) => {
+        if (share && !url.searchParams.has('sort'))
+          return (byReason(b) - byReason(a)) * -dir || a.id - b.id;
         const lowA = bottom.includes(a.level);
         const lowB = bottom.includes(b.level);
         if (lowA !== lowB) return lowA ? 1 : -1;
