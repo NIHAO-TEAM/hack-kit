@@ -20,6 +20,8 @@ type ServiceCtx struct {
 	Service      Service
 	Transactions []Transaction
 	Funds        FundsCtx
+	// NoReason — текст причины не нужен (пересчёт «после действия»): признак может вернуть "".
+	NoReason bool
 }
 
 // Feature — признак риска. Eval возвращает f ∈ [0, 1], текст причины и ok = «признак применим к услуге».
