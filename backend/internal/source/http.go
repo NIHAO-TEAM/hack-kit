@@ -264,6 +264,45 @@ func (a *SourceAPI) EmulatorActions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// StartEmulatorStream — POST /api/v1/source/emulator/stream. Права проверяет auth.Middleware.
+func (a *SourceAPI) StartEmulatorStream(w http.ResponseWriter, r *http.Request) {
+	var req gen.StreamRequest
+	if r.Body != nil && r.ContentLength != 0 {
+		if !decodeBody(w, r, &req) {
+			return
+		}
+	}
+	n, rate, seed, err := validateStream(req)
+	var br badRequest
+	if errors.As(err, &br) {
+		httpx.WriteProblem(w, r, http.StatusBadRequest, br.Error())
+		return
+	}
+	runID, err := a.startStream(r.Context(), n, rate, seed)
+	var he httpError
+	switch {
+	case errors.Is(err, errStreamNoRec):
+		httpx.WriteProblem(w, r, http.StatusNotImplemented, err.Error())
+		return
+	case errors.Is(err, errStreamBusy):
+		httpx.WriteProblem(w, r, http.StatusConflict, err.Error())
+		return
+	case errors.As(err, &he):
+		httpx.WriteProblem(w, r, http.StatusInternalServerError, he.msg)
+		return
+	}
+	a.record(r, audit.ActionEmulatorStream,
+		fmt.Sprintf("Эмулятор биллинга: поток %d событий, %d в секунду, зерно %d", n, rate, seed), nil)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(gen.StreamAccepted{RunId: runID})
+}
+
+// GetEmulatorStream — GET /api/v1/source/emulator/stream.
+func (a *SourceAPI) GetEmulatorStream(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, a.stream.get())
+}
+
 type badRequest struct{ error }
 
 type notFound struct{ error }

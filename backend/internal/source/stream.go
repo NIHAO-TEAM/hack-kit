@@ -2,11 +2,9 @@ package source
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"sort"
 	"sync"
 	"time"
@@ -14,9 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"example.com/app/internal/audit"
 	"example.com/app/internal/platform/api/gen"
-	"example.com/app/internal/platform/httpx"
 )
 
 // TopicStreamProgress — тема шины: ход потока событий, полезная нагрузка gen.StreamState.
@@ -121,15 +117,15 @@ func (r *streamRun) update(f func(*gen.StreamState)) gen.StreamState {
 	return r.state
 }
 
-// StartEmulatorStream — POST /api/v1/source/emulator/stream. Права проверяет auth.Middleware.
-func (a *SourceAPI) StartEmulatorStream(w http.ResponseWriter, r *http.Request) {
-	var req gen.StreamRequest
-	if r.Body != nil && r.ContentLength != 0 {
-		if !decodeBody(w, r, &req) {
-			return
-		}
-	}
-	n, rate, seed := streamDefaultEvents, streamDefaultRate, int64(streamDefaultSeed)
+// Ошибки запуска потока.
+var (
+	errStreamBusy  = errors.New("другой прогон потока ещё идёт")
+	errStreamNoRec = errors.New("пересчёт не подключён: поток событий недоступен")
+)
+
+// validateStream проверяет параметры запроса и подставляет умолчания.
+func validateStream(req gen.StreamRequest) (n, rate int, seed int64, err error) {
+	n, rate, seed = streamDefaultEvents, streamDefaultRate, streamDefaultSeed
 	if req.Events != nil {
 		n = *req.Events
 	}
@@ -140,45 +136,33 @@ func (a *SourceAPI) StartEmulatorStream(w http.ResponseWriter, r *http.Request) 
 		seed = *req.Seed
 	}
 	if n < streamMinEvents || n > streamMaxEvents {
-		httpx.WriteProblem(w, r, http.StatusBadRequest, fmt.Sprintf("событий должно быть от %d до %d", streamMinEvents, streamMaxEvents))
-		return
+		return 0, 0, 0, badRequest{fmt.Errorf("событий должно быть от %d до %d", streamMinEvents, streamMaxEvents)}
 	}
 	if rate < 0 || rate > streamMaxRate {
-		httpx.WriteProblem(w, r, http.StatusBadRequest, fmt.Sprintf("скорость должна быть от 0 до %d событий в секунду", streamMaxRate))
-		return
+		return 0, 0, 0, badRequest{fmt.Errorf("скорость должна быть от 0 до %d событий в секунду", streamMaxRate)}
 	}
-	if a.observer == nil {
-		httpx.WriteProblem(w, r, http.StatusNotImplemented, "пересчёт не подключён: поток событий недоступен")
-		return
-	}
+	return n, rate, seed, nil
+}
 
+// startStream занимает прогон и запускает его в своей горутине; возвращает номер прогона.
+func (a *SourceAPI) startStream(ctx context.Context, n, rate int, seed int64) (string, error) {
+	if a.observer == nil {
+		return "", errStreamNoRec
+	}
 	runID := uuid.NewString()
 	started := a.clk.Now()
 	st := gen.StreamState{State: gen.Running, RunId: &runID, Events: n, RatePerSecond: &rate, Seed: &seed, StartedAt: &started}
 	if !a.stream.tryStart(st) {
-		httpx.WriteProblem(w, r, http.StatusConflict, "другой прогон потока ещё идёт")
-		return
+		return "", errStreamBusy
 	}
-	base, err := a.streamBase(r.Context())
+	base, err := a.streamBase(ctx)
 	if err != nil {
 		a.stream.update(func(s *gen.StreamState) { *s = gen.StreamState{State: gen.Idle} })
 		log.Printf("source: поток, чтение снимка: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не прочитан")
-		return
+		return "", httpError{"снимок не прочитан"}
 	}
-	a.record(r, audit.ActionEmulatorStream,
-		fmt.Sprintf("Эмулятор биллинга: поток %d событий, %d в секунду, зерно %d", n, rate, seed), nil)
-
 	go a.runStream(runID, GenerateStream(base, n, seed), n, rate, base)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	_ = json.NewEncoder(w).Encode(gen.StreamAccepted{RunId: runID})
-}
-
-// GetEmulatorStream — GET /api/v1/source/emulator/stream.
-func (a *SourceAPI) GetEmulatorStream(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, a.stream.get())
+	return runID, nil
 }
 
 // streamBase — снимок, над которым строится поток; в пустой базе — сид, как у шагов эмулятора.
