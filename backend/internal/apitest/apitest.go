@@ -4,6 +4,7 @@ package apitest
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -182,6 +183,22 @@ func (f *lazyFeed) QualityChecks(version int64) []gen.QualityCheck {
 		return r.QualityChecks(version)
 	}
 	return nil
+}
+
+// StreamLatest и StreamFresh отдают потоку событий эмулятора пересчёт воркера.
+func (f *lazyFeed) StreamLatest() (source.StreamView, bool) {
+	if r := f.recalc.Load(); r != nil {
+		return r.StreamLatest()
+	}
+	return source.StreamView{}, false
+}
+
+func (f *lazyFeed) StreamFresh(ctx context.Context, s source.Snapshot) (source.StreamView, error) {
+	r := f.recalc.Load()
+	if r == nil {
+		return source.StreamView{}, errors.New("apitest: воркер пересчёта не запущен")
+	}
+	return r.StreamFresh(ctx, s)
 }
 
 func (f *lazyFeed) Portfolio() *analytics.Portfolio {

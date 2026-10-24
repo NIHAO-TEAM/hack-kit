@@ -3,6 +3,7 @@
 package source
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +32,8 @@ type SourceAPI struct {
 	adapter  *Adapter
 	audit    audit.Recorder
 	checks   func(version int64) []gen.QualityCheck
+	observer StreamObserver
+	stream   *streamRun
 }
 
 // WithAudit подключает журнал действий: загрузка снимка, правки и шаги эмулятора.
@@ -62,7 +65,7 @@ func New(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *SourceAPI {
 	if v, err := strconv.ParseInt(os.Getenv("SNAPSHOT_MAX_BYTES"), 10, 64); err == nil && v > 0 {
 		max = v
 	}
-	return &SourceAPI{pool: pool, bus: bus, clk: clk, maxBytes: max}
+	return &SourceAPI{pool: pool, bus: bus, clk: clk, maxBytes: max, stream: newStreamRun()}
 }
 
 // WithAdapter подключает опрос REST-биллинга: ручная загрузка ставит его на паузу, статус его показывает.
@@ -284,22 +287,48 @@ func (a *SourceAPI) emulate(w http.ResponseWriter, r *http.Request, step func(*S
 // commit выполняет шаг над текущим снимком и записывает результат. При ошибке сам отвечает
 // problem+json и возвращает ok=false.
 func (a *SourceAPI) commit(w http.ResponseWriter, r *http.Request, step func(*Snapshot) (*Snapshot, string, error)) (acc Accepted, next *Snapshot, ok bool) {
+	acc, next, err := a.commitStep(r.Context(), step)
+	if err != nil {
+		var br badRequest
+		var nf notFound
+		var he httpError
+		switch {
+		case errors.As(err, &br):
+			httpx.WriteProblem(w, r, http.StatusBadRequest, br.Error())
+		case errors.As(err, &nf):
+			httpx.WriteProblem(w, r, http.StatusNotFound, nf.Error())
+		case errors.As(err, &he):
+			httpx.WriteProblem(w, r, http.StatusInternalServerError, he.msg)
+		default:
+			httpx.WriteProblem(w, r, http.StatusInternalServerError, "шаг эмулятора не выполнен")
+		}
+		return Accepted{}, nil, false
+	}
+	return acc, next, true
+}
+
+// httpError — сбой шага с текстом для ответа 500; причина уже записана в лог.
+type httpError struct{ msg string }
+
+func (e httpError) Error() string { return e.msg }
+
+// commitStep — тело commit без привязки к HTTP: им же пользуется поток событий эмулятора.
+// Ошибки шага (badRequest, notFound) возвращаются как есть, сбои чтения и записи — httpError.
+func (a *SourceAPI) commitStep(ctx context.Context, step func(*Snapshot) (*Snapshot, string, error)) (Accepted, *Snapshot, error) {
 	emulatorMu.Lock()
 	defer emulatorMu.Unlock()
 
-	cur, _, err := NewReader(a.pool).Load(r.Context())
+	cur, _, err := NewReader(a.pool).Load(ctx)
 	if err != nil && !errors.Is(err, ErrNoSnapshot) {
 		log.Printf("source: эмулятор, чтение: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не прочитан")
-		return
+		return Accepted{}, nil, httpError{"снимок не прочитан"}
 	}
 	if errors.Is(err, ErrNoSnapshot) {
 		// Пустая база: эмулятор стартует с сида, как после reset.
 		fresh, rerr := resetSnapshot()
 		if rerr != nil {
 			log.Printf("source: эмулятор, сид: %v", rerr)
-			httpx.WriteProblem(w, r, http.StatusInternalServerError, "сид не прочитан")
-			return
+			return Accepted{}, nil, httpError{"сид не прочитан"}
 		}
 		fresh.AsOf = &seedAsOf
 		cur = *fresh
@@ -307,28 +336,21 @@ func (a *SourceAPI) commit(w http.ResponseWriter, r *http.Request, step func(*Sn
 	next, origin, err := step(&cur)
 	var br badRequest
 	var nf notFound
-	if errors.As(err, &br) {
-		httpx.WriteProblem(w, r, http.StatusBadRequest, br.Error())
-		return
-	}
-	if errors.As(err, &nf) {
-		httpx.WriteProblem(w, r, http.StatusNotFound, nf.Error())
-		return
+	if errors.As(err, &br) || errors.As(err, &nf) {
+		return Accepted{}, nil, err
 	}
 	if err != nil {
 		log.Printf("source: эмулятор: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "шаг эмулятора не выполнен")
-		return
+		return Accepted{}, nil, httpError{"шаг эмулятора не выполнен"}
 	}
 	now := a.clk.Now()
-	acc, err = replace(r.Context(), a.pool, next, ModelTime(next, now), now, origin)
+	acc, err := replace(ctx, a.pool, next, ModelTime(next, now), now, origin)
 	if err != nil {
 		log.Printf("source: эмулятор, запись: %v", err)
-		httpx.WriteProblem(w, r, http.StatusInternalServerError, "снимок не записан, прежние данные сохранены")
-		return
+		return Accepted{}, nil, httpError{"снимок не записан, прежние данные сохранены"}
 	}
 	a.bus.Publish(TopicChanged, acc.Version)
-	return acc, next, true
+	return acc, next, nil
 }
 
 // PatchService — PATCH /api/v1/source/services/{id}. Меняет одну услугу и пишет новый снимок
