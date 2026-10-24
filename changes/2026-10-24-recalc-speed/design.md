@@ -7,6 +7,10 @@
 3. **Измерение.** `Computed` получает длительности трёх этапов; `analytics.Engine` отдаёт их в метрику `churn_recalc_stage_seconds{stage="load|convert|score"}` и в строку лога пересчёта. Имя метрики и ярлыки проходят `TestMetricsLint`.
 4. **Замер.** Запуск `Deploy load` (`workflow_dispatch`) на ветке после реализации; результат в `docs/load/YYYY-MM-DD-recalc-speed.md` по образцу `2026-10-23-load-100k.md`.
 
+## Решения по ходу
+
+- **Проверено по коду (задача 1.1).** Данные трёх таблиц пишет только `replace` (`backend/internal/source/service.go:56`): `TRUNCATE` и `CopyFrom` в одной транзакции вместе с `INSERT INTO snapshots` (`service.go:111`), без этой строки транзакция не фиксируется. `replace` вызывают загрузка по API (`http.go:98`), опрос и действия эмулятора (`http.go:310`), посев (`service.go:157`) и адаптер (`service.go:404`). Других `INSERT/UPDATE/DELETE/TRUNCATE` по `accounts`, `services`, `transactions` в `internal/` нет. Значит, неизменная `max(version)` означает неизменные данные; кэш по версии не устаревает.
+
 ## Допущения
 
 - [ПРЕДПОЛОЖЕНО] Ядро чистое: признаки, проверки и действия не пишут в общие переменные. Подтверждается `go test -race` по `internal/risk` и `internal/app` (расширить `TestScoreScalesWithAccounts` параллельным запуском).
