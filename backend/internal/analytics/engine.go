@@ -19,6 +19,15 @@ type Computed[R any] struct {
 	Result          R
 	DataVersion     int64
 	SettingsVersion int64
+	Stages          Stages
+}
+
+// Stages — из чего сложилось время пересчёта: чтение снимка (или только его версии), перевод
+// во входные данные ядра и сам расчёт.
+type Stages struct {
+	Load    time.Duration
+	Convert time.Duration
+	Score   time.Duration
 }
 
 // Calculation — последний результат с метаданными. Version растёт на 1 с каждым успешным
@@ -125,6 +134,9 @@ func (e *Engine[R]) recalc(ctx context.Context) {
 		return
 	}
 	e.version++
+	log.Printf("analytics: пересчёт %d: чтение %s, перевод %s, расчёт %s, всего %s", e.version,
+		c.Stages.Load.Round(time.Millisecond), c.Stages.Convert.Round(time.Millisecond),
+		c.Stages.Score.Round(time.Millisecond), e.clk.Now().Sub(started).Round(time.Millisecond))
 	e.latest.Store(&Calculation[R]{
 		Computed:     c,
 		Version:      e.version,

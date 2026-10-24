@@ -21,6 +21,8 @@ var (
 		"Число случаев по проверке качества данных (штуки); check — имя проверки.", []string{"check"}, nil)
 	descRecalc = prometheus.NewDesc("churn_recalc_duration_seconds",
 		"Длительность последнего пересчёта (секунды).", nil, nil)
+	descStage = prometheus.NewDesc("churn_recalc_stage_seconds",
+		"Длительность этапов последнего пересчёта (секунды); stage: load, convert, score.", []string{"stage"}, nil)
 	descAge = prometheus.NewDesc("churn_snapshot_age_seconds",
 		"Возраст данных снимка: сейчас минус момент снимка (секунды).", nil, nil)
 	descVersion = prometheus.NewDesc("churn_model_version",
@@ -36,7 +38,7 @@ type overviewCollector struct {
 
 func (overviewCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{descCustomers, descExpectedLoss, descAtRisk, descLost,
-		descQuality, descRecalc, descAge, descVersion} {
+		descQuality, descRecalc, descStage, descAge, descVersion} {
 		ch <- d
 	}
 }
@@ -62,6 +64,9 @@ func (c overviewCollector) Collect(ch chan<- prometheus.Metric) {
 		gauge(descQuality, float64(n), check)
 	}
 	gauge(descRecalc, o.Duration.Seconds())
+	gauge(descStage, o.Stages.Load.Seconds(), "load")
+	gauge(descStage, o.Stages.Convert.Seconds(), "convert")
+	gauge(descStage, o.Stages.Score.Seconds(), "score")
 	if !o.AsOf.IsZero() {
 		gauge(descAge, c.clk.Now().Sub(o.AsOf).Seconds())
 	}
