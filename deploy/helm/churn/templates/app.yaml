@@ -13,6 +13,8 @@ spec:
       labels: {{- include "churn.appSelector" . | nindent 8 }}
     spec:
       automountServiceAccountToken: false
+      # Больше SHUTDOWN_DRAIN (5 с) + SHUTDOWN_TIMEOUT (20 с) из cmd/api: иначе kubelet убьёт под раньше остановки.
+      terminationGracePeriodSeconds: 40
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -38,9 +40,10 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ include "churn.secretName" . }}
-          # Миграции применяет само приложение при старте (db.Up), пока не готово — не Ready.
+          # Миграции применяет само приложение при старте (db.Up); Ready — после первого пересчёта,
+          # при SIGTERM /readyz сразу отвечает 503 и под снимается с балансировки.
           readinessProbe:
-            httpGet: {path: /healthz, port: http}
+            httpGet: {path: /readyz, port: http}
             periodSeconds: 5
             failureThreshold: 6
           livenessProbe:

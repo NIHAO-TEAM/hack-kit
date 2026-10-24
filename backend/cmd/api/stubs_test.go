@@ -19,7 +19,7 @@ var implemented = map[string]bool{
 	"docs": true, "openapiYaml": true, "openapiJson": true,
 	"login": true, "getMe": true, "logout": true, "getAuthConfig": true,
 	"putSnapshot": true, "getSourceStatus": true, "getEvents": true,
-	"getModelSettings": true, "patchModelSettings": true,
+	"getModelSettings": true, "patchModelSettings": true, "getModelSensitivity": true,
 	"listCustomers": true, "exportCustomers": true, "getCustomer": true,
 	"getSummary": true, "getChurnChart": true, "getMetrics": true, "getMetricsAlias": true,
 	"emulatorTick": true, "emulatorActions": true, "startEmulatorStream": true, "getEmulatorStream": true,

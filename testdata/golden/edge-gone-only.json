@@ -8,6 +8,7 @@
       "features": {},
       "id": 1,
       "level": null,
+      "lossByFeature": {},
       "lostCents": 37000,
       "score": null,
       "state": "lost"
@@ -40,6 +41,7 @@
       "medium": 0,
       "unscored": 0
     },
+    "lossByFeature": [],
     "lostCents": 37000
   }
 }

@@ -212,6 +212,7 @@ func (r *Recalc) Overview() *analytics.Overview {
 		AtRiskCents:       s.ExposureCents,
 		LostCents:         s.LostCents,
 		QualityCounts:     s.QualityCounts,
+		LossByFeature:     lossByFeature(s.LossByFeature),
 	}
 }
 
@@ -285,4 +286,12 @@ func streamView(res risk.Result) source.StreamView {
 		v.Customers[c.ID] = level
 	}
 	return v
+}
+
+func lossByFeature(in []risk.FeatureLoss) []analytics.FeatureLoss {
+	out := make([]analytics.FeatureLoss, len(in))
+	for i, f := range in {
+		out[i] = analytics.FeatureLoss{ID: f.ID, LossCents: f.LossCents, Customers: f.Customers}
+	}
+	return out
 }

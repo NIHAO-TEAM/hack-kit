@@ -245,6 +245,7 @@ func (a *AnalyticsAPI) GetCustomer(w responseWriter, r *request, id gen.Customer
 		ServiceRisks: &c.Risks,
 		Features:     orEmpty(c.Features),
 		Actions:      orEmpty(c.Actions),
+		ActionCombo:  c.ActionCombo,
 		Explanation:  c.Row.TopReason,
 	}
 	writeJSON(w, r, d)
