@@ -56,7 +56,7 @@ describe('экран «Карточка клиента»', () => {
     renderApp('/queue/7');
     expect(await screen.findByText(/потерян: живых услуг не осталось/)).toBeInTheDocument();
     expect(
-      screen.getByText(/Стоимость потерянных услуг за 30 дней \(расчёт\)/),
+      screen.getByText(/Стоимость потерянных услуг за горизонт модели \(расчёт\)/),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/6\s808,74\s€/).length).toBeGreaterThan(0);
     expect(screen.getByText(/не фактическая выручка/)).toBeInTheDocument();

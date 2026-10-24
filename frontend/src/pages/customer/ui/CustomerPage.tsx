@@ -124,7 +124,9 @@ export function CustomerPage({ id }: { id: number }) {
                 </Text>
               </Group>
               <Text size="sm" c="dimmed">
-                {lost ? 'Стоимость потерянных услуг за 30 дней (расчёт)' : 'Ожидаемая потеря'}
+                {lost
+                  ? 'Стоимость потерянных услуг за горизонт модели (расчёт)'
+                  : 'Ожидаемая потеря'}
               </Text>
               <Text fz="xl" fw={600}>
                 <Money
