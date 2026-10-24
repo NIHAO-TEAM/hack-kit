@@ -4,7 +4,7 @@
 
 ## 1. Диагностика
 
-- [ ] 1.1 `diagnose.sh` печатает endpoints, endpointslices спутников, версию и предупреждения Traefik — проверка: лог `deploy-ingress.yml` (ручной запуск) без секретов; причина записана в `design.md`
+- [x] 1.1 `diagnose.sh` печатает endpoints, endpointslices спутников, версию и предупреждения Traefik — проверка: лог `deploy-ingress.yml` (ручной запуск) без секретов; причина записана в `design.md` (проверит CI: ручной запуск `deploy-ingress.yml`)
 
 ## 2. Чарт
 
