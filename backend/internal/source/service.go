@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"errors"
+	"example.com/app/internal/platform/httpx"
 	"fmt"
 	"io"
 	"log"
@@ -587,6 +588,10 @@ var (
 		Help:    "Время записи одной пачки событий потока одной транзакцией (секунды).",
 		Buckets: []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5},
 	})
+	ingestDBWaits = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "churn_ingest_db_unavailable_total",
+		Help: "Сколько раз запись пачки событий упёрлась в недоступную базу и ушла на повтор (штуки).",
+	})
 	ingestQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "churn_ingest_queue_depth",
 		Help: "Сколько событий потока ждёт записи в очереди приёма (штуки).",
@@ -700,7 +705,8 @@ func (g *eventWriter) run(ctx context.Context) {
 }
 
 // write проверяет события пачки, пишет годные одной транзакцией и возвращает итог по каждому.
-// Ошибка базы на пачке: один повтор, затем все годные события пачки уходят в отказ.
+// Ошибка запроса на пачке: один повтор, затем годные события уходят в отказ. База недоступна
+// (пауза, перезапуск): пачка ждёт её возврата и пишется целиком, события не теряются.
 func (g *eventWriter) write(ctx context.Context, items []ingestItem) []ingestResult {
 	out := make([]ingestResult, len(items))
 	good := make([]int, 0, len(items))
@@ -717,12 +723,7 @@ func (g *eventWriter) write(ctx context.Context, items []ingestItem) []ingestRes
 	var skipped map[int]error
 	var err error
 	if len(good) > 0 {
-		for attempt := 0; attempt < 2; attempt++ {
-			if version, skipped, err = g.commit(ctx, items, good); err == nil {
-				break
-			}
-			log.Printf("source: приём пачки из %d событий, попытка %d: %v", len(good), attempt+1, err)
-		}
+		version, skipped, err = g.commitRetry(ctx, items, good)
 	}
 	end := g.now()
 	for _, i := range good {
@@ -746,6 +747,73 @@ func (g *eventWriter) write(ctx context.Context, items []ingestItem) []ingestRes
 		g.publish(Change{Version: version, Accounts: g.touched(items, good, skipped)})
 	}
 	return out
+}
+
+// Паузы повторов пачки при недоступной базе; после них писатель ждёт возврата базы пингом.
+var (
+	ingestRetryPauses = []time.Duration{100 * time.Millisecond, time.Second, 5 * time.Second}
+	ingestPingEvery   = time.Second
+)
+
+// commitRetry пишет пачку. Ошибка запроса — один повтор. База недоступна — повторы с растущей
+// паузой, затем ожидание pool.Ping до возврата базы или отмены ctx: пока писатель ждёт, очередь
+// заполняется и submit блокирует поток (обратное давление), а не теряет события.
+func (g *eventWriter) commitRetry(ctx context.Context, items []ingestItem, good []int) (int64, map[int]error, error) {
+	return retryCommit(ctx, len(good), func() (int64, map[int]error, error) { return g.commit(ctx, items, good) }, g.pool.Ping)
+}
+
+// retryCommit — политика повторов commitRetry, отдельно от базы: commit и ping подставляются.
+func retryCommit(ctx context.Context, n int, commit func() (int64, map[int]error, error), ping func(context.Context) error) (int64, map[int]error, error) {
+	for attempt := 0; ; attempt++ {
+		version, skipped, err := commit()
+		if err == nil || ctx.Err() != nil {
+			return version, skipped, err
+		}
+		log.Printf("source: приём пачки из %d событий, попытка %d: %v", n, attempt+1, err)
+		if !httpx.IsDBUnavailable(err) {
+			if attempt >= 1 {
+				return 0, nil, err
+			}
+			continue
+		}
+		ingestDBWaits.Inc()
+		if attempt < len(ingestRetryPauses) {
+			if !sleepCtx(ctx, ingestRetryPauses[attempt]) {
+				return 0, nil, ctx.Err()
+			}
+			continue
+		}
+		if !waitDB(ctx, ping) {
+			return 0, nil, ctx.Err()
+		}
+		attempt = len(ingestRetryPauses) // после возврата базы — снова одна попытка за раз
+	}
+}
+
+// waitDB ждёт, пока база отвечает на ping; false — ctx отменён раньше.
+func waitDB(ctx context.Context, ping func(context.Context) error) bool {
+	for {
+		pctx, cancel := context.WithTimeout(ctx, ingestPingEvery)
+		err := ping(pctx)
+		cancel()
+		if err == nil {
+			return true
+		}
+		if !sleepCtx(ctx, ingestPingEvery) {
+			return false
+		}
+	}
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // touched — клиенты записанных событий пачки по возрастанию номера, без повторов.
