@@ -13,7 +13,7 @@ import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { can, logout, sessionKey, type Right } from '@entities/session';
-import { AezaMark, IconExternalLink, IconLogout } from '@shared/ui';
+import { AezaBrand, IconExternalLink, IconLogout } from '@shared/ui';
 import { RealtimeProvider } from '../realtime';
 import { Route } from '../routes/_app';
 import { ThemeSwitch } from './ThemeSwitch';
@@ -66,7 +66,7 @@ export function AppShell() {
           <Group wrap="nowrap">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Меню" />
             <Group gap="sm" wrap="nowrap">
-              <AezaMark size={28} />
+              <AezaBrand height={28} />
               <Text fw={700} size="lg" component="div">
                 Контур удержания
               </Text>
