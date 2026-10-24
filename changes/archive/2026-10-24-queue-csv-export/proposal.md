@@ -22,6 +22,7 @@
 - backend: `internal/analytics` (выгрузка на той же выборке, что список), `auth/permissions.go`, `audit`
 - frontend: `pages/queue` (кнопка), `entities/customer/api`
 - контракт `api/openapi.yaml`: да, только добавление — путь `GET /customers/export.csv` (`text/csv`)
+- контракт, `oasdiff` «ломающее» (ожидаемо): в enum `AuditEntry.action` добавлено значение `customersExported` — выгрузка пишется в журнал (требование этого изменения). Клиенты журнала (фронт) действие показывают как текст `summary`, значение enum не разбирают, поэтому добавление безопасно
 - защищённые пути: да — `api/openapi.yaml`; причина: новый путь выгрузки
 - зависит от: `billing-queue-split` (фильтр по биллингу и те же файлы списка и очереди)
 
