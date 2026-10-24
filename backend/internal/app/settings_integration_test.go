@@ -4,6 +4,7 @@ package app_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -74,6 +75,17 @@ func TestSettingsAPI(t *testing.T) {
 	}
 	if !strings.Contains(string(resp), "->high") || !strings.Contains(string(resp), "20069") {
 		t.Errorf("dryRun: ждали смену уровня на высокий и потерю +20069: %s", resp)
+	}
+	var dr gen.DryRunResult
+	if err := json.Unmarshal(resp, &dr); err != nil {
+		t.Fatal(err)
+	}
+	changed := 0
+	for _, n := range dr.LevelChanges {
+		changed += n
+	}
+	if dr.CustomersTotal == nil || *dr.CustomersTotal != changed || dr.Customers == nil || len(*dr.Customers) != changed {
+		t.Errorf("dryRun: customers/customersTotal не совпали со сменами уровня (%d): %s", changed, resp)
 	}
 	if get().Version != 0 {
 		t.Fatal("dryRun сохранил настройки")

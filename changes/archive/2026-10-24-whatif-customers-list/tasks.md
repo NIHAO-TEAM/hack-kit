@@ -1,0 +1,22 @@
+# Задачи: «Что если» — кого задевает правка
+
+Каждая задача проверяема: в конце строки — чем проверить.
+
+## 1. Контракт и данные
+
+- [x] 1.1 `DryRunResult.customers`, `customersTotal`, схема `DryRunCustomer` — проверка: `make generate && git diff --exit-code`, `oasdiff` без breaking
+
+## 2. Логика
+
+- [x] 2.1 Dry-run собирает клиентов со сменой уровня, сортировка и лимит 50 — проверка: тест в `internal/model` на наборе организаторов (тест `TestDiffCustomers` в `internal/app`: логика в `app.Diff`; на наборе организаторов проверит CI с БД)
+- [x] 2.2 HTTP-ответ dry-run с новым полем — проверка: тест `internal/app` (settings) (интеграционный тест — проверит CI с БД)
+
+## 3. Экран
+
+- [x] 3.1 Список «кого задевает» в панели «Что если», ссылка в карточку, «и ещё N» — проверка: `pnpm check`, тест в `whatif.test.tsx`
+- [x] 3.2 Скриншоты обеих тем 1440, 820 и 390 — проверка: `frontend-design-review` (сняты на `pnpm dev:mock`, chromium; axe: 0 serious/critical)
+
+## 4. Готовность
+
+- [x] 4.1 `make check` и `pnpm check` зелёные
+- [x] 4.2 Сценарий `specs/whatif` «список клиентов»

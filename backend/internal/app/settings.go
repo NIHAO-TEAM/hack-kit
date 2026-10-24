@@ -69,15 +69,20 @@ func preview(ctx context.Context, reader *source.Reader, cur, next json.RawMessa
 		return model.DryRun{}, err
 	}
 	rs := ToRiskSnapshot(snap)
-	return Diff(risk.Score(rs, a, rs.AsOf), risk.Score(rs, b, rs.AsOf)), nil
+	names := make(map[int64]string, len(rs.Accounts))
+	for _, acc := range rs.Accounts {
+		names[acc.ID] = acc.Email
+	}
+	return Diff(risk.Score(rs, a, rs.AsOf), risk.Score(rs, b, rs.AsOf), names), nil
 }
 
 // Diff сравнивает два расчёта по одному снимку: смены уровня клиентов и разницу ожидаемой потери.
-func Diff(before, after risk.Result) model.DryRun {
-	levels := map[int64]string{}
+// names — подписи клиентов по id (email аккаунта).
+func Diff(before, after risk.Result, names map[int64]string) model.DryRun {
+	prev := map[int64]risk.Customer{}
 	for _, c := range before.Customers {
 		if c.Level != nil {
-			levels[c.ID] = *c.Level
+			prev[c.ID] = c
 		}
 	}
 	d := model.DryRun{
@@ -88,9 +93,41 @@ func Diff(before, after risk.Result) model.DryRun {
 		if c.Level == nil {
 			continue
 		}
-		if was, ok := levels[c.ID]; ok && was != *c.Level {
-			d.LevelChanges[was+"->"+*c.Level]++
+		was, ok := prev[c.ID]
+		if !ok || *was.Level == *c.Level {
+			continue
 		}
+		d.LevelChanges[*was.Level+"->"+*c.Level]++
+		d.Customers = append(d.Customers, model.DryRunCustomer{
+			ID: c.ID, Name: names[c.ID], LevelFrom: *was.Level, LevelTo: *c.Level,
+			ScoreFrom: deref(was.Score), ScoreTo: deref(c.Score),
+			ExpectedLossDeltaCents: c.ExpectedLossCents - was.ExpectedLossCents,
+		})
+	}
+	d.CustomersTotal = len(d.Customers)
+	sort.SliceStable(d.Customers, func(i, j int) bool {
+		a, b := abs64(d.Customers[i].ExpectedLossDeltaCents), abs64(d.Customers[j].ExpectedLossDeltaCents)
+		if a != b {
+			return a > b
+		}
+		return d.Customers[i].ID < d.Customers[j].ID
+	})
+	if len(d.Customers) > model.MaxDryRunCustomers {
+		d.Customers = d.Customers[:model.MaxDryRunCustomers]
 	}
 	return d
+}
+
+func deref(p *float64) float64 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+func abs64(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }

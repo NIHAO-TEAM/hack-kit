@@ -34,6 +34,9 @@ describe('«что если» в очереди', () => {
     });
     expect(status).toBeInTheDocument();
     expect(screen.getByText('средний → высокий: 1')).toBeInTheDocument();
+    const who = screen.getByRole('link', { name: 'client9@example.com' });
+    expect(who).toHaveAttribute('href', '/queue/9');
+    expect(who.closest('li')).toHaveTextContent(/средний → высокий, \+200,69/);
     expect(screen.getByRole('button', { name: 'Применить' })).toBeEnabled();
 
     const before = listCalls;
