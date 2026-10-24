@@ -12,6 +12,7 @@ import {
 import { useForm } from '@mantine/form';
 import { useEffect, useState } from 'react';
 import { loginErrorText } from '@entities/session';
+import { AezaBrand } from '@shared/ui';
 import classes from './LoginPage.module.css';
 
 const AUTH_CONFIG_URL = '/api/v1/auth/config';
@@ -69,9 +70,12 @@ export function LoginPage({
         </div>
       </div>
       <Container size={400} px="md" mt="8vh" component="main" className={classes.content}>
-        <Text component="div" ta="center" fw={700} size="xl" mb="lg">
-          Контур удержания
-        </Text>
+        <Stack align="center" gap="sm" mb="lg">
+          <AezaBrand height={40} />
+          <Text component="div" ta="center" fw={700} size="xl">
+            Контур удержания
+          </Text>
+        </Stack>
         <Paper withBorder p="xl">
           <form onSubmit={form.onSubmit(submit)} noValidate>
             <Stack>
