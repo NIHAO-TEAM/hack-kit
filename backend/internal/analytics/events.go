@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -12,6 +13,8 @@ const heartbeatEvery = 15 * time.Second
 func (a *AnalyticsAPI) GetEvents(w responseWriter, r *request) {
 	events, cancel := a.bus.Subscribe(TopicRecalculated)
 	defer cancel()
+	taskEvents, cancelTasks := a.bus.Subscribe(TopicTasks)
+	defer cancelTasks()
 
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
@@ -33,6 +36,13 @@ func (a *AnalyticsAPI) GetEvents(w responseWriter, r *request) {
 				return
 			}
 			_, _ = fmt.Fprintf(w, "event: recalculated\ndata: {\"type\":\"recalculated\",\"version\":%v}\n\n", ev.Payload)
+		case ev, ok := <-taskEvents:
+			if !ok {
+				return
+			}
+			te, _ := ev.Payload.(TaskEvent)
+			data, _ := json.Marshal(te)
+			_, _ = fmt.Fprintf(w, "event: tasks\ndata: %s\n\n", data)
 		case <-tick.C:
 			_, _ = fmt.Fprint(w, ": ping\n\n")
 		}

@@ -297,3 +297,25 @@ func TestCustomerLostCents(t *testing.T) {
 		}
 	}
 }
+
+func TestListCustomersBillingFilter(t *testing.T) {
+	a := api(organizersPortfolio(t))
+	billing := func(b gen.ListCustomersParamsBilling) *gen.ListCustomersParamsBilling { return &b }
+
+	all := list(t, a, gen.ListCustomersParams{})
+	only := list(t, a, gen.ListCustomersParams{Billing: billing(gen.Only)})
+	if got := ids(only); !slices.Equal(got, []int64{5}) || only.Total != 1 {
+		t.Errorf("only: %v total=%d, ждали [5]", got, only.Total)
+	}
+	excl := list(t, a, gen.ListCustomersParams{Billing: billing(gen.Exclude)})
+	if slices.Contains(ids(excl), 5) || excl.Total != all.Total-1 {
+		t.Errorf("exclude: %v total=%d, ждали все, кроме 5 (%d)", ids(excl), excl.Total, all.Total-1)
+	}
+	// total считается после фильтра, а не по странице
+	page := list(t, a, gen.ListCustomersParams{Billing: billing(gen.Exclude), Limit: ptr(2)})
+	if len(page.Items) != 2 || page.Total != all.Total-1 {
+		t.Errorf("страница exclude: %d строк, total=%d", len(page.Items), page.Total)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

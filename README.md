@@ -115,6 +115,7 @@ docker compose --profile sso up -d
 - Зависимости: `govulncheck` в `make check`, `pnpm audit --prod` в `pnpm check`.
 - Логи не содержат паролей, токенов, логинов и балансов; образ работает не от root (`distroless:nonroot`).
 - Секреты только из переменных окружения; в репозитории их нет.
+- Доступность: axe, WCAG 2 AA, обе темы, проверяется после каждого выката (`.github/workflows/deploy-a11y.yml`, `e2e/tests/a11y.spec.ts`).
 
 ## Дополнительно
 

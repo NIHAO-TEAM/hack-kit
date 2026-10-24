@@ -1,9 +1,10 @@
-import { Button, Group, Pagination, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Button, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import {
+  customersExportHref,
   customersOptions,
   QUEUE_PAGE_SIZE,
   type CustomerParams,
@@ -13,7 +14,9 @@ import {
 import { ApiError } from '@shared/api';
 import type { Role } from '@entities/session';
 import {
+  IconDownload,
   IconSearch,
+  Pagination,
   StateEmpty,
   StateError,
   StateForbidden,
@@ -21,6 +24,7 @@ import {
   StateOffline,
 } from '@shared/ui';
 import { summaryOptions } from '@entities/summary';
+import { BillingGroup } from './BillingGroup';
 import { DeletionStrip } from './DeletionStrip';
 import { QueueTable } from './QueueTable';
 import { SummaryCards } from './SummaryCards';
@@ -57,7 +61,7 @@ export function QueuePage({
   const router = useRouter();
   const page = params.page ?? 1;
   const customers = useQuery({
-    ...customersOptions({ ...params, limit: QUEUE_PAGE_SIZE }),
+    ...customersOptions({ ...params, billing: 'exclude', limit: QUEUE_PAGE_SIZE }),
     placeholderData: keepPreviousData,
   });
   const total = customers.data?.total ?? 0;
@@ -72,7 +76,13 @@ export function QueuePage({
   }, [customers.data, customers.isPlaceholderData]);
   const summary = useQuery(summaryOptions);
   // Полоса «удалит биллинг» не зависит от поиска и фильтра: к биллингу уходят все.
-  const unfiltered = useQuery(customersOptions({ sort: 'expectedLoss', order: 'desc' }));
+  const unfiltered = useQuery(
+    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'exclude' }),
+  );
+  // Группа «У биллинга»: сбой автосписания, маркетолог не действует; сортировка и поиск очереди не влияют.
+  const billing = useQuery(
+    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'only' }),
+  );
 
   const [whatIf, setWhatIf] = useState(false);
   const [search, setSearch] = useState(params.q ?? '');
@@ -192,8 +202,25 @@ export function QueuePage({
             onParams(withView({ ...params, level: (value as RiskLevel | null) ?? undefined }))
           }
         />
+        <Button
+          component="a"
+          href={customersExportHref(params)}
+          download
+          variant="default"
+          leftSection={<IconDownload size={16} aria-hidden />}
+        >
+          Скачать CSV
+        </Button>
       </Group>
       {body}
+      <BillingGroup
+        rows={billing.data?.items}
+        total={billing.data?.total}
+        loading={billing.isPending}
+        failed={billing.isError && !billing.data}
+        onRetry={() => void billing.refetch()}
+        onOpen={open}
+      />
     </Stack>
   );
 }

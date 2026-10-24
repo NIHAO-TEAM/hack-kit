@@ -27,6 +27,16 @@ describe('can', () => {
   });
 });
 
+describe('can: tasks.edit', () => {
+  it.each<Role>(['marketer', 'admin', 'jury'])('%s работает с задачами', (role) => {
+    expect(can(role, 'tasks.edit')).toBe(true);
+  });
+
+  it('аналитик задачи только смотрит', () => {
+    expect(can('analyst', 'tasks.edit')).toBe(false);
+  });
+});
+
 describe('homePath', () => {
   it('маркетолог и жюри начинают с очереди, аналитик и администратор с модели', () => {
     expect(homePath('marketer')).toBe('/queue');

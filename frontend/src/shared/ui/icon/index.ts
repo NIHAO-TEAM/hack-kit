@@ -10,4 +10,10 @@ export {
   IconSun,
   IconWifiOff,
 } from '@tabler/icons-react';
-export { IconArrowDown, IconArrowUp, IconArrowsSort, IconSearch } from '@tabler/icons-react';
+export {
+  IconArrowDown,
+  IconArrowUp,
+  IconArrowsSort,
+  IconDownload,
+  IconSearch,
+} from '@tabler/icons-react';
