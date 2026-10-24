@@ -22,8 +22,12 @@ env:
   COOKIE_SECURE: "true"
   TRUSTED_PROXY: "true"
   SEED_ORGANIZERS: "false"
+  # Встраивание в контур — те же ключи, пример значений в values-aeza.example.yaml:
+  #   BILLING_URL, BILLING_POLL_SECONDS — источник REST (токен BILLING_TOKEN — в Secret);
+  #   OIDC_ISSUER_URL, OIDC_CLIENT_ID, OIDC_REDIRECT_URL — внешний IdP (OIDC_CLIENT_SECRET — в Secret).
 
-# Секреты приложения (ADMIN_PASSWORD, METRICS_TOKEN, SOURCE_TOKEN, DEMO_*_PASSWORD …).
+# Секреты приложения (ADMIN_PASSWORD, METRICS_TOKEN, SOURCE_TOKEN, BILLING_TOKEN,
+# OIDC_CLIENT_SECRET, DEMO_*_PASSWORD …). С existingSecret в нём же лежит DATABASE_URL.
 # Пустой существующий секрет: existingSecret — имя Secret, который заведён вручную.
 secretEnv: {}
 existingSecret: ""
