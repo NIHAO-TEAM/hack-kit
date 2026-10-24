@@ -21,7 +21,8 @@ async function fetchWithRetry(request: Request): Promise<Response> {
   const response = await globalThis.fetch(request);
   if (response.status !== 503 || !retry) return response;
   const seconds = Number(response.headers.get('Retry-After'));
-  const wait = Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds * 1000, MAX_RETRY_WAIT_MS) : 1000;
+  const wait =
+    Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds * 1000, MAX_RETRY_WAIT_MS) : 1000;
   await new Promise((resolve) => setTimeout(resolve, wait));
   return globalThis.fetch(retry);
 }
