@@ -94,7 +94,7 @@ export function CustomerPage({ id }: { id: number }) {
     );
   }
 
-  const { customer, account, services, features, actions, explanation } = query.data;
+  const { customer, account, services, serviceRisks, features, actions, explanation } = query.data;
   const lost = customer.level === 'lost';
 
   return (
@@ -150,6 +150,8 @@ export function CustomerPage({ id }: { id: number }) {
             {lost ? null : <ActionsCard actions={actions} changed={changed.has('action')} />}
             <ServiceList
               services={services}
+              risks={serviceRisks ?? []}
+              expectedLossCents={lost ? null : customer.expectedLossCents}
               asOf={summary.data?.asOf ?? null}
               asOfFailed={summary.isError}
             />

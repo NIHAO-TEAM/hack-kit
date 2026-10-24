@@ -3,6 +3,7 @@ import { api, toApiError, type components } from '@shared/api';
 
 export type CustomerDetail = components['schemas']['CustomerDetail'];
 export type CustomerFeature = components['schemas']['Feature'];
+export type ServiceRisk = components['schemas']['ServiceRisk'];
 export type CustomerAction = components['schemas']['Action'];
 
 export const customerKey = (id: number) => ['customer', id] as const;
