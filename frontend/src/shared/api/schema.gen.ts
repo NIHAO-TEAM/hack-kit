@@ -226,6 +226,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Очередь целиком в CSV (UTF-8 с BOM, разделитель `;`, десятичная запятая)
+         * @description Та же выборка, что `listCustomers` (фильтры и сортировка), но все строки без страниц. Имя файла — `churn-queue-<время модели>.csv` (до первого пересчёта — `churn-queue-v<версия>.csv`). Выгрузка записывается в журнал действий.
+         */
+        get: operations["exportCustomers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/customers/{id}": {
         parameters: {
             query?: never;
@@ -748,7 +768,7 @@ export interface components {
             /** @description Логин того, кто действовал; при неудачном входе — введённый логин */
             actor: string;
             /** @enum {string} */
-            action: "login" | "loginFailed" | "logout" | "settingsChanged" | "snapshotLoaded" | "serviceChanged" | "accountChanged" | "emulatorTick" | "emulatorActions";
+            action: "login" | "loginFailed" | "logout" | "settingsChanged" | "snapshotLoaded" | "serviceChanged" | "accountChanged" | "emulatorTick" | "emulatorActions" | "customersExported";
             /** @description Запись простыми словами */
             summary: string;
             /** @description Что было и что стало; пусто, если запись без правок значений */
@@ -1324,6 +1344,48 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    exportCustomers: {
+        parameters: {
+            query?: {
+                level?: components["schemas"]["RiskLevel"];
+                /** @description Подстрока email или id */
+                q?: string;
+                /** @description Как у списка: id, email, balance, totalReplenished, score, expectedLoss; по умолчанию expectedLoss. */
+                sort?: string;
+                /** @description asc или desc; по умолчанию desc. */
+                order?: string;
+                /** @description `exclude` — без строк «к биллингу», `only` — только они, не задан — все. Другое значение — 400. */
+                billing?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Файл CSV */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description Расчёт ещё не готов */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     getCustomer: {

@@ -554,7 +554,7 @@ components:
           description: Логин того, кто действовал; при неудачном входе — введённый логин
         action:
           type: string
-          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions]
+          enum: [login, loginFailed, logout, settingsChanged, snapshotLoaded, serviceChanged, accountChanged, emulatorTick, emulatorActions, customersExported]
         summary:
           type: string
           description: Запись простыми словами
@@ -1133,6 +1133,63 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "501":
           $ref: "#/components/responses/NotImplemented"
+  /api/v1/customers/export.csv:
+    get:
+      operationId: exportCustomers
+      tags: [customers]
+      summary: Очередь целиком в CSV (UTF-8 с BOM, разделитель `;`, десятичная запятая)
+      description: >-
+        Та же выборка, что `listCustomers` (фильтры и сортировка), но все строки без страниц.
+        Имя файла — `churn-queue-<время модели>.csv` (до первого пересчёта — `churn-queue-v<версия>.csv`). Выгрузка записывается в журнал действий.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: level
+          in: query
+          schema:
+            $ref: "#/components/schemas/RiskLevel"
+        - name: q
+          in: query
+          description: Подстрока email или id
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: "Как у списка: id, email, balance, totalReplenished, score, expectedLoss; по умолчанию expectedLoss."
+          schema:
+            type: string
+        - name: order
+          in: query
+          description: "asc или desc; по умолчанию desc."
+          schema:
+            type: string
+        - name: billing
+          in: query
+          description: "`exclude` — без строк «к биллингу», `only` — только они, не задан — все. Другое значение — 400."
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Файл CSV
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: Расчёт ещё не готов
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
   /api/v1/customers/{id}:
     get:
       operationId: getCustomer

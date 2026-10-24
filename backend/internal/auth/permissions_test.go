@@ -10,7 +10,7 @@ import (
 // Ожидаемая матрица записана отдельно от кода: ключ — operationId из контракта.
 var wantAccess = map[string]struct{ marketer, analyst, jury, admin bool }{
 	"getMe": {true, true, true, true}, "logout": {true, true, true, true},
-	"listCustomers": {true, true, true, true}, "getCustomer": {true, true, true, true},
+	"listCustomers": {true, true, true, true}, "exportCustomers": {true, true, true, true}, "getCustomer": {true, true, true, true},
 	"getSummary": {true, true, true, true}, "getChurnChart": {true, true, true, true},
 	"getEvents": {true, true, true, true}, "getSourceStatus": {true, true, true, true},
 	"getModelSettings": {true, true, true, true},

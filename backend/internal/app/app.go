@@ -113,6 +113,9 @@ func Routes(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock, authAPI *auth.
 		mod.WithAudit(rec)
 	}
 	analyticsAPI := newAnalytics(pool, bus, clk, feed)
+	if rec != nil {
+		analyticsAPI.WithAudit(rec)
+	}
 	if o.billing != nil {
 		src.WithAdapter(o.billing)
 		analyticsAPI.WithCollectors(o.billing.Collectors()...)

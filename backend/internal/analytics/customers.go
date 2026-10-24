@@ -33,39 +33,59 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 		httpx.WriteProblem(w, r, 400, "limit должен быть 1..200, offset — не меньше 0")
 		return
 	}
-	if p.Level != nil && !validLevel(*p.Level) {
-		httpx.WriteProblem(w, r, 400, "неизвестный уровень")
+	rows, bad := selectRows(pf, customerFilter{Level: p.Level, Q: p.Q, Sort: p.Sort, Order: p.Order, Billing: p.Billing})
+	if bad != "" {
+		httpx.WriteProblem(w, r, 400, bad)
 		return
+	}
+
+	total := len(rows)
+	rows = rows[min(offset, total):]
+	rows = rows[:min(limit, len(rows))]
+	writeJSON(w, r, gen.CustomerPage{Items: rows, Total: total, Version: pf.Version})
+}
+
+// customerFilter — общие параметры списка и выгрузки: фильтры и сортировка без страниц.
+type customerFilter struct {
+	Level   *gen.RiskLevel
+	Q       *string
+	Sort    *gen.ListCustomersParamsSort
+	Order   *gen.ListCustomersParamsOrder
+	Billing *gen.ListCustomersParamsBilling
+}
+
+// selectRows отбирает и сортирует строки портфеля; при неверном параметре вернёт текст для 400.
+func selectRows(pf *Portfolio, f customerFilter) (rows []gen.CustomerRow, bad string) {
+	if f.Level != nil && !validLevel(*f.Level) {
+		return nil, "неизвестный уровень"
 	}
 	sortBy, desc := gen.ListCustomersParamsSort("expectedLoss"), true
-	if p.Sort != nil {
-		sortBy = *p.Sort
+	if f.Sort != nil {
+		sortBy = *f.Sort
 	}
-	if p.Order != nil {
-		desc = *p.Order != gen.Asc
+	if f.Order != nil {
+		desc = *f.Order != gen.Asc
 	}
-	if p.Billing != nil && *p.Billing != gen.Exclude && *p.Billing != gen.Only {
-		httpx.WriteProblem(w, r, 400, "billing: exclude или only")
-		return
+	if f.Billing != nil && *f.Billing != gen.Exclude && *f.Billing != gen.Only {
+		return nil, "billing: exclude или only"
 	}
 	cmpFn, ok := comparator(sortBy)
 	if !ok {
-		httpx.WriteProblem(w, r, 400, "неизвестное поле сортировки")
-		return
+		return nil, "неизвестное поле сортировки"
 	}
 
 	pinUnscored := sortBy == "score" || sortBy == "expectedLoss"
 
-	rows := make([]gen.CustomerRow, 0, len(pf.Customers))
+	rows = make([]gen.CustomerRow, 0, len(pf.Customers))
 	q := ""
-	if p.Q != nil {
-		q = strings.ToLower(strings.TrimSpace(*p.Q))
+	if f.Q != nil {
+		q = strings.ToLower(strings.TrimSpace(*f.Q))
 	}
 	for _, c := range pf.Customers {
-		if p.Level != nil && c.Row.Level != *p.Level {
+		if f.Level != nil && c.Row.Level != *f.Level {
 			continue
 		}
-		if p.Billing != nil && isBilling(c.Row) != (*p.Billing == gen.Only) {
+		if f.Billing != nil && isBilling(c.Row) != (*f.Billing == gen.Only) {
 			continue
 		}
 		if q != "" && !strings.Contains(strings.ToLower(c.Row.Email), q) &&
@@ -97,10 +117,7 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 		return cmp.Compare(x.Id, y.Id)
 	})
 
-	total := len(rows)
-	rows = rows[min(offset, total):]
-	rows = rows[:min(limit, len(rows))]
-	writeJSON(w, r, gen.CustomerPage{Items: rows, Total: total, Version: pf.Version})
+	return rows, ""
 }
 
 // GetCustomer — GET /api/v1/customers/{id}.

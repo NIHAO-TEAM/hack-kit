@@ -29,6 +29,17 @@ const MAX_LIMIT = 200;
 export const customersOffset = (page: number | undefined, limit: number) =>
   (Math.max(page ?? 1, 1) - 1) * limit;
 
+/**
+ * Ссылка на выгрузку очереди в CSV: те же поиск, уровень и сортировка, что на экране, все строки
+ * без страниц. Строки «к биллингу» остаются в файле, у них своя колонка.
+ */
+export const customersExportHref = (params: CustomerParams) => {
+  const query = new URLSearchParams({ sort: params.sort, order: params.order });
+  if (params.level) query.set('level', params.level);
+  if (params.q) query.set('q', params.q);
+  return `/api/v1/customers/export.csv?${query}`;
+};
+
 export const customersKey = ['customers'] as const;
 
 /** Рейтинг клиентов: сортировка и фильтр считает сервер, фронт строки не переупорядочивает. */
