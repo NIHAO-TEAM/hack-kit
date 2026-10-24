@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"example.com/app/internal/analytics"
 	"example.com/app/internal/model"
@@ -27,12 +28,14 @@ type Recalc struct {
 	cache    cacheHolder
 	observer *retention.Service
 	reads    *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
+	metrics  *analytics.RecalcMetrics
 }
 
 // NewRecalc собирает воркер: настройки из model_settings, снимок из таблиц организаторов.
 func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 	snaps := &snapshots{}
 	reads := &atomic.Int64{}
+	metrics := analytics.NewRecalcMetrics(risk.Workers)
 	store := model.NewStore(pool, bus, ValidateSettings)
 	reader := source.NewReader(pool)
 	compute := func(ctx context.Context) (analytics.Computed[risk.Result], error) {
@@ -78,10 +81,15 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 		Settings: store,
 		snaps:    snaps,
 		reads:    reads,
+		metrics:  metrics,
 	}
+	metrics.Cancelled = r.Engine.Cancelled
 	r.observer = retention.New(pool, bus, clk, r)
 	return r
 }
+
+// Collectors — метрики пересчёта для /metrics: воркеры, отменённые прогоны, длительность пачек.
+func (r *Recalc) Collectors() []prometheus.Collector { return []prometheus.Collector{r.metrics} }
 
 // TableReads — сколько раз пересчёт читал таблицы снимка целиком; смена настроек их не читает.
 func (r *Recalc) TableReads() int64 { return r.reads.Load() }
