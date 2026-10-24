@@ -8,7 +8,7 @@
 4. Связь с клиентом: при чтении задача сверяется с текущим снимком по `customer_id` и `customer_email`. Нет клиента или email другой — `customerMissing: true`, в списке клиентов такая задача не показывается.
 5. `baseline` пишется при создании из текущего результата модели: `asOf`, версия пересчёта, скор, уровень, `expectedLossCents`, главное действие (ключ, эффект), `balance`, по услугам `{id, status, autoprolong, expiresAt}`.
 6. `GET /customers`: `task` в строке берётся одним запросом открытых задач на страницу. Фильтр `task=none|open|mine` применяется до сортировки и страниц, `total` считается после фильтра.
-7. События SSE: `event: tasks` с `{type, taskId, customerId}` после каждой записи. Журнал: `task.create`, `task.update`, `task.event` (без email клиента и текста заметки — только id и поля, как в `audit`).
+7. События SSE: `event: tasks` с `{type, taskId, customerId}` после каждой записи. Журнал: `taskCreated`, `taskChanged`, `taskRecorded` (без email клиента и текста заметки — только id и поля, как в `audit`).
 8. Права: новая группа доступа «работа с клиентом» — `marketer`, `jury`, `admin`; чтение — любая роль.
 
 ## Допущения

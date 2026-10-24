@@ -86,7 +86,8 @@ func applyPatch(cur gen.RetentionTask, p gen.TaskPatch, now time.Time) (gen.Rete
 	} else if p.Outcome != nil {
 		errs = append(errs, FieldError{"outcome", "итог указывают только при закрытии"})
 	}
-	if status == gen.Postponed {
+	// Срок нужен при переходе в «отложено»; правка уже отложенной задачи (ответственный, заметка) его не требует.
+	if p.Status != nil && status == gen.Postponed {
 		if p.DueAt == nil {
 			errs = append(errs, FieldError{"dueAt", "для откладывания нужен новый срок"})
 		} else if !p.DueAt.After(now) {

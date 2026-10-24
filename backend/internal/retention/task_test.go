@@ -68,6 +68,18 @@ func TestApplyPatch(t *testing.T) {
 		}
 	})
 
+	t.Run("правка отложенной задачи без срока", func(t *testing.T) {
+		postponed := cur
+		postponed.Status = gen.Postponed
+		got, changes, errs := applyPatch(postponed, gen.TaskPatch{Assignee: str("jury"), Note: str("перезвонить")}, now)
+		if len(errs) != 0 || got.Status != gen.Postponed || got.Assignee != "jury" || got.Note != "перезвонить" || len(changes) != 2 {
+			t.Errorf("отложенная: %+v %v %v", got, changes, errs)
+		}
+		if _, _, errs := applyPatch(postponed, gen.TaskPatch{Status: status(gen.Postponed)}, now); len(errs) == 0 {
+			t.Error("повторное откладывание без срока принято")
+		}
+	})
+
 	t.Run("без изменений", func(t *testing.T) {
 		_, changes, errs := applyPatch(cur, gen.TaskPatch{Status: status(gen.InWork), Assignee: str("marketer"), DueAt: &cur.DueAt, Note: str("")}, now)
 		if len(errs) != 0 || len(changes) != 0 {
