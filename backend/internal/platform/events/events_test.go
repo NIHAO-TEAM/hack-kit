@@ -1,6 +1,7 @@
 package events_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -64,4 +65,44 @@ func TestSlowSubscriberDoesNotBlock(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("издатель завис на медленном подписчике")
 	}
+}
+
+// Публикация из 8 горутин при одновременной подписке и отписке: ни паники «send on closed channel», ни гонки.
+func TestPublishWhileSubscribeCancel(t *testing.T) {
+	bus := events.New()
+	stop := make(chan struct{})
+	var pubs sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		pubs.Add(1)
+		go func() {
+			defer pubs.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					bus.Publish("a", 1)
+				}
+			}
+		}()
+	}
+	var subs sync.WaitGroup
+	for g := 0; g < 10; g++ {
+		subs.Add(1)
+		go func() {
+			defer subs.Done()
+			for i := 0; i < 100; i++ {
+				ch, cancel := bus.Subscribe("a")
+				if i%2 == 0 {
+					<-ch
+				}
+				cancel()
+				for range ch { // канал закрыт: остаток буфера читается и заканчивается
+				}
+			}
+		}()
+	}
+	subs.Wait()
+	close(stop)
+	pubs.Wait()
 }
