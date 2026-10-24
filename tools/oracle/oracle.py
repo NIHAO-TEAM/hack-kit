@@ -2,6 +2,7 @@
 
 Только стандартная библиотека, Python 3.10+. Запуск: python3 -I tools/oracle/oracle.py ...
   oracle.py <snapshot.json> --as-of <ISO> [--settings <settings.json>]   JSON в stdout
+  oracle.py <snapshot.json> --as-of <ISO> --per-customer                по строке JSON на клиента (сверка с Go)
   oracle.py --check                                                     сверить все golden
   oracle.py --regen                                                     пересчитать golden
 """
@@ -223,6 +224,7 @@ def main():
     ap.add_argument('snapshot', nargs='?')
     ap.add_argument('--as-of')
     ap.add_argument('--settings')
+    ap.add_argument('--per-customer', action='store_true')
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--regen', action='store_true')
     args = ap.parse_args()
@@ -243,7 +245,17 @@ def main():
         ap.error('нужны snapshot и --as-of')
     snap = json.load(open(args.snapshot, encoding='utf-8'))
     st = json.load(open(args.settings, encoding='utf-8')) if args.settings else None
-    sys.stdout.write(dump(compute(snap, parse(args.as_of), st)))
+    out = compute(snap, parse(args.as_of), st)
+    if args.per_customer:
+        for c in out['customers']:
+            acts = {a['type']: a['lossDeltaCents'] for a in c['actions']}
+            best = min(acts, key=lambda t: (acts[t], t)) if acts else None
+            sys.stdout.write(json.dumps({
+                'id': c['id'], 'state': c['state'], 'level': c['level'], 'score': c['score'],
+                'expectedLossCents': c['expectedLossCents'], 'exposureCents': c['exposureCents'],
+                'lostCents': c['lostCents'], 'actions': acts, 'best': best}, sort_keys=True) + '\n')
+        return 0
+    sys.stdout.write(dump(out))
     return 0
 
 
