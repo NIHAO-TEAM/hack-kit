@@ -56,3 +56,70 @@ describe('QueueTable: подсветка изменившихся строк', (
     expect(changedIds()).toEqual([]);
   });
 });
+
+describe('QueueTable: колонка «Работа»', () => {
+  it('у клиента в работе — статус, ответственный и срок; без задачи пусто', () => {
+    const withTask: CustomerRow = {
+      ...row(9, 500),
+      task: {
+        id: 1,
+        status: 'in_work',
+        assignee: 'marketer',
+        dueAt: '2026-10-20T15:00:00Z',
+        overdue: false,
+      },
+    };
+    render(table([withTask, row(10, 100)], 1));
+    const [, r9, r10] = screen.getAllByRole('row');
+    expect(r9!.textContent).toContain('В работе');
+    expect(r9!.textContent).toContain('marketer');
+    expect(r9!.textContent).toContain('осталось 15 ч');
+    expect(r10!.querySelector('td[data-label="Работа"]')!.textContent).toBe('');
+  });
+
+  it('просроченный срок — текстом', () => {
+    const overdue: CustomerRow = {
+      ...row(9, 500),
+      task: {
+        id: 1,
+        status: 'contacted',
+        assignee: 'jury',
+        dueAt: '2026-10-19T00:00:00Z',
+        overdue: true,
+      },
+    };
+    render(table([overdue], 1));
+    expect(screen.getByText(/срок прошёл/)).toBeInTheDocument();
+    expect(screen.getByText('Связались')).toBeInTheDocument();
+  });
+});
+
+describe('QueueTable: смена задачи подсвечивает строку', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const brief = (assignee: string) => ({
+    id: 1,
+    status: 'in_work' as const,
+    assignee,
+    dueAt: '2026-10-21T15:00:00Z',
+    overdue: false,
+  });
+
+  it('взяли на другом экране: версия пересчёта та же, строка подсвечена и через 2 с снята', () => {
+    const { rerender } = render(table([row(1, 100), row(2, 200)], 1));
+    rerender(table([row(1, 100), { ...row(2, 200), task: brief('jury') }], 1));
+    expect(changedIds()).toHaveLength(1);
+    expect(changedIds()[0]).toContain('c2@example.com');
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    expect(changedIds()).toEqual([]);
+  });
+
+  it('другая выборка (фильтр): новые строки не подсвечиваются', () => {
+    const { rerender } = render(table([row(1, 100)], 1));
+    rerender(table([row(3, 300), row(4, 400)], 1));
+    expect(changedIds()).toEqual([]);
+  });
+});

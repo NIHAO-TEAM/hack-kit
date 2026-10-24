@@ -1,5 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
-import type { CustomerOrder, CustomerParams, CustomerSort, RiskLevel } from '@entities/customer';
+import type {
+  CustomerOrder,
+  CustomerParams,
+  CustomerSort,
+  RiskLevel,
+  TaskFilter,
+} from '@entities/customer';
 import { QueuePage } from '@pages/queue';
 import { RightGate } from '../layout/RightGate';
 
@@ -11,6 +17,7 @@ const sorts: CustomerSort[] = [
   'score',
   'expectedLoss',
 ];
+const tasks: TaskFilter[] = ['none', 'open', 'mine'];
 const levels: RiskLevel[] = ['high', 'medium', 'low', 'unscored', 'lost'];
 
 /** Вид очереди — в адресе. Неизвестные значения отбрасываются, остаётся вид по умолчанию. */
@@ -22,6 +29,7 @@ function validateSearch(search: Record<string, unknown>): Partial<CustomerParams
     sort,
     order,
     level: levels.find((l) => l === search.level),
+    task: tasks.find((t) => t === search.task),
     q: typeof search.q === 'string' && search.q ? search.q : undefined,
     // Первая страница в адрес не пишется.
     page:
