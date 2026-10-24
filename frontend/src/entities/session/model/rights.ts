@@ -6,12 +6,13 @@ export type Right =
   | 'queue.view'
   | 'summary.view'
   | 'customer.view'
+  | 'tasks.view'
   | 'tasks.edit'
   | 'model.view'
   | 'model.edit'
   | 'source.view';
 
-const marketer: readonly Right[] = ['queue.view', 'summary.view', 'customer.view'];
+const marketer: readonly Right[] = ['queue.view', 'summary.view', 'customer.view', 'tasks.view'];
 const analyst: readonly Right[] = [...marketer, 'model.view', 'model.edit', 'source.view'];
 const staff: readonly Right[] = [...analyst, 'tasks.edit'];
 

@@ -4,6 +4,7 @@ const all: Right[] = [
   'queue.view',
   'summary.view',
   'customer.view',
+  'tasks.view',
   'model.view',
   'model.edit',
   'source.view',
@@ -15,6 +16,7 @@ describe('can', () => {
       'queue.view',
       'summary.view',
       'customer.view',
+      'tasks.view',
     ]);
   });
 
