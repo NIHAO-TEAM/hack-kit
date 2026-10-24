@@ -11,15 +11,15 @@ image:
 
 ingress:
   enabled: true
-  className: nginx
-  # Сертификат выдан контуром, ACME-резолвера нет.
+  className: traefik
+  # Чарт рассчитан на Traefik (CRD traefik.io). Сертификат выдан контуром, ACME-резолвера нет.
   certResolver: ""
   tlsSecret: churn-tls
 
 networkPolicy:
   enabled: true
   # Пространство имён Ingress-контроллера контура.
-  ingressNamespace: ingress-nginx
+  ingressNamespace: kube-system
 
 env:
   HTTP_ADDR: ":8080"

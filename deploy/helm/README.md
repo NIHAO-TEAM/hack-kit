@@ -15,7 +15,7 @@ helm upgrade --install churn deploy/helm/churn -n churn --create-namespace \
 
 | Что | Ключи |
 |---|---|
-| Домен и TLS | `domain`, `ingress.className`, `ingress.tlsSecret` |
+| Домен и TLS | `domain`, `ingress.tlsSecret` (чарту нужен Traefik и его CRD `traefik.io`: `ingress.className: traefik`, `networkPolicy.ingressNamespace`) |
 | Источник REST | `env.BILLING_URL`, `env.BILLING_POLL_SECONDS` |
 | OIDC (внешний Keycloak/IdP) | `env.OIDC_ISSUER_URL`, `env.OIDC_CLIENT_ID`, `env.OIDC_REDIRECT_URL` |
 | Prometheus | `serviceMonitor.enabled`, `serviceMonitor.tokenSecret` (нужен prometheus-operator) |

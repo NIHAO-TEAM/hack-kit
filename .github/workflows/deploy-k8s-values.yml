@@ -30,6 +30,6 @@ jobs:
           grep -q 'BILLING_URL' /tmp/rendered.yaml
           grep -q 'OIDC_ISSUER_URL' /tmp/rendered.yaml
           grep -q 'kind: ServiceMonitor' /tmp/rendered.yaml
-          ! grep -q 'kind: StatefulSet' /tmp/rendered.yaml
+          if grep -q 'kind: StatefulSet' /tmp/rendered.yaml; then echo 'свой Postgres не нужен'; exit 1; fi
       - name: kubeconform
         run: kubeconform -strict -ignore-missing-schemas -summary /tmp/rendered.yaml
