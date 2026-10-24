@@ -2,7 +2,7 @@
 
 ## 1. Данные
 
-- [ ] 1.1 `page` в `CustomerParams` и URL, `limit`/`offset` в запросе — проверка: тест `entities/customer`: страница 2 → `offset=50`
+- [x] 1.1 `page` в `CustomerParams` и URL, `limit`/`offset` в запросе — проверка: тест `entities/customer`: страница 2 → `offset=50`
 
 ## 2. Экран
 
