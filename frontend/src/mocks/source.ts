@@ -86,6 +86,12 @@ export const sourceHandlers = [
   }),
   http.post('/api/v1/source/emulator/tick', () => bump('emulator')),
   http.post('/api/v1/source/emulator/actions', () => bump('emulator')),
+  http.get('/api/v1/source/emulator/stream', () =>
+    HttpResponse.json({ state: 'idle', events: 0, applied: 0 }),
+  ),
+  http.post('/api/v1/source/emulator/stream', () =>
+    HttpResponse.json({ runId: 'mock-run' }, { status: 202 }),
+  ),
   http.put('/api/v1/source/snapshot', async ({ request }) => {
     const body = (await request.json()) as { services?: { ownerId: number }[] };
     if (body.services?.some((s) => s.ownerId === 999)) {
