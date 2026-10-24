@@ -23,6 +23,8 @@ const (
 	sessionTTL    = 12 * time.Hour
 	maxFailures   = 5
 	failureWindow = 5 * time.Minute
+	// dbWait — сколько запрос ждёт базу: зависшая база даёт DeadlineExceeded, то есть 503, а не вечное ожидание.
+	dbWait = 2 * time.Second
 )
 
 // Ошибки входа. Наружу не говорят, что именно неверно.
@@ -155,7 +157,9 @@ func (s *service) login(ctx context.Context, login, password string) (Session, e
 	if s.q == nil {
 		return Session{}, ErrBadCredentials
 	}
-	user, err := s.q.GetUserByLogin(ctx, login)
+	qctx, cancel := context.WithTimeout(ctx, dbWait)
+	defer cancel()
+	user, err := s.q.GetUserByLogin(qctx, login)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		VerifyPassword(password, s.dummyHash)
@@ -181,6 +185,8 @@ func (s *service) issueSession(ctx context.Context, userID int64, login, role st
 	}
 	now := s.clk.Now()
 	expires := now.Add(sessionTTL)
+	ctx, cancel := context.WithTimeout(ctx, dbWait)
+	defer cancel()
 	if err := s.q.DeleteExpiredSessions(ctx, now); err != nil {
 		return Session{}, fmt.Errorf("auth: очистка сессий: %w", err)
 	}
@@ -229,7 +235,9 @@ func (s *service) authenticate(ctx context.Context, token string) (Identity, err
 	v, err, _ := s.flight.Do(hash, func() (any, error) {
 		gen := s.cache.generation()
 		// Запрос общий для всех ожидающих: отмена одного клиента не должна ронять остальных.
-		rec, err := s.load(context.WithoutCancel(ctx), hash)
+		lctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dbWait)
+		defer cancel()
+		rec, err := s.load(lctx, hash)
 		if err != nil {
 			return nil, err // «нет сессии» не кэшируем
 		}
@@ -256,7 +264,9 @@ func (s *service) ssoLogin(ctx context.Context, login, role string) (Session, er
 	if s.q == nil {
 		return Session{}, ErrNoSession
 	}
-	u, err := s.q.UpsertSSOUser(ctx, db.UpsertSSOUserParams{Login: login, Role: role})
+	qctx, cancel := context.WithTimeout(ctx, dbWait)
+	defer cancel()
+	u, err := s.q.UpsertSSOUser(qctx, db.UpsertSSOUserParams{Login: login, Role: role})
 	if err != nil {
 		return Session{}, fmt.Errorf("auth: SSO-учётка %s: %w", login, err)
 	}

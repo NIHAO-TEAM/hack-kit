@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"errors"
-	"example.com/app/internal/platform/httpx"
 	"fmt"
 	"io"
 	"log"
@@ -22,6 +21,7 @@ import (
 
 	"example.com/app/internal/platform/clock"
 	"example.com/app/internal/platform/events"
+	"example.com/app/internal/platform/httpx"
 )
 
 // Источники снимка в snapshots.source.

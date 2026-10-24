@@ -61,8 +61,11 @@ sleep "$OUTAGE_AFTER"
 : >"$OUT/probes.tsv"
 echo "=== База недоступна $OUTAGE_SECONDS с ($OUTAGE_MODE) ==="
 if [ "$OUTAGE_MODE" = kill ]; then docker compose stop -t 0 "$DB_SERVICE"; else docker compose pause "$DB_SERVICE"; fi
+T0=$SECONDS
 T_END=$((SECONDS + OUTAGE_SECONDS))
 NOCACHE=""
+# Кэш сессии живёт SESSION_CACHE_TTL (5 с по умолчанию) и не продлевается: 200 требуем только в его пределах.
+CACHE_TTL=${SESSION_CACHE_TTL_SECONDS:-5}""
 while [ $SECONDS -lt $T_END ]; do
   H=$(code "$BASE_URL/healthz"); R=$(code "$BASE_URL/readyz")
   C=$(code "$API/customers?limit=1" -H "$AUTH")
@@ -96,13 +99,15 @@ PROBES=$(wc -l <"$OUT/probes.tsv")
 [ "$PROBES" -gt 0 ] || fail "ни одной пробы за время отказа"
 BAD_H=$(awk -F'\t' '$2!=200' "$OUT/probes.tsv" | wc -l)
 BAD_R=$(awk -F'\t' '$3!=503' "$OUT/probes.tsv" | wc -l)
-BAD_C=$(awk -F'\t' '$4!=200' "$OUT/probes.tsv" | wc -l)
+BAD_C=$(awk -F'\t' -v t0="$T0" -v ttl="$CACHE_TTL" '$1-t0 < ttl-1 && $4!=200' "$OUT/probes.tsv" | wc -l)
+BAD_C2=$(awk -F'\t' -v t0="$T0" -v ttl="$CACHE_TTL" '$1-t0 >= ttl-1 && $4!=200 && $4!=503' "$OUT/probes.tsv" | wc -l)
 N500=$(awk -F'\t' '$5>=500 && $5!=503 || $4>=500' "$OUT/probes.tsv" | wc -l)
 BAD_NC=$(awk -F'\t' '$5!=401 && !($5==503 && $6!="")' "$OUT/probes.tsv" | wc -l)
 N503=$(awk -F'\t' '$5==503' "$OUT/probes.tsv" | wc -l)
 [ "$BAD_H" = 0 ] || fail "/healthz не 200 в $BAD_H пробах"
 [ "$BAD_R" = 0 ] || fail "/readyz не 503 в $BAD_R пробах"
-[ "$BAD_C" = 0 ] || fail "чтение очереди с кэшем сессии не 200 в $BAD_C пробах"
+[ "$BAD_C" = 0 ] || fail "чтение очереди с кэшем сессии не 200 в пределах TTL кэша в $BAD_C пробах"
+[ "$BAD_C2" = 0 ] || fail "чтение после TTL кэша не 200 и не 503 в $BAD_C2 пробах (зависание или 500)"
 [ "$N500" = 0 ] || fail "ответов 500 при недоступной базе: $N500"
 [ "$BAD_NC" = 0 ] || fail "запрос с промахом кэша не 401 и не 503 с Retry-After в $BAD_NC пробах"
 [ "$READY_AFTER" = 200 ] || fail "/readyz после возврата базы: $READY_AFTER"
