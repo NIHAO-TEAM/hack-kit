@@ -70,6 +70,7 @@ test('экраны на 100 тыс. клиентов: время, консоль
   try {
     const login = await context.request.post('/api/v1/auth/login', { data: { login: 'jury', password: juryPassword } });
     expect(login.ok(), 'вход jury').toBeTruthy();
+    const csrfToken = ((await login.json()) as { csrfToken?: string }).csrfToken ?? '';
     const page = await context.newPage();
 
     const consoleErrors: string[] = [];
@@ -134,13 +135,12 @@ test('экраны на 100 тыс. клиентов: время, консоль
     record('API: последняя страница очереди', apiPage, SORT_MS);
 
     // Предпросмотр веса и устойчивость.
-    const csrf = (await (await context.request.get('/api/v1/auth/me')).json()) as { csrfToken?: string };
     const preview = await timed(async () => {
       const res = await context.request.patch('/api/v1/model/settings?dryRun=true', {
         data: { weights: { noauto: 0.5 } },
-        headers: { 'X-CSRF-Token': csrf.csrfToken ?? '' },
+        headers: { 'X-CSRF-Token': csrfToken },
       });
-      expect(res.ok(), 'предпросмотр веса').toBeTruthy();
+      expect(res.ok(), `предпросмотр веса: ${res.status()} ${(await res.text()).slice(0, 200)}`).toBeTruthy();
     });
     step(`dryRun: ${preview} мс`);
     record('API: предпросмотр веса (dryRun)', preview, PREVIEW_MS);
