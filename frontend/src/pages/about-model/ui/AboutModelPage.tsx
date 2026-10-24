@@ -1,9 +1,11 @@
 import { Alert, Code, List, Stack, Table, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
+import { can, meOptions } from '@entities/session';
 import { ApiError } from '@shared/api';
 import { modelSettingsOptions } from '../api/settings';
 import { defaultThresholds, features, formatWeight, weightOf } from '../model/features';
 import { StateError, StateLoading, StateOffline } from '@shared/ui';
+import { SensitivityBlock } from './SensitivityBlock';
 
 /** Пример клиента 9 набора организаторов: числа посчитаны оракулом (docs/model.md). */
 const example = [
@@ -16,6 +18,7 @@ const example = [
 
 export function AboutModelPage() {
   const query = useQuery(modelSettingsOptions);
+  const me = useQuery(meOptions);
 
   if (query.isPending) return <StateLoading label="Загрузка описания модели" />;
 
@@ -85,6 +88,8 @@ export function AboutModelPage() {
           аналитик на экране «Модель», очередь пересчитывается сразу.
         </Text>
       </Stack>
+
+      {can(me.data?.role, 'model.view') ? <SensitivityBlock /> : null}
 
       <Stack gap="xs">
         <Title order={2} size="h3">

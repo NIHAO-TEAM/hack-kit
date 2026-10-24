@@ -401,6 +401,26 @@ export interface paths {
         patch: operations["patchModelSettings"];
         trace?: never;
     };
+    "/api/v1/model/sensitivity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Чувствительность очереди к весам признаков (аналитик, jury)
+         * @description Для каждого признака с ненулевым весом: что будет, если сдвинуть вес на −20 % и на +20 %. Только чтение, сохранённые настройки не меняются. Результат кэшируется по версии снимка и настроек. Клиентов больше 20 000 — расчёт на выборке 5 000 (sampled=true).
+         */
+        get: operations["getModelSensitivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/source/snapshot": {
         parameters: {
             query?: never;
@@ -1273,6 +1293,37 @@ export interface components {
             /** @enum {string} */
             asOfMode?: "snapshot" | "server";
         };
+        ModelSensitivity: {
+            /** @description Размер сдвига веса, процентов (20). */
+            shiftPercent: number;
+            /** @description Расчёт на выборке; число сменивших уровень тогда относится к выборке. */
+            sampled: boolean;
+            /** @description Сколько клиентов в расчёте (размер выборки, если sampled). */
+            customers: number;
+            /** Format: int64 */
+            snapshotVersion: number;
+            /** Format: int64 */
+            settingsVersion: number;
+            features: components["schemas"]["FeatureSensitivity"][];
+        };
+        FeatureSensitivity: {
+            id: string;
+            /** Format: double */
+            weight: number;
+            down: components["schemas"]["WeightShift"];
+            up: components["schemas"]["WeightShift"];
+        };
+        WeightShift: {
+            /** @description Сколько клиентов сменили уровень. */
+            levelChanges: number;
+            /** @description Изменился ли состав первой тройки по ожидаемой потере. */
+            topThreeChanged: boolean;
+            /**
+             * Format: int64
+             * @description Изменение суммарной ожидаемой потери, евроцентов.
+             */
+            lossDeltaCents: number;
+        };
         DryRunResult: {
             /** @description Ключ вида «medium->high», значение — число клиентов. */
             levelChanges: {
@@ -2069,6 +2120,38 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             422: components["responses"]["UnprocessableEntity"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    getModelSensitivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Чувствительность */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelSensitivity"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            501: components["responses"]["NotImplemented"];
+            /** @description Расчёт не уложился в 10 секунд или ещё нет снимка данных */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     putSnapshot: {
