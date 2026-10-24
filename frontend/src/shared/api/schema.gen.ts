@@ -1533,6 +1533,8 @@ export interface operations {
                 order?: "asc" | "desc";
                 limit?: number;
                 offset?: number;
+                /** @description Строки «к биллингу» (сбой автосписания): `exclude` — без них, `only` — только они, не задан — все. `total` считается после фильтра. */
+                billing?: "exclude" | "only";
             };
             header?: never;
             path?: never;

@@ -1344,6 +1344,14 @@ paths:
             type: integer
             minimum: 0
             default: 0
+        - name: billing
+          in: query
+          description: >-
+            Строки «к биллингу» (сбой автосписания): `exclude` — без них, `only` — только они,
+            не задан — все. `total` считается после фильтра.
+          schema:
+            type: string
+            enum: [exclude, only]
       responses:
         "200":
           description: Страница клиентов

@@ -44,6 +44,10 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 	if p.Order != nil {
 		desc = *p.Order != gen.Asc
 	}
+	if p.Billing != nil && *p.Billing != gen.Exclude && *p.Billing != gen.Only {
+		httpx.WriteProblem(w, r, 400, "billing: exclude или only")
+		return
+	}
 	cmpFn, ok := comparator(sortBy)
 	if !ok {
 		httpx.WriteProblem(w, r, 400, "неизвестное поле сортировки")
@@ -76,6 +80,9 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 	}
 	for _, c := range pf.Customers {
 		if p.Level != nil && c.Row.Level != *p.Level {
+			continue
+		}
+		if p.Billing != nil && isBilling(c.Row) != (*p.Billing == gen.Only) {
 			continue
 		}
 		if q != "" && !strings.Contains(strings.ToLower(c.Row.Email), q) &&
@@ -169,6 +176,8 @@ func orEmpty[T any](s []T) []T {
 	}
 	return s
 }
+
+func isBilling(r gen.CustomerRow) bool { return r.Billing != nil && *r.Billing }
 
 func isScored(r gen.CustomerRow) bool {
 	return r.Level != gen.Unscored && r.Level != gen.Lost
