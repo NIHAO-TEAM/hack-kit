@@ -33,6 +33,13 @@ describe('экран «О модели»', () => {
     expect(screen.getAllByText('Бонусы заблокированы').length).toBeGreaterThan(0);
   });
 
+  it('блок формулы доступен с клавиатуры и подписан', async () => {
+    signedInAs('marketer');
+    renderApp('/about');
+    const formula = await screen.findByLabelText('Формула модели');
+    expect(formula).toHaveAttribute('tabindex', '0');
+  });
+
   it('берёт веса из настроек сервера', async () => {
     signedInAs('analyst');
     server.use(

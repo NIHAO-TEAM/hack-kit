@@ -17,6 +17,28 @@ describe('журнал действий', () => {
     expect(within(log).getAllByText('analyst').length).toBeGreaterThan(0);
   });
 
+  it('кнопки страниц журнала находятся по имени', async () => {
+    signedInAs('analyst');
+    const items = Array.from({ length: 25 }, (_, i) => ({
+      id: i + 1,
+      at: '2026-10-24T03:00:00Z',
+      actor: 'analyst',
+      action: 'login',
+      changes: [],
+    }));
+    server.use(http.get('/api/v1/audit', () => HttpResponse.json({ items, total: 25 })));
+    renderApp('/model');
+    const log = await screen.findByRole('region', { name: 'Журнал действий' });
+    expect(
+      await within(log).findByRole('button', { name: 'Следующая страница' }),
+    ).toBeInTheDocument();
+    expect(within(log).getByRole('button', { name: 'Предыдущая страница' })).toBeInTheDocument();
+    expect(within(log).getByRole('button', { name: 'Страница 1' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
   it('на экране «Источник» журнал тоже есть', async () => {
     signedInAs('analyst');
     renderApp('/source');

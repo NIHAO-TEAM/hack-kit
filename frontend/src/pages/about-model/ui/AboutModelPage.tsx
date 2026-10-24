@@ -113,7 +113,7 @@ export function AboutModelPage() {
         <Title order={2} size="h3">
           Формула
         </Title>
-        <Code block>
+        <Code block tabIndex={0} aria-label="Формула модели">
           {`P услуги = 1 − Π (1 − вес · признак)
 скор клиента = 100 · max P по живым услугам
 ожидаемая потеря = Σ round(P · деньги услуги)`}
