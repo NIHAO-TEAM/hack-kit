@@ -11,6 +11,7 @@ import {
 import { useForm } from '@mantine/form';
 import { useEffect, useState } from 'react';
 import { loginErrorText } from '@entities/session';
+import { BrandPattern } from '@shared/ui';
 
 const AUTH_CONFIG_URL = '/api/v1/auth/config';
 const SSO_LOGIN_URL = '/api/v1/auth/oidc/login';
@@ -56,6 +57,9 @@ export function LoginPage({
 
   return (
     <Container size={400} px="md" mt="15vh" component="main">
+      <div style={{ marginBottom: 'var(--mantine-spacing-xl)' }}>
+        <BrandPattern />
+      </div>
       <Paper withBorder p="xl">
         <form onSubmit={form.onSubmit(submit)} noValidate>
           <Stack>

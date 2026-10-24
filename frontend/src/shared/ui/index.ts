@@ -7,3 +7,4 @@ export * from './level-badge';
 export * from './rescue-window';
 export * from './changed';
 export * from './pagination';
+export * from './brand-pattern';

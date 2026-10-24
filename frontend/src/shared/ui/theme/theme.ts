@@ -2,19 +2,19 @@ import { createTheme, type CSSVariablesResolver, type MantineColorsTuple } from 
 import { colorTokens } from './tokens';
 
 export const fontFamily =
-  "'Onest', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  "'Digits', 'Exo 2', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
 const brand: MantineColorsTuple = [
-  '#f1edff',
-  '#e1d9ff',
-  '#c4b5ff',
-  '#a99bff',
-  '#8d78ff',
-  '#7553f5',
-  '#5b3fe0',
-  '#6d4af0',
-  '#4b30c9',
-  '#3a24a3',
+  '#e6f7fd',
+  '#cdeffb',
+  '#a5e2f8',
+  '#72d4f5',
+  '#4cc6f1',
+  '#2aa9d6',
+  '#08708f',
+  '#4cc6f1',
+  '#06566f',
+  '#054a66',
 ];
 
 export const theme = createTheme({
