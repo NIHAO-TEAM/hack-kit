@@ -15,4 +15,4 @@
 ## 3. Готовность
 
 - [x] 3.1 `pnpm check` зелёный
-- [ ] 3.2 `specs/about-model/spec.md`, `specs/model-ui/spec.md` обновлены при архивации
+- [x] 3.2 `specs/about-model/spec.md`, `specs/model-ui/spec.md` обновлены при архивации
