@@ -268,3 +268,33 @@ func TestParseStreamAnyKeyOrder(t *testing.T) {
 		t.Fatalf("проверено порядков %d, ждали 24", n)
 	}
 }
+
+// Ссылка на массив, который в теле ещё не встретился, проверяется после его конца.
+func TestValidatorDeferredRefs(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	svc := func(id, owner int64) Service {
+		return Service{ID: id, Name: "vps", OwnerID: owner, PaymentTerm: "month", Status: "active", CreatedAt: now, ExpiresAt: now}
+	}
+	acc := Account{ID: 1, Email: "a@x", BonusState: "locked"}
+
+	v := newValidator(0, 0, 0)
+	v.service(0, svc(1, 1)) // услуга раньше аккаунтов
+	v.service(1, svc(2, 9)) // владельца нет вовсе
+	v.account(0, acc)
+	v.endTable(tableAccounts)
+	v.endTable(tableServices)
+	errs := v.finish()
+	if len(errs) != 1 || errs[0].Field != "services[1].ownerId" {
+		t.Fatalf("ждали одну ошибку services[1].ownerId, получили %v", errs)
+	}
+
+	// Массив services не пришёл: платёж ссылается в пустоту.
+	v = newValidator(0, 0, 0)
+	v.account(0, acc)
+	v.endTable(tableAccounts)
+	v.transaction(0, Transaction{ID: 1, Status: "not_performed", Type: "order", ServiceID: 5, CreatedAt: now})
+	errs = v.finish()
+	if len(errs) != 1 || errs[0].Field != "transactions[0].serviceId" {
+		t.Fatalf("ждали ошибку transactions[0].serviceId, получили %v", errs)
+	}
+}

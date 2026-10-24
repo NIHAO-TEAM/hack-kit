@@ -39,102 +39,184 @@ func set(v ...string) map[string]bool {
 
 type errList struct{ list []FieldError }
 
+// add копит не более maxErrors ошибок: остальные всё равно не вернутся.
 func (e *errList) add(path, format string, args ...any) {
+	if len(e.list) >= maxErrors {
+		return
+	}
 	e.list = append(e.list, FieldError{Field: path, Message: fmt.Sprintf(format, args...)})
+}
+
+// ref — ссылка записи на запись другой таблицы, которую ещё нельзя проверить.
+type ref struct {
+	index int
+	id    int64
+}
+
+// validator проверяет записи по одной: в памяти только множества id и email, а не сами записи.
+// Ссылку (услуга → владелец, платёж → услуга) проверяет сразу, если массив назначения уже закончился;
+// иначе откладывает до finish: массивы в теле идут в любом порядке.
+type validator struct {
+	e        errList
+	accounts map[int64]struct{}
+	emails   map[string]struct{}
+	services map[int64]struct{}
+	txs      map[int64]struct{}
+	done     [3]bool
+	owners   []ref // услуги, чьи аккаунты ещё не закончились
+	svcRefs  []ref // платежи, чьи услуги ещё не закончились
+}
+
+func newValidator(accounts, services, txs int) *validator {
+	return &validator{
+		accounts: make(map[int64]struct{}, accounts),
+		emails:   make(map[string]struct{}, accounts),
+		services: make(map[int64]struct{}, services),
+		txs:      make(map[int64]struct{}, txs),
+	}
+}
+
+func (v *validator) account(i int, a Account) {
+	p := fmt.Sprintf("accounts[%d]", i)
+	if _, dup := v.accounts[a.ID]; dup {
+		v.e.add(p+".id", "повтор id %d", a.ID)
+	}
+	v.accounts[a.ID] = struct{}{}
+	if a.Email == "" {
+		v.e.add(p+".email", "пустой email")
+	} else if _, dup := v.emails[a.Email]; dup {
+		v.e.add(p+".email", "повтор email %q", a.Email)
+	}
+	v.emails[a.Email] = struct{}{}
+	for _, m := range [...]struct {
+		name string
+		v    int64
+	}{
+		{"balance", a.Balance}, {"withdrawBalance", a.WithdrawBalance},
+		{"totalReplenished", a.TotalReplenished}, {"bonusBalance", a.BonusBalance},
+	} {
+		if m.v < 0 {
+			v.e.add(p+"."+m.name, "отрицательная сумма %d", m.v)
+		} else if m.v > maxMoneyCents {
+			v.e.add(p+"."+m.name, "сумма %d больше предела %d", m.v, maxMoneyCents)
+		}
+	}
+	if !bonusStates[a.BonusState] {
+		v.e.add(p+".bonusState", "неизвестное значение %q", a.BonusState)
+	}
+}
+
+func (v *validator) service(i int, s Service) {
+	p := fmt.Sprintf("services[%d]", i)
+	if _, dup := v.services[s.ID]; dup {
+		v.e.add(p+".id", "повтор id %d", s.ID)
+	}
+	v.services[s.ID] = struct{}{}
+	if !serviceName.MatchString(s.Name) {
+		v.e.add(p+".name", "допустимы латиница, цифры и дефис")
+	}
+	if v.done[tableAccounts] {
+		if _, ok := v.accounts[s.OwnerID]; !ok {
+			v.e.add(p+".ownerId", "аккаунт %d не найден", s.OwnerID)
+		}
+	} else {
+		v.owners = append(v.owners, ref{i, s.OwnerID})
+	}
+	if !paymentTerms[s.PaymentTerm] {
+		v.e.add(p+".paymentTerm", "неизвестное значение %q", s.PaymentTerm)
+	}
+	if !serviceStates[s.Status] {
+		v.e.add(p+".status", "неизвестный статус %q", s.Status)
+	}
+	if s.Price < 0 {
+		v.e.add(p+".price", "отрицательная сумма %d", s.Price)
+	} else if s.Price > maxMoneyCents {
+		v.e.add(p+".price", "сумма %d больше предела %d", s.Price, maxMoneyCents)
+	}
+	if s.ExpiresAt.Before(s.CreatedAt) {
+		v.e.add(p+".expiresAt", "раньше createdAt")
+	}
+}
+
+func (v *validator) transaction(i int, t Transaction) {
+	p := fmt.Sprintf("transactions[%d]", i)
+	if _, dup := v.txs[t.ID]; dup {
+		v.e.add(p+".id", "повтор id %d", t.ID)
+	}
+	v.txs[t.ID] = struct{}{}
+	if t.Amount < 0 || t.Amount > 1000 {
+		v.e.add(p+".amount", "сумма %d вне 0..1000", t.Amount)
+	}
+	if !txStates[t.Status] {
+		v.e.add(p+".status", "неизвестный статус %q", t.Status)
+	}
+	if !txTypes[t.Type] {
+		v.e.add(p+".type", "неизвестное значение %q", t.Type)
+	}
+	if v.done[tableServices] {
+		if _, ok := v.services[t.ServiceID]; !ok {
+			v.e.add(p+".serviceId", "услуга %d не найдена", t.ServiceID)
+		}
+	} else {
+		v.svcRefs = append(v.svcRefs, ref{i, t.ServiceID})
+	}
+	switch {
+	case t.Status == "not_performed" && t.PerformedAt != nil:
+		v.e.add(p+".performedAt", "у not_performed даты исполнения быть не должно")
+	case t.Status == "performed" && t.PerformedAt == nil:
+		v.e.add(p+".performedAt", "у performed дата исполнения обязательна")
+	case t.PerformedAt != nil && t.PerformedAt.Before(t.CreatedAt):
+		v.e.add(p+".performedAt", "раньше createdAt")
+	}
+}
+
+// endTable отмечает конец массива: отложенные ссылки на него проверяются здесь.
+func (v *validator) endTable(t table) {
+	v.done[t] = true
+	switch t {
+	case tableAccounts:
+		for _, r := range v.owners {
+			if _, ok := v.accounts[r.id]; !ok {
+				v.e.add(fmt.Sprintf("services[%d].ownerId", r.index), "аккаунт %d не найден", r.id)
+			}
+		}
+		v.owners = nil
+	case tableServices:
+		for _, r := range v.svcRefs {
+			if _, ok := v.services[r.id]; !ok {
+				v.e.add(fmt.Sprintf("transactions[%d].serviceId", r.index), "услуга %d не найдена", r.id)
+			}
+		}
+		v.svcRefs = nil
+	}
+}
+
+// finish проверяет ссылки на массивы, которых в теле не было, и возвращает не более maxErrors ошибок.
+func (v *validator) finish() []FieldError {
+	for _, t := range [...]table{tableAccounts, tableServices} {
+		if !v.done[t] {
+			v.endTable(t)
+		}
+	}
+	return v.e.list
 }
 
 // Validate проверяет связи и значения снимка до записи. Возвращает не более maxErrors ошибок.
 // Чистая функция: ввода-вывода нет.
 func Validate(s *Snapshot) []FieldError {
-	e := &errList{}
-	accounts := make(map[int64]bool, len(s.Accounts))
-	emails := make(map[string]bool, len(s.Accounts))
+	v := newValidator(len(s.Accounts), len(s.Services), len(s.Transactions))
 	for i, a := range s.Accounts {
-		p := fmt.Sprintf("accounts[%d]", i)
-		if accounts[a.ID] {
-			e.add(p+".id", "повтор id %d", a.ID)
-		}
-		accounts[a.ID] = true
-		if a.Email == "" {
-			e.add(p+".email", "пустой email")
-		} else if emails[a.Email] {
-			e.add(p+".email", "повтор email %q", a.Email)
-		}
-		emails[a.Email] = true
-		for name, v := range map[string]int64{
-			"balance": a.Balance, "withdrawBalance": a.WithdrawBalance,
-			"totalReplenished": a.TotalReplenished, "bonusBalance": a.BonusBalance,
-		} {
-			if v < 0 {
-				e.add(p+"."+name, "отрицательная сумма %d", v)
-			} else if v > maxMoneyCents {
-				e.add(p+"."+name, "сумма %d больше предела %d", v, maxMoneyCents)
-			}
-		}
-		if !bonusStates[a.BonusState] {
-			e.add(p+".bonusState", "неизвестное значение %q", a.BonusState)
-		}
+		v.account(i, a)
 	}
-	services := make(map[int64]bool, len(s.Services))
-	for i, v := range s.Services {
-		p := fmt.Sprintf("services[%d]", i)
-		if services[v.ID] {
-			e.add(p+".id", "повтор id %d", v.ID)
-		}
-		services[v.ID] = true
-		if !serviceName.MatchString(v.Name) {
-			e.add(p+".name", "допустимы латиница, цифры и дефис")
-		}
-		if !accounts[v.OwnerID] {
-			e.add(p+".ownerId", "аккаунт %d не найден", v.OwnerID)
-		}
-		if !paymentTerms[v.PaymentTerm] {
-			e.add(p+".paymentTerm", "неизвестное значение %q", v.PaymentTerm)
-		}
-		if !serviceStates[v.Status] {
-			e.add(p+".status", "неизвестный статус %q", v.Status)
-		}
-		if v.Price < 0 {
-			e.add(p+".price", "отрицательная сумма %d", v.Price)
-		} else if v.Price > maxMoneyCents {
-			e.add(p+".price", "сумма %d больше предела %d", v.Price, maxMoneyCents)
-		}
-		if v.ExpiresAt.Before(v.CreatedAt) {
-			e.add(p+".expiresAt", "раньше createdAt")
-		}
+	v.endTable(tableAccounts)
+	for i, x := range s.Services {
+		v.service(i, x)
 	}
-	txs := make(map[int64]bool, len(s.Transactions))
-	for i, t := range s.Transactions {
-		p := fmt.Sprintf("transactions[%d]", i)
-		if txs[t.ID] {
-			e.add(p+".id", "повтор id %d", t.ID)
-		}
-		txs[t.ID] = true
-		if t.Amount < 0 || t.Amount > 1000 {
-			e.add(p+".amount", "сумма %d вне 0..1000", t.Amount)
-		}
-		if !txStates[t.Status] {
-			e.add(p+".status", "неизвестный статус %q", t.Status)
-		}
-		if !txTypes[t.Type] {
-			e.add(p+".type", "неизвестное значение %q", t.Type)
-		}
-		if !services[t.ServiceID] {
-			e.add(p+".serviceId", "услуга %d не найдена", t.ServiceID)
-		}
-		switch {
-		case t.Status == "not_performed" && t.PerformedAt != nil:
-			e.add(p+".performedAt", "у not_performed даты исполнения быть не должно")
-		case t.Status == "performed" && t.PerformedAt == nil:
-			e.add(p+".performedAt", "у performed дата исполнения обязательна")
-		case t.PerformedAt != nil && t.PerformedAt.Before(t.CreatedAt):
-			e.add(p+".performedAt", "раньше createdAt")
-		}
+	v.endTable(tableServices)
+	for i, x := range s.Transactions {
+		v.transaction(i, x)
 	}
-	if len(e.list) > maxErrors {
-		e.list = e.list[:maxErrors]
-	}
-	return e.list
+	return v.finish()
 }
 
 // ModelTime — время модели: asOf из тела; без него — самая поздняя дата события снимка
