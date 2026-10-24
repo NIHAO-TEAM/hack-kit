@@ -181,11 +181,7 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 	customers := make([]Customer, len(accounts))
 	err := parallelFor(ctx, len(accounts), opt, func(w *scratch, i int) {
 		a := accounts[i]
-		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs, false)
-		if c.State == StateScored {
-			c.Actions, c.ActionComboCents = actionResults(w, s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
-		}
-		customers[i] = c
+		customers[i] = scoreAccount(w, s.AsOf, a, svcByOwner[a.ID], txByService, st, asOf, fs, cs, as)
 	})
 	if err != nil {
 		return Result{}, err
@@ -194,45 +190,15 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 	for i, a := range accounts {
 		c := customers[i]
 
-		key := StateUnscored
-		switch {
-		case c.Level != nil:
-			key = *c.Level
-		case c.State == StateLost:
-			key = StateLost
-		}
-		res.Summary.Levels[key]++
-		res.Summary.ExpectedLossCents += c.ExpectedLossCents
-		res.Summary.LostCents += c.LostCents
-		if c.Level != nil && *c.Level != LevelLow {
-			res.Summary.ExposureCents += c.ExposureCents
-		}
-		for _, sr := range c.Services {
-			for _, q := range sr.Quality {
-				res.Summary.QualityCounts[q]++
+		contribute(&res.Summary, c, 1)
+		eachCheckHit(c, a.ID, func(id string, item CheckItem) {
+			h := hits[id]
+			h.OK = false
+			h.Count++
+			if len(h.Items) < maxCheckItems {
+				h.Items = append(h.Items, item)
 			}
-			for _, id := range sr.QualityIDs {
-				h := hits[id]
-				h.OK = false
-				h.Count++
-				if len(h.Items) < maxCheckItems {
-					h.Items = append(h.Items, CheckItem{ServiceID: sr.ID, AccountID: a.ID})
-				}
-			}
-		}
-		for _, sq := range c.Quality {
-			for _, q := range sq.Flags {
-				res.Summary.QualityCounts[q]++
-			}
-			for _, id := range sq.IDs {
-				h := hits[id]
-				h.OK = false
-				h.Count++
-				if len(h.Items) < maxCheckItems {
-					h.Items = append(h.Items, CheckItem{ServiceID: sq.ServiceID, AccountID: a.ID})
-				}
-			}
-		}
+		})
 	}
 	res.Summary.LossByFeature = lossByFeature(customers)
 	for _, c := range cs {
@@ -241,6 +207,17 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 		res.Checks = append(res.Checks, *h)
 	}
 	return res, nil
+}
+
+// scoreAccount считает одного клиента целиком: оценка и действия с ценой. Полный и частичный
+// пересчёт идут через неё, поэтому результат клиента у них один и тот же.
+func scoreAccount(w *scratch, snapAsOf time.Time, a Account, svcs []Service, txByService map[int64][]Transaction,
+	st Settings, asOf time.Time, fs []Feature, cs []Check, as []Action) Customer {
+	c, funds := scoreCustomer(a, svcs, txByService, st, asOf, fs, cs, false)
+	if c.State == StateScored {
+		c.Actions, c.ActionComboCents = actionResults(w, snapAsOf, svcs, txByService, st, asOf, a, c, funds, fs, cs, as)
+	}
+	return c
 }
 
 // parallelFor вызывает fn(i) для i в [0, n) пулом воркеров. Индексы нарезаны на пачки: воркер берёт
@@ -559,4 +536,52 @@ func accountFunds(a Account, live []Service, asOf time.Time, st Settings) FundsC
 func round2(x float64) float64 {
 	v, _ := strconv.ParseFloat(strconv.FormatFloat(x, 'f', 2, 64), 64)
 	return v
+}
+
+// contribute прибавляет (sign = 1) или вычитает (sign = -1) вклад клиента в сводку, кроме распределения
+// потери по причинам. Всё целое, поэтому вычитание старого вклада и добавление нового точны.
+func contribute(sum *Summary, c Customer, sign int) {
+	key := StateUnscored
+	switch {
+	case c.Level != nil:
+		key = *c.Level
+	case c.State == StateLost:
+		key = StateLost
+	}
+	sum.Levels[key] += sign
+	sum.ExpectedLossCents += int64(sign) * c.ExpectedLossCents
+	sum.LostCents += int64(sign) * c.LostCents
+	if c.Level != nil && *c.Level != LevelLow {
+		sum.ExposureCents += int64(sign) * c.ExposureCents
+	}
+	count := func(q string) {
+		sum.QualityCounts[q] += sign
+		if sum.QualityCounts[q] == 0 {
+			delete(sum.QualityCounts, q) // полный счёт заводит запись только при первом случае
+		}
+	}
+	for _, sr := range c.Services {
+		for _, q := range sr.Quality {
+			count(q)
+		}
+	}
+	for _, sq := range c.Quality {
+		for _, q := range sq.Flags {
+			count(q)
+		}
+	}
+}
+
+// eachCheckHit обходит сработавшие проверки клиента: сначала живые услуги, затем неживые.
+func eachCheckHit(c Customer, accountID int64, fn func(checkID string, item CheckItem)) {
+	for _, sr := range c.Services {
+		for _, id := range sr.QualityIDs {
+			fn(id, CheckItem{ServiceID: sr.ID, AccountID: accountID})
+		}
+	}
+	for _, sq := range c.Quality {
+		for _, id := range sq.IDs {
+			fn(id, CheckItem{ServiceID: sq.ServiceID, AccountID: accountID})
+		}
+	}
 }
