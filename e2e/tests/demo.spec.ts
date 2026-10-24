@@ -40,7 +40,8 @@ async function uiLogin(page: Page, login: string, password: string) {
 
 // Переход, после которого страница доведена до устойчивого состояния: следующий goto не обрывает загрузку (Firefox: NS_BINDING_ABORTED).
 async function gotoStable(page: Page, path: string, ready: (page: Page) => Locator) {
-  await page.goto(path);
+  // 'domcontentloaded': страницы держат открытый поток событий (SSE), и 'load' в Firefox не гарантирован; готовность — по видимому элементу.
+  await page.goto(path, { waitUntil: 'domcontentloaded' });
   await expect(ready(page)).toBeVisible();
 }
 
@@ -121,8 +122,7 @@ test('демо: очередь → карточка → потеря по при
     await test.step('О модели: устойчивость очереди к весам', async () => {
       const analystPage = await analystCtx.newPage();
       await uiLogin(analystPage, 'analyst', analystPassword);
-      await analystPage.goto('/about');
-      await expect(analystPage.getByRole('heading', { name: 'Насколько устойчива очередь' })).toBeVisible();
+      await gotoStable(analystPage, '/about', (p) => p.getByRole('heading', { name: 'Насколько устойчива очередь' }));
       await expect(analystPage.getByRole('region', { name: 'Устойчивость очереди к весам' })).toBeVisible();
       await analystPage.close();
     });
@@ -152,7 +152,7 @@ test('демо: очередь → карточка → потеря по при
     await test.step('Источник: залп 10 000 событий, графики, согласованность 0 центов', async () => {
       const analystPage = await analystCtx.newPage();
       await uiLogin(analystPage, 'analyst', analystPassword);
-      await analystPage.goto('/source');
+      await gotoStable(analystPage, '/source', (p) => p.getByRole('region', { name: 'Поток событий' }));
       const panel = analystPage.getByRole('region', { name: 'Поток событий' });
       await expect(panel.getByLabel('Скорость')).toHaveValue('Как можно быстрее');
       await panel.getByLabel('Залп, событий').click();
@@ -194,8 +194,7 @@ test('демо: карточка без CRM-цикла', async ({ browser, baseU
   try {
     const page = await ctx.newPage();
     await uiLogin(page, 'jury', juryPassword);
-    await page.goto('/queue/9');
-    await expect(page.getByRole('heading', { name: 'Клиент 9' })).toBeVisible();
+    await gotoStable(page, '/queue/9', (p) => p.getByRole('heading', { name: 'Клиент 9' }));
     await expect(page.getByText(money('3 189,10')).first()).toBeVisible();
     for (const name of ['Отметить: взято в работу', 'Взять в работу', 'Связались', 'Отложить до…']) {
       await expect(page.getByRole('button', { name })).toHaveCount(0);
@@ -203,7 +202,7 @@ test('демо: карточка без CRM-цикла', async ({ browser, baseU
     await expect(page.getByRole('region', { name: 'Работа с клиентом' })).toHaveCount(0);
     await expect(page.getByRole('region', { name: 'После взятия в работу' })).toHaveCount(0);
     await expect(page.getByRole('navigation', { name: 'Разделы' })).not.toContainText('Задачи');
-    await page.goto('/tasks');
+    await page.goto('/tasks', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/queue$/);
   } finally {
     await ctx.close();
