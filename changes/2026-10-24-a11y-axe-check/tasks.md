@@ -4,7 +4,7 @@
 
 ## 1. Тест
 
-- [ ] 1.1 `e2e/tests/a11y.spec.ts`: экраны, обе темы, 1440 и 390 — проверка: `npx playwright test a11y` локально или `tsc --noEmit` (нет среды) и первый прогон workflow
+- [x] 1.1 `e2e/tests/a11y.spec.ts`: экраны, обе темы, 1440 и 390 — проверка: `npx playwright test a11y` локально или `tsc --noEmit` (нет среды) и первый прогон workflow (проверит CI после выката: среды Playwright и прода нет)
 - [ ] 1.2 `deploy-a11y.yml` после `Deploy smoke` — проверка: `actionlint` (если есть в CI) и прогон после слияния
 
 ## 2. Исправления
