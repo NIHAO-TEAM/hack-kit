@@ -15,7 +15,7 @@
 
 Права проверяются на сервере для каждой операции: маркетолог не меняет модель и через API.
 
-### Демо за 5 шагов
+### Демо за 6 шагов
 
 Полный сценарий с цифрами — [docs/demo-script.md](docs/demo-script.md).
 
@@ -23,13 +23,14 @@
 2. Карточка клиента (клик по строке очереди): причины по вкладу, формула услуги, действие и сколько евро оно снимет.
 3. [Модель](https://nihao-churn.duckdns.org/model) (`analyst`, второе окно): сдвинуть вес, посмотреть предпросмотр, применить — очередь у маркетолога перестроится без перезагрузки.
 4. [Источник](https://nihao-churn.duckdns.org/source) (`analyst`): эмулятор биллинга или правка услуги — потеря в очереди меняется.
-5. Инженерия: [Swagger](https://nihao-churn.duckdns.org/api/v1/docs), [Grafana](https://nihao-churn.duckdns.org/grafana/), [О модели](https://nihao-churn.duckdns.org/about).
+5. Взять в работу и увидеть результат: в карточке клиента 9 «Взять в работу», затем в [Источнике](https://nihao-churn.duckdns.org/source) эмулятор: «Пополнить» клиенту 9 — в карточке появится «После взятия в работу: Баланс пополнен на …» (данные биллинга, не доказательство эффекта контакта), в [Задачах](https://nihao-churn.duckdns.org/tasks) задачу закрыть с итогом «Продлил». Демо-прогон оставляет закрытую задачу в «Задачи → Закрытые» и записи в журнале.
+6. Инженерия: [Swagger](https://nihao-churn.duckdns.org/api/v1/docs), [Grafana](https://nihao-churn.duckdns.org/grafana/), [О модели](https://nihao-churn.duckdns.org/about).
 
 ### Где смотреть каждый критерий
 
 | Критерий (`docs/scale.md`) | На проде | В репозитории |
 |---|---|---|
-| Бизнес-польза: кому, почему, сколько евро | [/queue](https://nihao-churn.duckdns.org/queue), карточка клиента, [/summary](https://nihao-churn.duckdns.org/summary) | [docs/case.md](docs/case.md), [docs/model.md](docs/model.md), `backend/internal/risk`, `frontend/src` |
+| Бизнес-польза: кому, почему, сколько евро | [/queue](https://nihao-churn.duckdns.org/queue), карточка клиента, [/tasks](https://nihao-churn.duckdns.org/tasks), [/summary](https://nihao-churn.duckdns.org/summary) | [docs/case.md](docs/case.md), [docs/model.md](docs/model.md), `backend/internal/risk`, `frontend/src` |
 | Обоснованность модели | [/about](https://nihao-churn.duckdns.org/about), [/model](https://nihao-churn.duckdns.org/model) | [docs/model.md](docs/model.md), [docs/model-rules.md](docs/model-rules.md), оракул `tools/oracle`, golden-тесты `testdata/golden` |
 | Архитектура и расширяемость | Helm/k3s: домен с TLS; Swagger [/api/v1/docs](https://nihao-churn.duckdns.org/api/v1/docs) | [docs/architecture.md](docs/architecture.md), чарт [deploy/helm/churn](deploy/helm/churn), [values.yaml](deploy/helm/churn/values.yaml), [api/openapi.yaml](api/openapi.yaml) |
 | Метрики и нагрузка | [Grafana /grafana/](https://nihao-churn.duckdns.org/grafana/) (дашборд `churn`), `/metrics` по токену, Prometheus | [deploy/grafana](deploy/grafana), [deploy/prometheus](deploy/prometheus), замеры [docs/load/](docs/load/README.md) (цели частично не достигнуты, числа честные) |
