@@ -72,17 +72,22 @@ echo "::add-mask::$TOKEN"
 AUTH="Authorization: Bearer $TOKEN"
 curl -fsS --max-time 120 "$API/customers?limit=1" -H "$AUTH" | jq '{total}' >"$OUT/customers-total.json" || true
 
-# 3. Полный пересчёт: смена горизонта меняет настройки модели.
+# 3. Полный пересчёт: смена горизонта меняет настройки модели. PATCH отвечает сразу, пересчёт идёт после ответа,
+# поэтому ждём, пока churn_model_version вырастет, и берём длительность и этапы из метрик этого пересчёта.
 note "Пересчёт"
-for H in 30 60; do
+for H in 45 90 45; do
+  V0=$(metrics | metric churn_model_version || true)
   T0=$(now)
   curl -fsS --max-time 1800 -X PATCH "$API/model/settings" -H "$AUTH" -H 'Content-Type: application/json' \
     -d "{\"horizonDays\":$H}" -o /dev/null
   T1=$(now)
-  RC=$(metrics | metric churn_recalc_duration_seconds || true)
-  note "recalc_horizon=$H patch_seconds=$(elapsed "$T0" "$T1") server_recalc_seconds=${RC:-н/д}"
+  M=$(metrics); V1=$(metric churn_model_version <<<"$M")
+  DEADLINE=$((SECONDS + 1800))
+  while [ "${V1%.*}" = "${V0%.*}" ] && [ $SECONDS -lt $DEADLINE ]; do sleep 1; M=$(metrics); V1=$(metric churn_model_version <<<"$M"); done
+  T2=$(now)
+  note "recalc_horizon=$H version=${V0:-?}->${V1:-?} patch_seconds=$(elapsed "$T0" "$T1") until_new_version_seconds=$(elapsed "$T0" "$T2") server_recalc_seconds=$(metric churn_recalc_duration_seconds <<<"$M") recalc_customers=$(metric churn_recalc_customers <<<"$M")"
+  grep -E '^churn_recalc_stage_seconds' <<<"$M" | tr '\n' ' ' | tee -a "$OUT/recalc-stages.txt"; echo | tee -a "$OUT/recalc-stages.txt"
 done
-metrics | grep -E '^churn_recalc_stage_seconds' >"$OUT/recalc-stages.txt" || true
 
 # 4. Чтение очереди: 10 VU (k6/read.js, 30 с). Порог k6 не гейт — число идёт в отчёт.
 if command -v k6 >/dev/null; then
@@ -96,19 +101,24 @@ note "Залп 10 000"
 BURST_NO_K6=1 OUT="$OUT/burst" SNAPSHOT= SOURCE_TOKEN= "$HERE/burst.sh" 10000 || note "burst: проверки залпа не прошли (см. burst/)"
 
 # 6. Итог.
+for f in "$OUT/burst/stream-10000.json" "$OUT/ingest-metrics.txt" "$OUT/customers-total.json"; do
+  [ ! -f "$f" ] || { echo "--- $f"; cat "$f"; }
+done
+echo "--- k6 read"; jq -c '{p95: .metrics.http_req_duration["p(95)"], avg: .metrics.http_req_duration.avg, max: .metrics.http_req_duration.max, rps: .metrics.http_reqs.rate, failed: .metrics.http_req_failed.value}' "$OUT/k6-read.json" 2>/dev/null || true
 kill "$SAMPLER" 2>/dev/null || true; wait "$SAMPLER" 2>/dev/null || true; trap - EXIT
 PEAK_APP_MB=$(awk -F'\t' '$2+0>m {m=$2+0} END {printf "%.0f", m/1048576}' "$OUT/samples.tsv")
 DB_BYTES=""
 if command -v docker >/dev/null && [ -n "${DB_CONTAINER:-}" ]; then
   DB_BYTES=$(docker exec "$DB_CONTAINER" sh -c 'psql -U "${POSTGRES_USER:-postgres}" -At -c "select pg_database_size(current_database())"' 2>/dev/null || true)
 fi
+PEAK_DB=$(awk -F'\t' '{n=split($3, a, ";"); for (i=1;i<=n;i++) if (a[i] ~ /postgres/) { split(a[i], b, " "); print b[2] }}' "$OUT/samples.tsv" | sort -h | tail -1)
 READ_P95=$(jq -r '.metrics.http_req_duration["p(95)"] // "н/д"' "$OUT/k6-read.json" 2>/dev/null || echo "н/д")
 READ_FAIL=$(jq -r '.metrics.http_req_failed.value // "н/д"' "$OUT/k6-read.json" 2>/dev/null || echo "н/д")
 {
   echo "## Миллион клиентов ($ACCOUNTS)"
   echo '```'
   cat "$OUT/steps.txt"
-  echo "peak_app_rss_mb=$PEAK_APP_MB db_bytes=${DB_BYTES:-н/д} queue_read_p95_ms=$READ_P95 read_failed_rate=$READ_FAIL"
+  echo "peak_app_rss_mb=$PEAK_APP_MB peak_db_mem=${PEAK_DB:-н/д} db_bytes=${DB_BYTES:-н/д} queue_read_p95_ms=$READ_P95 read_failed_rate=$READ_FAIL"
   echo '```'
   [ ! -f "$OUT/burst/summary.md" ] || cat "$OUT/burst/summary.md"
 } | tee "$OUT/summary.md"
