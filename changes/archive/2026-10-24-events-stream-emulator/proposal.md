@@ -24,7 +24,7 @@
 
 - backend: модуль источника (эмулятор), метрики
 - frontend: экран «Источник»
-- контракт `api/openapi.yaml`: да, новые вызовы запуска и состояния прогона; ломающих правок нет
+- контракт `api/openapi.yaml`: да, новые вызовы запуска и состояния прогона; одна ломающая по `oasdiff` правка: новое значение `emulatorStream` в `AuditEntry.action`, см. «Найдено по ходу»
 - защищённые пути: `api/openapi.yaml` (новые вызовы по причине выше)
 - зависит от: нет
 
@@ -37,5 +37,5 @@
 
 - Пересчёт не склеивает события при скорости «без пауз»: одно событие применяется за ~14 мс (чтение снимка, правка, запись), а пересчёт на сиде быстрее, так что число пересчётов равно числу событий. Склейка проявится на больших снимках, где пересчёт дольше записи. Отчёт показывает фактическое число.
 - Событие «неудачное продление» меняет и услугу, и баланс одной записью снимка (подробности — в `design.md`, «Решения по ходу»).
-- В контракт добавлены `StreamRequest`, `StreamAccepted`, `StreamState`, `StreamReport`, `StreamLevelChange`, `StreamConsistency`, `LevelCounts`, значение `emulatorStream` в `AuditEntry.action`; ломающих для клиентов правок нет.
+- В контракт добавлены `StreamRequest`, `StreamAccepted`, `StreamState`, `StreamReport`, `StreamLevelChange`, `StreamConsistency`, `LevelCounts`, значение `emulatorStream` в `AuditEntry.action` (по `oasdiff` это одна ломающая правка, причина ниже).
 - **`contract-breaking` от `oasdiff` — ожидаемое срабатывание.** Единственная «ошибка» — `response-property-enum-value-added`: в enum `AuditEntry.action` (ответ `GET /api/v1/audit`) добавлено значение `emulatorStream`, чтобы запуск потока был виден в журнале, как остальные действия эмулятора. Журнал на фронте показывает запись по тексту `summary` с сервера и не переключается по `action` (кроме задач и выгрузки), поэтому старый клиент не ломается. Остальное — `endpoint-added` для `GET` и `POST /api/v1/source/emulator/stream`.

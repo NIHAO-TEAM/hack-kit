@@ -65,6 +65,52 @@ const bump = (source: string) => {
   });
 };
 
+/** Поток событий в моке: `?stream=running|done|failed` в адресе, по умолчанию «не запускали». */
+function streamMock() {
+  const mode = new URLSearchParams(globalThis.location?.search).get('stream');
+  if (mode === 'running') {
+    return { state: 'running', runId: 'mock-run', events: 2500, applied: 1180 };
+  }
+  if (mode === 'failed') {
+    return {
+      state: 'failed',
+      events: 2500,
+      applied: 400,
+      error: 'пересчёт не догнал итоговый снимок за отведённое время',
+    };
+  }
+  if (mode === 'done') {
+    return {
+      state: 'done',
+      runId: 'mock-run',
+      events: 2500,
+      applied: 2500,
+      report: {
+        events: 2500,
+        applied: 2500,
+        failed: 0,
+        durationMs: 37743,
+        eventsPerSecond: 66.2,
+        applyP50Ms: 14.3,
+        applyP95Ms: 20.6,
+        applyMaxMs: 92,
+        recalcs: 2500,
+        queueLagP95Ms: 5.2,
+        levelsBefore: { high: 3, medium: 2, low: 1, unscored: 0, lost: 4 },
+        levelsAfter: { high: 2, medium: 4, low: 0, unscored: 0, lost: 4 },
+        levelChanges: [
+          { from: 'high', to: 'medium', count: 1 },
+          { from: 'low', to: 'medium', count: 1 },
+        ],
+        lossBeforeCents: 359814,
+        lossAfterCents: 988566,
+        consistency: { ok: true, diffCents: 0, version: 2501 },
+      },
+    };
+  }
+  return { state: 'idle', events: 0, applied: 0 };
+}
+
 export const sourceHandlers = [
   http.get('/api/v1/source/status', () => HttpResponse.json({ ...state, polling: pollingMock() })),
   http.put('/api/v1/source/polling', async ({ request }) => {
@@ -86,9 +132,7 @@ export const sourceHandlers = [
   }),
   http.post('/api/v1/source/emulator/tick', () => bump('emulator')),
   http.post('/api/v1/source/emulator/actions', () => bump('emulator')),
-  http.get('/api/v1/source/emulator/stream', () =>
-    HttpResponse.json({ state: 'idle', events: 0, applied: 0 }),
-  ),
+  http.get('/api/v1/source/emulator/stream', () => HttpResponse.json(streamMock())),
   http.post('/api/v1/source/emulator/stream', () =>
     HttpResponse.json({ runId: 'mock-run' }, { status: 202 }),
   ),
