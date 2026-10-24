@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { streamKey, type StreamState } from '@entities/stream-run';
 import type { RealtimeState } from '@shared/lib';
 
 export const EVENTS_URL = '/api/v1/events';
@@ -73,6 +74,17 @@ export function connectEvents(
       onState({ status: 'online', version });
     });
     es.addEventListener('tasks', invalidateTasks);
+    // Ход потока событий эмулятора: кадр целиком кладём в кэш, без перезапроса.
+    es.addEventListener('streamProgress', (e) => {
+      try {
+        queryClient.setQueryData(
+          streamKey,
+          JSON.parse((e as MessageEvent<string>).data) as StreamState,
+        );
+      } catch {
+        // Кадр не разобрали — состояние перечитает опрос раз в секунду.
+      }
+    });
     es.onerror = () => {
       lost = true;
       onState({ status: 'offline', version });
