@@ -15,7 +15,7 @@ export const INVALIDATED_ROOTS = [
 ] as const;
 
 /** Корни ключей, которые перечитываются при изменении задачи на любом экране (SSE `tasks`). */
-export const TASK_ROOTS = ['customers', 'customer', TASK_ROOT] as const;
+export const TASK_ROOTS = ['customers', 'customer', 'summary', TASK_ROOT] as const;
 
 type EventSourceLike = Pick<EventSource, 'close' | 'readyState' | 'addEventListener'> & {
   onopen: ((e: Event) => void) | null;
