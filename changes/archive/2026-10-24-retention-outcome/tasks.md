@@ -19,4 +19,4 @@
 ## 3. Готовность
 
 - [ ] 3.1 CI зелёный
-- [ ] 3.2 `specs/retention-tasks/spec.md`, `specs/customer-ui/spec.md` при архивации
+- [x] 3.2 `specs/retention-tasks/spec.md`, `specs/customer-ui/spec.md` при архивации
