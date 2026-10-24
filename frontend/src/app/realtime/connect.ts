@@ -1,5 +1,4 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { TASK_ROOT } from '@entities/retention-task';
 import type { RealtimeState } from '@shared/lib';
 
 export const EVENTS_URL = '/api/v1/events';
@@ -15,7 +14,7 @@ export const INVALIDATED_ROOTS = [
 ] as const;
 
 /** Корни ключей, которые перечитываются при изменении задачи на любом экране (SSE `tasks`). */
-export const TASK_ROOTS = ['customers', 'customer', 'summary', TASK_ROOT] as const;
+export const TASK_ROOTS = ['customers', 'customer', 'summary'] as const;
 
 type EventSourceLike = Pick<EventSource, 'close' | 'readyState' | 'addEventListener'> & {
   onopen: ((e: Event) => void) | null;
