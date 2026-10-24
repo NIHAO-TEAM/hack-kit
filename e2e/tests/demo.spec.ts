@@ -64,6 +64,8 @@ test.beforeAll(() => {
 });
 
 test('демо: очередь → карточка → потеря по причинам → вес → устойчивость → автопродление → поток событий → /metrics', async ({ browser, baseURL }) => {
+  // Шаг потока 2 500 событий ждёт до 180 с, лимит по умолчанию (30 с) короче его.
+  test.setTimeout(300_000);
   const marketerCtx = await browser.newContext({ baseURL });
   const analystCtx = await browser.newContext({ baseURL });
   const analyst = analystCtx.request;
