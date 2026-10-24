@@ -679,6 +679,9 @@ components:
           type: integer
           format: int64
           description: Версия пересчёта, по которому построена страница.
+        nextCursor:
+          type: string
+          description: Курсор следующей страницы; нет, если страница последняя.
     TaskStatus:
       type: string
       description: "В работе, связались, отложено, закрыто."
@@ -1637,6 +1640,15 @@ paths:
           schema:
             type: string
             enum: [exclude, only]
+        - name: cursor
+          in: query
+          description: >-
+            Курсор следующей страницы из `nextCursor` предыдущего ответа. Заменяет `offset`
+            (вместе с ним — 400); сортировка и порядок должны быть те же, что у страницы, из которой
+            он получен. Курсор привязан к версии пересчёта: после нового пересчёта — 409,
+            начните с первой страницы.
+          schema:
+            type: string
       responses:
         "200":
           description: Страница клиентов
@@ -1646,6 +1658,12 @@ paths:
                 $ref: "#/components/schemas/CustomerPage"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Курсор построен по другой версии пересчёта
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "501":
