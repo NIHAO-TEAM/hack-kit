@@ -49,3 +49,11 @@
 - WHEN применено действие клиента
 - THEN данные и числа других клиентов не изменились
 - Тест: `TestActionLeavesOtherCustomersUntouched`
+
+### Requirement: число продлений по-русски
+
+#### Scenario: клиент 5
+
+- WHEN у клиента 5 набора организаторов два непрошедших продления при достаточном балансе
+- THEN заголовок «К биллингу: 2 продления не прошли при достаточном балансе»
+- Тест: `TestToBillingTitleCountsAttempts`, `TestForm`, `TestExportCustomersJournalHasNoEmail`

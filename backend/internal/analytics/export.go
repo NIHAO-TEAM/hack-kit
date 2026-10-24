@@ -10,6 +10,7 @@ import (
 	"example.com/app/internal/audit"
 	"example.com/app/internal/platform/api/gen"
 	"example.com/app/internal/platform/httpx"
+	"example.com/app/internal/platform/plural"
 )
 
 // WithAudit подключает журнал действий: выгрузка очереди записывается в него.
@@ -160,7 +161,7 @@ func (a *AnalyticsAPI) recordExport(r *request, f customerFilter, n int) {
 	}
 	a.audit.Record(r.Context(), audit.Entry{
 		Action:  audit.ActionCustomersExported,
-		Summary: fmt.Sprintf("Выгрузка очереди в CSV: %d строк", n),
+		Summary: fmt.Sprintf("Выгрузка очереди в CSV: %d %s", n, plural.Form(n, "строка", "строки", "строк")),
 		Changes: changes,
 	})
 }
