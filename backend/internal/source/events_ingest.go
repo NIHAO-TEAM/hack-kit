@@ -203,10 +203,17 @@ func (g *eventWriter) offerAll(ctx context.Context, evs []StreamEvent, wait time
 	if len(evs) > cap(g.in) {
 		return false
 	}
-	g.offerMu.Lock()
-	defer g.offerMu.Unlock()
 	deadline := time.NewTimer(wait)
 	defer deadline.Stop()
+	// Замок берётся в пределах того же срока: k-й параллельный запрос не ждёт k секунд.
+	select {
+	case g.offerSem <- struct{}{}:
+		defer func() { <-g.offerSem }()
+	case <-deadline.C:
+		return false
+	case <-ctx.Done():
+		return false
+	}
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()
 	for cap(g.in)-len(g.in) < len(evs) {

@@ -97,3 +97,29 @@ func TestPostSourceEvents503RetryAfter(t *testing.T) {
 		t.Errorf("в очереди %d, ждали 3", got)
 	}
 }
+
+// Писатель стоит, очередь почти полна: параллельные запросы получают отказ не позже срока ожидания
+// (с запасом), а не строго друг за другом.
+func TestOfferAllParallelRefusalsWithinWait(t *testing.T) {
+	in := testIntake(newFakeIDs(), 10)
+	in.wait = 200 * time.Millisecond
+	if !in.w.offerAll(context.Background(), make([]StreamEvent, 8), in.wait) {
+		t.Fatal("первый запрос не встал")
+	}
+	const n = 5
+	took := make(chan time.Duration, n)
+	for i := 0; i < n; i++ {
+		go func() {
+			t0 := time.Now()
+			if in.w.offerAll(context.Background(), make([]StreamEvent, 8), in.wait) {
+				t.Error("запрос принят при полной очереди")
+			}
+			took <- time.Since(t0)
+		}()
+	}
+	for i := 0; i < n; i++ {
+		if d := <-took; d > in.wait+150*time.Millisecond {
+			t.Errorf("отказ через %v, срок ожидания %v", d, in.wait)
+		}
+	}
+}

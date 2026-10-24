@@ -623,8 +623,8 @@ type eventWriter struct {
 	in   chan ingestItem
 	done chan struct{}
 
-	// offerMu — один запрос приёма ставит свои события за раз (offerAll).
-	offerMu sync.Mutex
+	// offerSem — один запрос приёма ставит свои события за раз (offerAll).
+	offerSem chan struct{} // ёмкость 1; канал, а не мьютекс, чтобы ожидание укладывалось в срок
 
 	mu   sync.Mutex
 	seen map[int]struct{} // номера, которые уже были приняты в обработку
@@ -635,7 +635,7 @@ func newEventWriter(pool *pgxpool.Pool, st *ingestState, now func() time.Time, p
 	return &eventWriter{
 		pool: pool, state: st, now: now, publish: publish, onBatch: onBatch,
 		in: make(chan ingestItem, ingestQueueSize), done: make(chan struct{}),
-		seen: map[int]struct{}{},
+		seen: map[int]struct{}{}, offerSem: make(chan struct{}, 1),
 	}
 }
 
