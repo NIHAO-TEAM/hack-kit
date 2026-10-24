@@ -5,6 +5,7 @@ package source_test
 import (
 	"context"
 	"reflect"
+	"slices"
 	"sort"
 	"testing"
 
@@ -114,6 +115,23 @@ func TestIngestBatchesAndVersions(t *testing.T) {
 	}
 	if len(run.Published) != batches || (batches > 0 && run.Published[batches-1] != after) {
 		t.Errorf("объявлено %v, пачек %d, последняя версия %d", run.Published, batches, after)
+	}
+	// 2.1: объявление несёт клиентов пачки по возрастанию; вместе они — клиенты всех событий
+	want := map[int64]bool{}
+	for _, ev := range evs {
+		want[ev.AccountID] = true
+	}
+	got := map[int64]bool{}
+	for i, ids := range run.PublishedAccounts {
+		if len(ids) == 0 || !slices.IsSorted(ids) {
+			t.Errorf("объявление %d: клиенты %v, ждали непустой список по возрастанию", i, ids)
+		}
+		for _, id := range ids {
+			got[id] = true
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("в объявлениях %d клиентов, у событий %d", len(got), len(want))
 	}
 }
 

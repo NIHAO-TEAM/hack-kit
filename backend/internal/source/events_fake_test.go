@@ -63,7 +63,7 @@ func (t *fakeTx) Rollback(context.Context) error {
 
 // testIntake — приём с писателем, который не запущен: очередь только копится. Базы нет.
 func testIntake(ids eventIDStore, queue int) *eventIntake {
-	w := newEventWriter(nil, newOpenIngestState(), time.Now, func(int64) {}, func([]ingestResult) {})
+	w := newEventWriter(nil, newOpenIngestState(), time.Now, func(Change) {}, func([]ingestResult) {})
 	w.in = make(chan ingestItem, queue)
 	return &eventIntake{
 		w: w, ids: ids, now: time.Now, wait: 50 * time.Millisecond,

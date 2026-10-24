@@ -104,7 +104,7 @@ func (a *SourceAPI) PutSnapshot(w http.ResponseWriter, r *http.Request) {
 		if a.adapter != nil {
 			a.adapter.Pause() // ручной снимок главнее опроса, пока его не включат на экране «Источник»
 		}
-		a.bus.Publish(TopicChanged, acc.Version)
+		a.bus.Publish(TopicChanged, Change{Version: acc.Version})
 	})
 	var bodyErr *BodyError
 	switch {
@@ -394,7 +394,7 @@ func (a *SourceAPI) commitStep(ctx context.Context, step func(*Snapshot) (*Snaps
 		log.Printf("source: эмулятор, запись: %v", err)
 		return Accepted{}, nil, httpError{"снимок не записан, прежние данные сохранены"}
 	}
-	a.bus.Publish(TopicChanged, acc.Version)
+	a.bus.Publish(TopicChanged, Change{Version: acc.Version})
 	return acc, next, nil
 }
 
@@ -460,7 +460,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 func (a *SourceAPI) eventsIntake() *eventIntake {
 	a.intakeOnce.Do(func() {
 		if a.intake == nil {
-			a.intake = newEventIntake(a.pool, a.clk.Now, func(version int64) { a.bus.Publish(TopicChanged, version) })
+			a.intake = newEventIntake(a.pool, a.clk.Now, func(ch Change) { a.bus.Publish(TopicChanged, ch) })
 		}
 	})
 	return a.intake

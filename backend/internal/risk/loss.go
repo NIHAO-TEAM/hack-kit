@@ -48,30 +48,53 @@ func AllocateLoss(loss int64, hits []FeatureHit) []int64 {
 	return out
 }
 
+// eachFeatureLoss обходит доли потери клиента по причинам; first — первая доля клиента по этой причине.
+func eachFeatureLoss(c Customer, fn func(id string, loss int64, first bool)) {
+	var buf [8]string
+	seen := buf[:0]
+	for _, sr := range c.Services {
+		for i, v := range AllocateLoss(sr.LossCents, sr.Features) {
+			if v == 0 {
+				continue
+			}
+			id := sr.Features[i].ID
+			first := !slices.Contains(seen, id)
+			if first {
+				seen = append(seen, id)
+			}
+			fn(id, v, first)
+		}
+	}
+}
+
 // lossByFeature суммирует распределение потери по живым услугам всех клиентов; порядок — по убыванию потери, затем по ID.
 func lossByFeature(customers []Customer) []FeatureLoss {
 	sums := map[string]*FeatureLoss{}
 	for _, c := range customers {
-		seen := map[string]bool{}
-		for _, sr := range c.Services {
-			for i, v := range AllocateLoss(sr.LossCents, sr.Features) {
-				if v == 0 {
-					continue
-				}
-				id := sr.Features[i].ID
-				fl := sums[id]
-				if fl == nil {
-					fl = &FeatureLoss{ID: id}
-					sums[id] = fl
-				}
-				fl.LossCents += v
-				if !seen[id] {
-					seen[id] = true
-					fl.Customers++
-				}
-			}
-		}
+		addFeatureLoss(sums, c, 1)
 	}
+	return sortedFeatureLoss(sums)
+}
+
+// addFeatureLoss прибавляет (sign = 1) или вычитает (sign = -1) вклад клиента; причина без клиентов исчезает.
+func addFeatureLoss(sums map[string]*FeatureLoss, c Customer, sign int) {
+	eachFeatureLoss(c, func(id string, v int64, first bool) {
+		fl := sums[id]
+		if fl == nil {
+			fl = &FeatureLoss{ID: id}
+			sums[id] = fl
+		}
+		fl.LossCents += int64(sign) * v
+		if first {
+			fl.Customers += sign
+		}
+		if fl.Customers == 0 {
+			delete(sums, id)
+		}
+	})
+}
+
+func sortedFeatureLoss(sums map[string]*FeatureLoss) []FeatureLoss {
 	out := make([]FeatureLoss, 0, len(sums))
 	for _, fl := range sums {
 		out = append(out, *fl)
