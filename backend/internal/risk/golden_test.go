@@ -26,12 +26,18 @@ type goldenFile struct {
 		ExposureCents     int64                         `json:"exposureCents"`
 		LostCents         int64                         `json:"lostCents"`
 		Features          map[string]map[string]float64 `json:"features"`
+		LossByFeature     map[string]int64              `json:"lossByFeature"`
 	} `json:"customers"`
 	Summary struct {
 		Levels            map[string]int `json:"levels"`
 		ExpectedLossCents int64          `json:"expectedLossCents"`
 		ExposureCents     int64          `json:"exposureCents"`
 		LostCents         int64          `json:"lostCents"`
+		LossByFeature     []struct {
+			ID        string `json:"id"`
+			LossCents int64  `json:"lossCents"`
+			Customers int    `json:"customers"`
+		} `json:"lossByFeature"`
 	} `json:"summary"`
 }
 
@@ -78,6 +84,22 @@ func TestGolden(t *testing.T) {
 						got.ExpectedLossCents, got.ExposureCents, got.LostCents,
 						want.ExpectedLossCents, want.ExposureCents, want.LostCents)
 				}
+				gotLoss := map[string]int64{}
+				for _, sr := range got.Services {
+					for i, v := range AllocateLoss(sr.LossCents, sr.Features) {
+						if v != 0 {
+							gotLoss[sr.Features[i].ID] += v
+						}
+					}
+				}
+				if len(gotLoss) != len(want.LossByFeature) {
+					t.Errorf("клиент %d: потеря по причинам %v, эталон %v", got.ID, gotLoss, want.LossByFeature)
+				}
+				for k, v := range want.LossByFeature {
+					if gotLoss[k] != v {
+						t.Errorf("клиент %d: потеря по причине %s = %d, эталон %d", got.ID, k, gotLoss[k], v)
+					}
+				}
 				if len(got.Services) != len(want.Features) {
 					t.Errorf("клиент %d: услуг %d, в эталоне %d", got.ID, len(got.Services), len(want.Features))
 				}
@@ -99,6 +121,20 @@ func TestGolden(t *testing.T) {
 				sum.LostCents != g.Summary.LostCents {
 				t.Errorf("сводка: деньги %d/%d/%d, эталон %d/%d/%d", sum.ExpectedLossCents, sum.ExposureCents, sum.LostCents,
 					g.Summary.ExpectedLossCents, g.Summary.ExposureCents, g.Summary.LostCents)
+			}
+			if len(sum.LossByFeature) != len(g.Summary.LossByFeature) {
+				t.Fatalf("сводка: причин %d, в эталоне %d", len(sum.LossByFeature), len(g.Summary.LossByFeature))
+			}
+			var byFeature int64
+			for i, want := range g.Summary.LossByFeature {
+				got := sum.LossByFeature[i]
+				if got.ID != want.ID || got.LossCents != want.LossCents || got.Customers != want.Customers {
+					t.Errorf("сводка: причина %d = %+v, эталон %+v", i, got, want)
+				}
+				byFeature += got.LossCents
+			}
+			if byFeature != sum.ExpectedLossCents {
+				t.Errorf("сводка: сумма по причинам %d, потеря %d", byFeature, sum.ExpectedLossCents)
 			}
 			for k, v := range g.Summary.Levels {
 				if sum.Levels[k] != v {

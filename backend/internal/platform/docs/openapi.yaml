@@ -1054,7 +1054,7 @@ components:
           type: string
     Summary:
       type: object
-      required: [levels, expectedLossCents, atRiskCents, lostCents, version]
+      required: [levels, expectedLossCents, atRiskCents, lostCents, lossByFeature, version]
       properties:
         levels:
           type: object
@@ -1087,11 +1087,33 @@ components:
           description: Сколько услуг и клиентов отмечено каждой проверкой качества данных
           additionalProperties:
             type: integer
+        lossByFeature:
+          type: array
+          description: Ожидаемая потеря по причинам (признакам модели), по убыванию потери. Сумма lossCents равна expectedLossCents. Распределение по вкладу w·f признака, не доказанная причинность.
+          items:
+            $ref: "#/components/schemas/LossByFeature"
         retention:
           $ref: "#/components/schemas/SummaryRetention"
         version:
           type: integer
           format: int64
+    LossByFeature:
+      type: object
+      required: [featureId, lossCents, customers, sharePercent]
+      properties:
+        featureId:
+          type: string
+          description: Идентификатор признака модели (funds, noauto, fail и т. д.)
+        lossCents:
+          type: integer
+          format: int64
+        customers:
+          type: integer
+          description: Клиенты с ненулевой долей потери по этой причине
+        sharePercent:
+          type: number
+          format: double
+          description: Доля в ожидаемой потере, 0..100, два знака
     SummaryRetention:
       type: object
       description: Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics.
