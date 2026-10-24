@@ -1,4 +1,4 @@
-import { channelLabel, outcomeLabel, statusLabel } from '@entities/retention-task';
+import { channelLabel, outcomeLabel, statusLabel } from './task-labels';
 import type { AuditChange } from '../api/audit';
 
 const features: Record<string, string> = {

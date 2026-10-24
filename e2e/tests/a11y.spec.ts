@@ -9,7 +9,6 @@ const screens = [
   { name: 'вход', path: '/login', ready: (p: Page) => p.getByLabel('Логин'), anon: true },
   { name: 'очередь', path: '/queue', ready: (p: Page) => p.getByRole('table', { name: 'Клиенты под риском оттока' }) },
   { name: 'карточка клиента 9', path: '/queue/9', ready: (p: Page) => p.getByRole('heading', { level: 1 }) },
-  { name: 'задачи', path: '/tasks', ready: (p: Page) => p.getByRole('heading', { level: 1, name: 'Задачи' }) },
   { name: 'сводка', path: '/summary', ready: (p: Page) => p.getByRole('heading', { level: 1 }) },
   { name: 'модель', path: '/model', ready: (p: Page) => p.getByRole('heading', { level: 1 }) },
   { name: 'источник', path: '/source', ready: (p: Page) => p.getByRole('heading', { level: 1 }) },

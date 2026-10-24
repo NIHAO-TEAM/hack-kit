@@ -7,8 +7,6 @@ export type RiskLevel = components['schemas']['RiskLevel'];
 
 export type CustomerSort =
   'id' | 'email' | 'balance' | 'totalReplenished' | 'score' | 'expectedLoss';
-/** Фильтр по задаче удержания: без открытой, с открытой, открытая на мне. */
-export type TaskFilter = 'none' | 'open' | 'mine';
 export type CustomerOrder = 'asc' | 'desc';
 
 export interface CustomerParams {
@@ -16,7 +14,6 @@ export interface CustomerParams {
   order: CustomerOrder;
   level?: RiskLevel;
   q?: string;
-  task?: TaskFilter;
   /** Строки «к биллингу»: `exclude` — без них, `only` — только они; без параметра — все. */
   billing?: 'exclude' | 'only';
   /** Номер страницы с 1; без него — первая. */
@@ -58,7 +55,6 @@ export const customersOptions = (params: CustomerParams) =>
               order: params.order,
               level: params.level,
               q: params.q || undefined,
-              task: params.task,
               billing: params.billing,
               limit: params.limit ?? MAX_LIMIT,
               offset: customersOffset(params.page, params.limit ?? MAX_LIMIT) || undefined,
