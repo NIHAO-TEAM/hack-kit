@@ -68,8 +68,10 @@ func replace(ctx context.Context, pool *pgxpool.Pool, s *Snapshot, asOf, loadedA
 	}); err != nil {
 		return Accepted{}, err
 	}
+	// Порядок таблиц как у Reader.Load (accounts, services, transactions): иначе TRUNCATE и читатель
+	// пересчёта берут блокировки навстречу друг другу и PostgreSQL рвёт одного как deadlock.
 	if err := st.run(stageTruncate, func() error {
-		_, err := tx.Exec(ctx, "TRUNCATE transactions, services, accounts")
+		_, err := tx.Exec(ctx, "TRUNCATE accounts, services, transactions")
 		return err
 	}); err != nil {
 		return Accepted{}, fmt.Errorf("очистка: %w", err)

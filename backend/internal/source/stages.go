@@ -7,9 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Этапы загрузки снимка в метрике churn_snapshot_ingest_stage_seconds{stage}.
+// Этапы загрузки снимка в метрике (разбор читает тело потоком, отдельного read нет) churn_snapshot_ingest_stage_seconds{stage}.
 const (
-	stageRead             = "read"
 	stageParse            = "parse"
 	stageValidate         = "validate"
 	stageLock             = "lock"
@@ -23,7 +22,7 @@ const (
 
 var ingestStage = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Name:    "churn_snapshot_ingest_stage_seconds",
-	Help:    "Длительность этапа загрузки снимка (секунды); stage: read, parse, validate, lock, truncate, copy_*, sequences, commit.",
+	Help:    "Длительность этапа загрузки снимка (секунды); stage: parse, validate, lock, truncate, copy_*, sequences, commit.",
 	Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10, 20, 30, 60},
 }, []string{"stage"})
 

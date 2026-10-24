@@ -4,7 +4,7 @@
 
 ## 1. Этапы
 
-- [x] 1.1 `stage()` вокруг этапов загрузки, лог и метрика `churn_snapshot_ingest_stage_seconds{stage}` — проверка: `TestMetricsLint`, тест интеграции видит все этапы после загрузки
+- [x] 1.1 `stage()` вокруг этапов загрузки, лог и метрика `churn_snapshot_ingest_stage_seconds{stage}` — проверка: `TestStagesObserveAndLint`, интеграционный `TestSnapshotIngestStagesAndSecondLoad` видит все этапы в `/metrics`
 - [x] 1.2 Запуск `Deploy load` с одними этапами, таблица этапов в `docs/load/` — проверка: файл замера, ссылка на запуск
 
 ## 2. Ускорение (один этап за раз, по замеру)
@@ -16,4 +16,4 @@
 ## 3. Готовность
 
 - [x] 3.1 (на машине разработки, не на стенде GitHub; число в docs/load/2026-10-24-snapshot-stages.md) Повторный запуск `Deploy load`, три загрузки подряд, число в `docs/load/` как есть — проверка: файл замера
-- [ ] 3.2 `go vet`, `golangci-lint`, `go test ./...` зелёные
+- [x] 3.2 `go vet`, `golangci-lint`, `go test ./...` зелёные

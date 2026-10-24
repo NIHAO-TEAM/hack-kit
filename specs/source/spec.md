@@ -142,8 +142,8 @@
 #### Scenario: загрузка снимка
 
 - WHEN принят снимок
-- THEN `/metrics` содержит `churn_snapshot_ingest_stage_seconds` по этапам `parse`, `validate`, `lock`, `truncate`, `copy_*`, `sequences`, `commit`
-- Тест: `TestStagesObserveAndLint`
+- THEN `/metrics` содержит `churn_snapshot_ingest_stage_seconds` по этапам `parse`, `validate`, `lock`, `truncate`, `copy_accounts`, `copy_services`, `copy_transactions`, `sequences`, `commit`
+- Тест: `TestSnapshotIngestStagesAndSecondLoad` (метрики на стенде), `TestStagesObserveAndLint` (формат метрики)
 
 ### Requirement: загрузка во время пересчёта
 
@@ -153,4 +153,4 @@
 
 - WHEN второй снимок загружается, пока идёт пересчёт по первому
 - THEN вторая загрузка принята, итоговая версия модели соответствует второму снимку
-- Тест: `TestLargeSnapshotLoad` с `LOAD_REPEAT=1` (теги `integration load`, замер, не гейт)
+- Тест: `TestSnapshotIngestStagesAndSecondLoad` (две загрузки подряд, версия сводки равна версии второго ответа); замер времени — `TestLargeSnapshotLoad` с `LOAD_REPEAT=1`
