@@ -10,6 +10,7 @@ const sorts: CustomerSort[] = [
   'totalReplenished',
   'score',
   'expectedLoss',
+  'reasonLoss',
 ];
 const levels: RiskLevel[] = ['high', 'medium', 'low', 'unscored', 'lost'];
 
@@ -22,6 +23,11 @@ function validateSearch(search: Record<string, unknown>): Partial<CustomerParams
     sort,
     order,
     level: levels.find((l) => l === search.level),
+    // Идентификатор признака; допустимость проверяет сервер.
+    reason:
+      typeof search.reason === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(search.reason)
+        ? search.reason
+        : undefined,
     q: typeof search.q === 'string' && search.q ? search.q : undefined,
     // Первая страница в адрес не пишется.
     page:
@@ -41,7 +47,8 @@ function Section() {
   const search = Route.useSearch();
   const params: CustomerParams = {
     ...search,
-    sort: search.sort ?? 'expectedLoss',
+    // С причиной очередь по умолчанию идёт по потере по ней.
+    sort: search.sort ?? (search.reason ? 'reasonLoss' : 'expectedLoss'),
     order: search.order ?? 'desc',
   };
   const navigate = Route.useNavigate();

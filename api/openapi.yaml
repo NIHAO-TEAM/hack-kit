@@ -751,6 +751,10 @@ components:
         billing:
           type: boolean
           description: Тег «к биллингу» — сбой автосписания, а не отток.
+        reasonLossCents:
+          type: integer
+          format: int64
+          description: Потеря клиента по причине из параметра `reason`; есть только в ответе с этим параметром.
         task:
           $ref: "#/components/schemas/TaskBrief"
     ActionBrief:
@@ -1739,6 +1743,15 @@ paths:
           schema:
             type: string
             enum: [exclude, only]
+        - name: reason
+          in: query
+          description: >-
+            Причина риска — идентификатор признака модели (`featureId` из «Сводки»): клиенты с
+            ненулевой потерей по этой причине. Без `sort` порядок — по потере по причине (по убыванию),
+            в строках есть `reasonLossCents`. Неизвестная причина — 400 с перечнем допустимых.
+            Курсор действует только с тем же `reason`.
+          schema:
+            type: string
         - name: cursor
           in: query
           description: >-
@@ -1801,6 +1814,11 @@ paths:
         - name: billing
           in: query
           description: "`exclude` — без строк «к биллингу», `only` — только они, не задан — все. Другое значение — 400."
+          schema:
+            type: string
+        - name: reason
+          in: query
+          description: "Причина риска, как у списка клиентов: только клиенты с ненулевой потерей по ней. Неизвестная причина — 400."
           schema:
             type: string
       responses:
