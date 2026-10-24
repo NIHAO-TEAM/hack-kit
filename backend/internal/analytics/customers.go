@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding/json"
 	"log"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -81,7 +80,7 @@ func (a *AnalyticsAPI) ListCustomers(w responseWriter, r *request, p gen.ListCus
 
 // writePage собирает ответ {items,nextCursor,total,version} из готовых байтов строк; байты те же,
 // что дал бы json.Encoder для gen.CustomerPage.
-func writePage(w http.ResponseWriter, items [][]byte, next *string, total int, version int64) {
+func writePage(w responseWriter, items [][]byte, next *string, total int, version int64) {
 	n := 64
 	for _, it := range items {
 		n += len(it) + 1
