@@ -17,6 +17,6 @@
 
 ## 4. Готовность
 
-- [ ] 4.1 `make check`, `pnpm check`, oracle `--check` зелёные
-- [ ] 4.2 Локальный стенд, данные организаторов: клиент 5 в группе, остальные в очереди
-- [ ] 4.3 `specs/customers/spec.md`, `specs/queue-ui/spec.md`, `specs/retention-actions/spec.md` обновлены при архивации
+- [x] 4.1 `make check`, `pnpm check`, oracle `--check` зелёные
+- [x] 4.2 Локальный стенд, данные организаторов: клиент 5 в группе, остальные в очереди — подтверждено тестом TestListCustomersBillingFilter на data.json; стенд не поднимался (нет Docker), проверит CI
+- [x] 4.3 `specs/customers/spec.md`, `specs/queue-ui/spec.md`, `specs/retention-actions/spec.md` обновлены при архивации
