@@ -26,6 +26,10 @@ export function ActionsCard({
           <Title order={2} size="h4">
             Что сделать
           </Title>
+          <Text size="sm" c="dimmed">
+            Сумма — расчётное снижение ожидаемой потери, если клиент выполнит действие полностью.
+            Отклик и стоимость контакта не учтены.
+          </Text>
           <Group gap="xs" align="baseline">
             <Text fz="xl" fw={600} c="var(--text-strong)">
               {main.title}

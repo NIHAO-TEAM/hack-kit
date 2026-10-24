@@ -34,7 +34,7 @@ func TestCustomersAPI(t *testing.T) {
 			time.Sleep(50 * time.Millisecond)
 		}
 	}
-	if page.Total != 10 || page.Items[0].Id != 9 || page.Items[0].ExpectedLossCents != 345927 || page.Items[1].Id != 1 {
+	if page.Total != 10 || page.Items[0].Id != 9 || page.Items[0].ExpectedLossCents != 318910 || page.Items[1].Id != 1 {
 		t.Errorf("рейтинг: total=%d, первая строка %+v", page.Total, page.Items[0])
 	}
 
@@ -42,7 +42,7 @@ func TestCustomersAPI(t *testing.T) {
 	if err != nil || d.JSON200 == nil {
 		t.Fatalf("№9: %v %d", err, d.StatusCode())
 	}
-	if len(d.JSON200.Actions) == 0 || d.JSON200.Actions[0].EffectCents != -106748 {
+	if len(d.JSON200.Actions) == 0 || d.JSON200.Actions[0].EffectCents != -102749 {
 		t.Errorf("действия №9: %+v", d.JSON200.Actions)
 	}
 	if res, _ := c.GetCustomerWithResponse(ctx, 424242); res.StatusCode() != http.StatusNotFound {
@@ -53,7 +53,7 @@ func TestCustomersAPI(t *testing.T) {
 	}
 }
 
-// Правка баланса №9 на 529,84 € через PATCH: потеря падает на 1 067,48 €, очередь пересчитана.
+// Правка баланса №9 на 529,84 € через PATCH: потеря падает на 1 027,49 €, очередь пересчитана.
 func TestPatchAccountRecalculatesLoss(t *testing.T) {
 	r := newRig(t, true)
 	r.StartRecalc(t)
@@ -74,7 +74,7 @@ func TestPatchAccountRecalculatesLoss(t *testing.T) {
 			time.Sleep(50 * time.Millisecond)
 		}
 	}
-	loss(345927)
+	loss(318910)
 
 	if res, _ := marketer.PatchAccountWithResponse(ctx, 9, gen.AccountPatch{}); res.StatusCode() != http.StatusForbidden {
 		t.Errorf("маркетолог правит данные: %d", res.StatusCode())
@@ -85,5 +85,5 @@ func TestPatchAccountRecalculatesLoss(t *testing.T) {
 	if err != nil || res.JSON200 == nil {
 		t.Fatalf("PATCH: %v %d %s", err, res.StatusCode(), res.Body)
 	}
-	loss(345927 - 106748)
+	loss(318910 - 102749)
 }

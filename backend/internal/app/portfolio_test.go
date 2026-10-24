@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -69,7 +70,7 @@ func TestListCustomersDefault(t *testing.T) {
 	if got := ids(page); got[0] != 9 || got[1] != 1 {
 		t.Errorf("первые строки %v, ждали 9 и 1", got)
 	}
-	if page.Items[0].ExpectedLossCents != 345927 || page.Items[1].ExpectedLossCents != 38315 {
+	if page.Items[0].ExpectedLossCents != 318910 || page.Items[1].ExpectedLossCents != 37508 {
 		t.Errorf("потери %d и %d", page.Items[0].ExpectedLossCents, page.Items[1].ExpectedLossCents)
 	}
 	tail := page.Items[len(page.Items)-4:]
@@ -82,7 +83,34 @@ func TestListCustomersDefault(t *testing.T) {
 
 func TestListCustomersSorts(t *testing.T) {
 	a := api(organizersPortfolio(t))
-	for _, field := range []gen.ListCustomersParamsSort{gen.Id, gen.Email, gen.Balance, "totalReplenished", gen.Score, gen.ExpectedLoss} {
+	// Порядок выписан из cases/analizator/data.json: весь список, независимо от уровня.
+	full := map[gen.ListCustomersParamsSort][]int64{
+		gen.Id:             {1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+		gen.Email:          {1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+		gen.Balance:        {6, 10, 5, 2, 8, 7, 4, 1, 3, 9},
+		"totalReplenished": {4, 1, 2, 6, 3, 9, 7, 5, 10, 8},
+	}
+	for field, asc := range full {
+		desc := make([]int64, len(asc))
+		for i, id := range asc {
+			desc[len(asc)-1-i] = id
+		}
+		for order, want := range map[gen.ListCustomersParamsOrder][]int64{gen.Asc: asc, gen.Desc: desc} {
+			f, o := field, order
+			if got := ids(list(t, a, gen.ListCustomersParams{Sort: &f, Order: &o})); !slices.Equal(got, want) {
+				t.Errorf("%s %s: %v, ждали %v", f, o, got, want)
+			}
+		}
+	}
+
+	lost, id, desc := gen.Lost, gen.Id, gen.Desc
+	got := ids(list(t, a, gen.ListCustomersParams{Level: &lost, Sort: &id, Order: &desc}))
+	if want := []int64{8, 7, 3, 2}; !slices.Equal(got, want) {
+		t.Errorf("level=lost id desc: %v, ждали %v", got, want)
+	}
+
+	// Скор и потеря: «потерян»/«нет оценки» внизу.
+	for _, field := range []gen.ListCustomersParamsSort{gen.Score, gen.ExpectedLoss} {
 		for _, order := range []gen.ListCustomersParamsOrder{gen.Asc, gen.Desc} {
 			f, o := field, order
 			page := list(t, a, gen.ListCustomersParams{Sort: &f, Order: &o})
@@ -203,13 +231,13 @@ func TestGetCustomer9(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("статус %d", w.Code)
 	}
-	if d.Customer.ExpectedLossCents != 345927 {
-		t.Errorf("потеря №9 = %d, ждали 345927", d.Customer.ExpectedLossCents)
+	if d.Customer.ExpectedLossCents != 318910 {
+		t.Errorf("потеря №9 = %d, ждали 318910", d.Customer.ExpectedLossCents)
 	}
-	if len(d.Actions) == 0 || d.Actions[0].Id != "top_up" || d.Actions[0].EffectCents != -106748 {
-		t.Errorf("действия %+v, ждали пополнить −106748", d.Actions)
+	if len(d.Actions) == 0 || d.Actions[0].Id != "top_up" || d.Actions[0].EffectCents != -102749 {
+		t.Errorf("действия %+v, ждали пополнить −102749", d.Actions)
 	}
-	if d.Customer.TopAction == nil || d.Customer.TopAction.EffectCents != -106748 {
+	if d.Customer.TopAction == nil || d.Customer.TopAction.EffectCents != -102749 {
 		t.Errorf("topAction %+v", d.Customer.TopAction)
 	}
 	if d.Customer.TopReason == nil || *d.Customer.TopReason != "Автопродление выключено, срок услуги уже вышел" {
@@ -254,5 +282,18 @@ func TestNoFeed(t *testing.T) {
 	analytics.New(nil, events.New(), clock.NewFake(time.Now())).ListCustomers(w, httptest.NewRequest("GET", "/", nil), gen.ListCustomersParams{})
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("статус %d, ждали 503", w.Code)
+	}
+}
+
+func TestCustomerLostCents(t *testing.T) {
+	a := api(organizersPortfolio(t))
+	for id, want := range map[int64]int64{7: 680874, 9: 0} {
+		w, d := get(t, a, id)
+		if w.Code != 200 {
+			t.Fatalf("№%d: статус %d", id, w.Code)
+		}
+		if d.Customer.LostCents == nil || *d.Customer.LostCents != want {
+			t.Errorf("№%d: lostCents = %v, ждали %d", id, d.Customer.LostCents, want)
+		}
 	}
 }

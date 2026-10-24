@@ -12,10 +12,19 @@ describe('экран «Карточка клиента»', () => {
   it('клиент 9: потеря, главное действие с ценой и пояснение суммы', async () => {
     renderApp('/queue/9');
     expect(await screen.findByRole('heading', { name: 'Клиент 9' })).toBeInTheDocument();
-    expect(screen.getAllByText(/3\s459,27\s€/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/3\s189,10\s€/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Пополнить на 529,84/)).toBeInTheDocument();
-    expect(screen.getByText(/−1\s067,48\s€/)).toBeInTheDocument();
+    expect(screen.getByText(/−1\s027,49\s€/)).toBeInTheDocument();
     expect(screen.getByText(/платежи на 30 дней × вероятность срыва/i)).toBeInTheDocument();
+    expect(screen.getByText(/расчётное снижение ожидаемой потери/i)).toBeInTheDocument();
+    expect(screen.queryByText(/сохранит/i)).not.toBeInTheDocument();
+  });
+
+  it('клиент 9: скор в шапке «87 %», в формуле вероятность «0,87»', async () => {
+    renderApp('/queue/9');
+    expect(await screen.findByText('скор 87 %')).toBeInTheDocument();
+    expect(screen.queryByText(/8814/)).toBeNull();
+    expect(await screen.findByText(/^P = 1 − /)).toHaveTextContent(/= 0,87$/);
   });
 
   it('карточка клиента 9: признаки по убыванию вклада и формула с числами ответа', async () => {
@@ -24,10 +33,10 @@ describe('экран «Карточка клиента»', () => {
     const rows = within(table).getAllByRole('row');
     expect(rows[1]).toHaveTextContent('noauto');
     expect(rows[2]).toHaveTextContent('fail');
-    expect(within(table).getByText('funds')).toBeInTheDocument();
+    expect(within(table!).getByText('funds')).toBeInTheDocument();
     expect(within(table).getByText('susp')).toBeInTheDocument();
     expect(within(table).getByText('Вклад')).toBeInTheDocument();
-    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,88');
+    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,87');
   });
 
   it('раскрытая услуга не выдаёт признаки клиента за свои', async () => {
@@ -40,15 +49,101 @@ describe('экран «Карточка клиента»', () => {
     expect(screen.getAllByRole('table', { name: /Признаки риска/ })).toHaveLength(1);
   });
 
+  it('услуга клиента 9: P, R, P·R, признаки услуги и формула, заканчивающаяся её вероятностью', async () => {
+    const user = userEvent.setup();
+    renderApp('/queue/9');
+    await screen.findByRole('table', { name: /Признаки риска/ }, { timeout: 5000 });
+    const controls = document.querySelectorAll<HTMLElement>('[data-accordion-control]');
+    await user.click(controls[1]!);
+    expect(screen.getAllByText(/Вероятность непродления P = 0,52 \(52 %\)/)).toHaveLength(2);
+    expect(screen.getAllByText(/ожидаемая потеря P·R/)[1]).toHaveTextContent(/3\s181,71\s€/);
+    const [table] = screen.getAllByRole('table', { name: 'Признаки услуги' });
+    expect(within(table!).getByText('funds')).toBeInTheDocument();
+    for (const f of screen.getAllByTestId('service-formula'))
+      expect(f).toHaveTextContent(/= (0,87|0,52)$/);
+    expect(screen.queryByText(/появятся, когда сервер/)).toBeNull();
+  });
+
+  it('клиент 9: сумма потерь по услугам сходится с шапкой', async () => {
+    renderApp('/queue/9');
+    expect(
+      await screen.findByText(/Сумма потерь по услугам = ожидаемая потеря клиента/, undefined, {
+        timeout: 5000,
+      }),
+    ).toHaveTextContent(/3\s189,10\s€/);
+    expect(screen.queryByText('Сумма не сходится с шапкой')).toBeNull();
+  });
+
+  it('расхождение суммы услуг с шапкой видно, а не скрыто', async () => {
+    const { server } = await import('../mocks/server');
+    const res = await fetch('/api/v1/customers/9');
+    const detail = (await res.json()) as CustomerDetail;
+    server.use(
+      http.get('/api/v1/customers/9', () =>
+        HttpResponse.json({
+          ...detail,
+          customer: {
+            ...detail.customer,
+            expectedLossCents: detail.customer.expectedLossCents + 500,
+          },
+        }),
+      ),
+    );
+    renderApp('/queue/9');
+    expect(
+      await screen.findByText('Сумма не сходится с шапкой', undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
+  });
+
+  it('клиент 7: неживая услуга без вероятности, с пометкой', async () => {
+    const user = userEvent.setup();
+    renderApp('/queue/7');
+    await screen.findByText(/потерян: живых услуг не осталось/, undefined, { timeout: 5000 });
+    const controls = document.querySelectorAll<HTMLElement>('[data-accordion-control]');
+    await user.click(controls[0]!);
+    expect(screen.getAllByText(/в ожидаемую потерю не входит/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Вероятность непродления/)).toBeNull();
+    expect(screen.queryByText(/Сумма потерь по услугам/)).toBeNull();
+  });
+
+  it('без serviceRisks: «Оценок по услугам нет», без сверки', async () => {
+    const user = userEvent.setup();
+    const { server } = await import('../mocks/server');
+    const res = await fetch('/api/v1/customers/9');
+    const detail = (await res.json()) as CustomerDetail;
+    const rest = { ...detail, serviceRisks: undefined };
+    server.use(http.get('/api/v1/customers/9', () => HttpResponse.json(rest)));
+    renderApp('/queue/9');
+    await screen.findByRole('table', { name: /Признаки риска/ }, { timeout: 5000 });
+    await user.click(document.querySelector<HTMLElement>('[data-accordion-control]')!);
+    expect(screen.getAllByText('Оценок по услугам нет.').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Сумма потерь по услугам/)).toBeNull();
+  });
+
   it('нечисловой адрес — «Такого клиента нет»', async () => {
     renderApp('/queue/abc');
     expect(await screen.findByText('Такого клиента нет')).toBeInTheDocument();
   });
 
-  it('клиент 2: «потерян», сумма «уже потеряно»', async () => {
-    renderApp('/queue/2');
-    expect(await screen.findByText(/потерян: все услуги заблокированы/)).toBeInTheDocument();
-    expect(screen.getByText('Уже потеряно')).toBeInTheDocument();
+  it('клиент 7: «потерян», сумма потерянных услуг, а не 0 €', async () => {
+    renderApp('/queue/7');
+    expect(await screen.findByText(/потерян: живых услуг не осталось/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Стоимость потерянных услуг за горизонт модели \(расчёт\)/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/6\s808,74\s€/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/не фактическая выручка/)).toBeInTheDocument();
+  });
+
+  it('скор карточки совпадает со скором очереди для каждого клиента мока', async () => {
+    const { rows } = await import('../mocks/queue');
+    const { server } = await import('../mocks/server');
+    expect(server).toBeDefined();
+    for (const row of rows()) {
+      const res = await fetch(`/api/v1/customers/${row.id}`);
+      const detail = (await res.json()) as CustomerDetail;
+      expect(detail.customer.score ?? null, `клиент ${row.id}`).toBe(row.score ?? null);
+    }
   });
 
   it('несуществующий клиент — «Такого клиента нет»', async () => {
@@ -109,7 +204,7 @@ describe('экран «Карточка клиента»', () => {
               email: 'c9@example.com',
               balance: 0,
               totalReplenished: 0,
-              score: 0.88,
+              score: 88,
               level: 'high',
               expectedLossCents: 100,
             },

@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 GOLDEN_DIR = os.path.join(ROOT, 'testdata', 'golden')
 LIVE = ('active', 'suspended', 'prolong_wait')
 DEFAULTS = {
-    'weights': {'pwait': 0.80, 'funds': 0.70, 'noauto': 0.55, 'fail': 0.40, 'susp': 0.35, 'flight': 0.15, 'bonus_locked': 0.0},
+    'weights': {'pwait': 0.80, 'funds': 0.70, 'noauto': 0.55, 'fail': 0.40, 'susp': 0.35, 'flight': 0.0, 'bonus_locked': 0.0},
     'high': 70,
     'medium': 50,
     'horizonHours': 720,

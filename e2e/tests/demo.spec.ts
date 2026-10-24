@@ -63,7 +63,7 @@ test('демо: очередь → карточка → вес → автопр�
     await page.goto('/queue');
     const table = page.getByRole('table', { name: 'Клиенты под риском оттока' });
     await expect(page.getByRole('region', { name: 'Ожидаемая потеря за 30 дней' })).toContainText(
-      money('3 879,73'),
+      money('3 599,07'),
     );
     const before = await customers(marketerCtx.request);
     expect(before[0]?.id).toBe(9);
@@ -73,7 +73,7 @@ test('демо: очередь → карточка → вес → автопр�
     // Шаг 2. Карточка №9.
     await table.locator('tbody tr').first().click();
     await expect(page).toHaveURL(/\/queue\/9$/);
-    await expect(page.getByText(money('3 459,27')).first()).toBeVisible();
+    await expect(page.getByText(money('3 189,10')).first()).toBeVisible();
     await page.goto('/queue');
 
     // Шаг 3. Аналитик меняет вес — очередь обновляется без перезагрузки.
@@ -83,16 +83,16 @@ test('демо: очередь → карточка → вес → автопр�
     });
     await setNoauto(analyst, 0.85);
     await expect(page.getByRole('region', { name: 'Ожидаемая потеря за 30 дней' })).toContainText(
-      money('4 080,42'),
+      money('3 805,22'),
       { timeout: 15_000 },
     );
     expect(reloaded, 'страница не перезагружалась').toBe(false);
     const high = (await customers(marketerCtx.request)).find((r) => r.id === 1)!;
     expect(high.level).toBe('high');
-    expect(high.score).toBeCloseTo(85.15, 1);
+    expect(high.score).toBeCloseTo(84.75, 1);
 
-    // Шаг 4. Эмулятор: автопродление №1 — потеря падает (~365 €).
-    // Эффект ~365 € — при весе по умолчанию 0,55 (при 0,85 он 564,53 €), поэтому вес возвращаем.
+    // Шаг 4. Эмулятор: автопродление №1 — потеря падает (~375 €).
+    // Эффект ~375 € — при весе по умолчанию 0,55 (при 0,85 он 579,67 €), поэтому вес возвращаем.
     await setNoauto(analyst, 0.55);
     await expect
       .poll(async () => (await customers(marketerCtx.request)).find((r) => r.id === 1)?.level, {

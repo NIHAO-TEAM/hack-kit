@@ -14,7 +14,18 @@ export interface CustomerParams {
   order: CustomerOrder;
   level?: RiskLevel;
   q?: string;
+  /** Номер страницы с 1; без него — первая. */
+  page?: number;
+  /** Размер страницы; по умолчанию максимум сервера (полоса «удалит биллинг» берёт все строки). */
+  limit?: number;
 }
+
+/** Размер страницы очереди. */
+export const QUEUE_PAGE_SIZE = 50;
+const MAX_LIMIT = 200;
+
+export const customersOffset = (page: number | undefined, limit: number) =>
+  (Math.max(page ?? 1, 1) - 1) * limit;
 
 export const customersKey = ['customers'] as const;
 
@@ -31,7 +42,8 @@ export const customersOptions = (params: CustomerParams) =>
               order: params.order,
               level: params.level,
               q: params.q || undefined,
-              limit: 200,
+              limit: params.limit ?? MAX_LIMIT,
+              offset: customersOffset(params.page, params.limit ?? MAX_LIMIT) || undefined,
             },
           },
         })

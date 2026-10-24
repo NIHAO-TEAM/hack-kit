@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { featureInfo } from './features';
+import { featureHint, featureInfo } from './features';
 
 /** Признаки, которые считает backend: `ID()` в `backend/internal/risk/feature_*.go`. */
 function backendFeatureIds(): string[] {
@@ -21,5 +21,10 @@ describe('featureInfo', () => {
     for (const id of ids) {
       expect(featureInfo[id], `нет подписи признака ${id}`).toBeDefined();
     }
+  });
+
+  it('подсказка не утверждает долю исхода и называет вес экспертной оценкой', () => {
+    expect(featureHint('pwait')).not.toContain('%');
+    expect(featureHint('pwait')).toContain('экспертная оценка');
   });
 });

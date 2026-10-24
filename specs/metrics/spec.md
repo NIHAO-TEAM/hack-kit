@@ -7,7 +7,7 @@
 #### Scenario: данные организаторов
 
 - WHEN запрошен `GET /api/v1/analytics/summary`
-- THEN 3 клиента высокого риска, 2 среднего, 1 низкого, 4 потеряны; ожидаемая потеря 3 879,73 €
+- THEN 3 клиента высокого риска, 2 среднего, 1 низкого, 4 потеряны; ожидаемая потеря 3 599,07 €
 - Тест: `TestSummary` (`internal/analytics/summary_metrics_test.go`), `TestSummaryAndMetricsOnSeed` (`internal/app/summary_integration_test.go`)
 
 #### Scenario: первый пересчёт не закончен

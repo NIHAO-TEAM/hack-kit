@@ -20,22 +20,22 @@ const scenario: Array<Partial<CustomerRow> & { id: number }> = [
     id: 1,
     level: 'medium',
     score: 56,
-    expectedLossCents: 38315,
+    expectedLossCents: 37508,
     expiresAt: at(0.5),
     topReason: 'услуга закончится через 30 минут, автопродления нет',
-    topAction: { id: 'mail', title: 'Письмо', effectCents: -36529 },
+    topAction: { id: 'mail', title: 'Письмо', effectCents: -37508 },
   },
   {
     id: 2,
     level: 'high',
     score: 88,
-    expectedLossCents: 345927,
+    expectedLossCents: 318910,
     expiresAt: at(-60),
     topReason: 'баланса хватает на 4 дня, при этом ожидает оплаты 3 услуги',
     topAction: {
       id: 'topup',
       title: 'Пополнить',
-      effectCents: -106748,
+      effectCents: -102749,
     },
   },
   {
@@ -62,11 +62,12 @@ const scenario: Array<Partial<CustomerRow> & { id: number }> = [
     level: 'lost',
     score: null,
     expectedLossCents: 0,
+    lostCents: 680874,
     topReason: 'услуги удалены биллингом',
   },
 ];
 
-function rows(): CustomerRow[] {
+export function rows(): CustomerRow[] {
   const accounts = new Map((data.accounts as Account[]).map((a) => [a.id, a]));
   return scenario.map((s) => {
     const a = accounts.get(s.id) ?? (data.accounts[0] as Account);
@@ -108,7 +109,9 @@ export const queueHandlers = [
         const kb = key(b);
         return (ka < kb ? -1 : ka > kb ? 1 : 0) * dir || a.id - b.id;
       });
-    return HttpResponse.json({ items, total: items.length });
+    const limit = Number(url.searchParams.get('limit') ?? 200);
+    const offset = Number(url.searchParams.get('offset') ?? 0);
+    return HttpResponse.json({ items: items.slice(offset, offset + limit), total: items.length });
   }),
   http.get(`${API}/analytics/summary`, () => {
     const all = rows();
@@ -122,7 +125,7 @@ export const queueHandlers = [
         lost: count('lost'),
       },
       expectedLossCents: all.reduce((s, r) => s + r.expectedLossCents, 0),
-      atRiskCents: 387973,
+      atRiskCents: 359907,
       lostCents: 120450,
       asOf: MOCK_AS_OF,
       version: 1,

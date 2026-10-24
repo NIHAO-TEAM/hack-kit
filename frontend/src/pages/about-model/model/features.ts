@@ -1,3 +1,5 @@
+import { featureInfo } from '@entities/model-config';
+
 /** Признаки модели для экрана «О модели». Правила — docs/model-rules.md, числа — оракул. */
 export type FeatureInfo = {
   id: string;
@@ -6,44 +8,13 @@ export type FeatureInfo = {
   defaultWeight: number;
 };
 
-export const features: readonly FeatureInfo[] = [
-  {
-    id: 'pwait',
-    title: 'Ожидание продления',
-    meaning: 'Продление не прошло, до удаления услуги остаётся не больше 5 дней.',
-    defaultWeight: 0.8,
-  },
-  {
-    id: 'funds',
-    title: 'Не хватает средств',
-    meaning: 'На аккаунте меньше денег, чем нужно на ближайшие 7 дней.',
-    defaultWeight: 0.7,
-  },
-  {
-    id: 'noauto',
-    title: 'Автопродление выключено',
-    meaning: 'Срок близко, а продление зависит от клиента.',
-    defaultWeight: 0.55,
-  },
-  {
-    id: 'fail',
-    title: 'Сбои продлений',
-    meaning: 'Доля неудачных продлений услуги в истории.',
-    defaultWeight: 0.4,
-  },
-  {
-    id: 'susp',
-    title: 'Услуга выключена',
-    meaning: 'Клиент выключил услугу, но она продолжает оплачиваться.',
-    defaultWeight: 0.35,
-  },
-  {
-    id: 'flight',
-    title: 'Вывод средств',
-    meaning: 'Доля выведенных средств от баланса. Слабый, косвенный сигнал.',
-    defaultWeight: 0.15,
-  },
-];
+/** Тот же словарь, что на экране «Модель»: новый признак появляется здесь сам. */
+export const features: readonly FeatureInfo[] = Object.entries(featureInfo).map(([id, f]) => ({
+  id,
+  title: f.title,
+  meaning: f.hint,
+  defaultWeight: f.defaultWeight,
+}));
 
 export const defaultThresholds = { high: 70, medium: 50 } as const;
 

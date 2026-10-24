@@ -4,5 +4,6 @@ export {
   type CustomerAction,
   type CustomerDetail,
   type CustomerFeature,
+  type ServiceRisk,
 } from './api/customer';
-export { byContribution, formulaText } from './model/features';
+export { byContribution, formulaText, scorePercentText, lossSum } from './model/features';
