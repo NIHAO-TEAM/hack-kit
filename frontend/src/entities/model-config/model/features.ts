@@ -1,13 +1,13 @@
-/** Подписи признаков: смысл простыми словами. Вес по умолчанию — как в backend (`risk`). */
+/** Подписи признаков: что признак видит в данных, без долей исхода. Единый словарь для «Модели» и «О модели». Вес по умолчанию — как в backend (`risk`). */
 export const featureInfo: Record<string, { title: string; hint: string; defaultWeight: number }> = {
   pwait: {
     title: 'Услуга ждёт оплаты',
-    hint: '80 % услуг в ожидании оплаты не продлят',
+    hint: 'Услуга ждёт оплаты продления',
     defaultWeight: 0.8,
   },
   noauto: {
     title: 'Автопродление выключено',
-    hint: 'Без автопродления клиент уходит, если не вернётся в срок',
+    hint: 'Автопродление выключено, продление зависит от клиента',
     defaultWeight: 0.55,
   },
   funds: {
@@ -17,12 +17,12 @@ export const featureInfo: Record<string, { title: string; hint: string; defaultW
   },
   fail: {
     title: 'Были неудачные платежи',
-    hint: 'Клиент уже пробовал оплатить и не смог',
+    hint: 'В истории есть неудачные попытки оплаты',
     defaultWeight: 0.4,
   },
   susp: {
     title: 'Услуга приостановлена',
-    hint: 'Приостановленная услуга часто не возвращается',
+    hint: 'Услуга приостановлена, но продолжает оплачиваться',
     defaultWeight: 0.35,
   },
   flight: {
@@ -32,7 +32,7 @@ export const featureInfo: Record<string, { title: string; hint: string; defaultW
   },
   bonus_locked: {
     title: 'Бонусы заблокированы',
-    hint: 'Бонусы на счёте нельзя потратить — клиент теряет повод остаться',
+    hint: 'Бонусы на счёте нельзя потратить',
     defaultWeight: 0,
   },
 };
@@ -41,8 +41,9 @@ export function featureTitle(id: string): string {
   return featureInfo[id]?.title ?? id;
 }
 
+/** Подсказка для настроек: что видно в данных и что вес — экспертная оценка. */
 export function featureHint(id: string): string {
-  return featureInfo[id]?.hint ?? 'Влияет на оценку риска оттока';
+  return `${featureInfo[id]?.hint ?? 'Влияет на оценку риска оттока'}. Вес — экспертная оценка, не измерение`;
 }
 
 /** Настройки по умолчанию для кнопки «Сбросить»: как `risk.Defaults()` в backend. */

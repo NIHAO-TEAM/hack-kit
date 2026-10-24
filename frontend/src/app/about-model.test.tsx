@@ -28,6 +28,9 @@ describe('экран «О модели»', () => {
     expect(screen.getAllByText('0,80').length).toBeGreaterThan(0);
     expect(screen.getByText(/ожидаемая потеря = Σ round/)).toBeInTheDocument();
     expect(screen.getByText(/3 189,10 €/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Ограничения' })).toBeInTheDocument();
+    expect(screen.getByText(/Калибровки на истории нет/)).toBeInTheDocument();
+    expect(screen.getAllByText('Бонусы заблокированы').length).toBeGreaterThan(0);
   });
 
   it('берёт веса из настроек сервера', async () => {
