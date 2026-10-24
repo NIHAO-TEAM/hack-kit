@@ -74,10 +74,10 @@ func run(in string, accounts int, genSeed, seed uint64, behaviorFile, title, asO
 		title = "Снимок"
 	}
 	backtest.Section(os.Stdout, title)
-	fmt.Fprintf(os.Stdout, "Зерно поведения: %d.\n\n", seed)
+	_, _ = fmt.Fprintf(os.Stdout, "Зерно поведения: %d.\n\n", seed)
 	backtest.WriteResult(os.Stdout, "Основной прогон", p.Run(b, seed))
 	if robust {
-		fmt.Fprintf(os.Stdout, "### Устойчивость: вероятности ×0,5 и ×1,5\n\n")
+		_, _ = fmt.Fprintf(os.Stdout, "### Устойчивость: вероятности ×0,5 и ×1,5\n\n")
 		backtest.WriteRobustness(os.Stdout, p.Robustness(b, seed))
 	}
 	return nil
