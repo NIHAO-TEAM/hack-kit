@@ -173,7 +173,7 @@ test('демо: взять в работу → пополнение → набл
     const page = await ctx.newPage();
     await page.goto('/queue/9');
     await page.getByRole('button', { name: 'Взять в работу' }).click();
-    await expect(page.getByRole('button', { name: 'Закрыть задачу' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Связались' })).toBeVisible();
 
     // «Источник»: эмулятор пополняет баланс клиента 9.
     await page.goto('/source');
@@ -194,6 +194,7 @@ test('демо: взять в работу → пополнение → набл
     await expect(observed).toContainText('не доказывают, что помог именно контакт');
 
     // Закрыть задачу с итогом «Продлил».
+    await page.getByRole('button', { name: 'Закрыть', exact: true }).click();
     await page.getByRole('combobox', { name: 'Итог' }).click();
     await page.getByRole('option', { name: 'Продлил' }).click();
     await page.getByRole('button', { name: 'Закрыть задачу' }).click();
