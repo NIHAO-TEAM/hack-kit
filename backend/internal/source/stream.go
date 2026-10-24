@@ -29,13 +29,15 @@ const (
 	streamDefaultSeed   = 1
 )
 
-// streamRunTimeout — предел одного прогона; streamSettleTimeout — сколько ждём, пока пересчёт
+// streamRunTimeout — предел одного прогона; streamSettleTimeout (ниже) — сколько ждём, пока пересчёт
 // догонит итоговый снимок.
 const (
-	streamRunTimeout    = 15 * time.Minute
-	streamSettleTimeout = 60 * time.Second
-	streamPollEvery     = 2 * time.Millisecond
+	streamRunTimeout = 15 * time.Minute
+	streamPollEvery  = 2 * time.Millisecond
 )
+
+// streamSettleTimeout — переменная только ради теста сбоя пересчёта (SetStreamSettleTimeout).
+var streamSettleTimeout = 60 * time.Second
 
 // StreamView — то, что поток берёт у пересчёта: последний готовый результат или результат
 // «с нуля» по заданному снимку. Модуль не знает ядра модели, поэтому сборка сервера подставляет
@@ -302,6 +304,13 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		a.bus.Publish(TopicStreamProgress, st)
 	}
 
+	// failAfterSend — сбой после постановки событий: в причину входит, сколько событий успели применить
+	// и отклонить; писатель к этому моменту остановлен (finish), счётчики никто не меняет.
+	var applied, failed int
+	failAfterSend := func(err error) {
+		fail(fmt.Errorf("%w (на момент сбоя применено %d, отклонено %d из %d событий)", err, applied, failed, len(events)))
+	}
+
 	before, err := a.observer.StreamFresh(ctx, base)
 	if err != nil {
 		fail(fmt.Errorf("расчёт до потока: %w", err))
@@ -333,10 +342,9 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 	}()
 
 	var (
-		applyDur        = make([]time.Duration, 0, len(events))
-		applied, failed int
-		started         = time.Now()
-		lastPublish     = started
+		applyDur    = make([]time.Duration, 0, len(events))
+		started     = time.Now()
+		lastPublish = started
 	)
 	progress := func(force bool) {
 		if !force && time.Since(lastPublish) < 150*time.Millisecond {
@@ -422,7 +430,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 			stopWindow()
 			close(stopWatch)
 			<-watchDone
-			fail(fmt.Errorf("прогон прерван: %w", ctx.Err()))
+			failAfterSend(fmt.Errorf("прогон прерван: %w", ctx.Err()))
 			return
 		}
 		win.addAccepted()
@@ -437,7 +445,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 	close(stopWatch)
 	<-watchDone
 	if err != nil {
-		fail(err)
+		failAfterSend(err)
 		return
 	}
 	lag.settle(after.DataVersion, time.Now())
