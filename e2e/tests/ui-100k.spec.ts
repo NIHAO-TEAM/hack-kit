@@ -15,6 +15,7 @@ const CSV_ROWS = 100_000;
 
 const rows: { what: string; ms: number; goal: number }[] = [];
 const bad: string[] = [];
+const notes: string[] = [];
 const record = (what: string, ms: number, goal: number) => {
   rows.push({ what, ms: Math.round(ms), goal });
   if (ms > goal) bad.push(`${what}: ${Math.round(ms)} мс при цели ${goal} мс`);
@@ -55,6 +56,7 @@ test.beforeAll(() => {
 test.afterAll(() => {
   const lines = ['| Экран | Время, мс | Цель, мс | Итог |', '|---|---|---|---|'];
   for (const r of rows) lines.push(`| ${r.what} | ${r.ms} | ${r.goal} | ${r.ms <= r.goal ? 'ок' : 'мимо'} |`);
+  lines.push('', ...notes.map((n) => `- ${n}`));
   writeFileSync(reportPath, `${lines.join('\n')}\n`);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Экраны на 100k\n\n${lines.join('\n')}\n`);
 });
@@ -144,10 +146,10 @@ test('экраны на 100 тыс. клиентов: время, консоль
     });
     const after = await metric(context.request, 'process_resident_memory_bytes');
     const lines = csv.split('\n').filter((l) => l.trim() !== '').length - 1;
-    rows.push({ what: `CSV: строк ${lines} из ${total}, ${Math.round(csvMs)} мс`, ms: Math.round(csvMs), goal: 0 });
+    notes.push(`CSV: строк ${lines} из ${total}, ${Math.round(csvMs)} мс`);
     expect(lines, 'CSV отдан целиком').toBe(total);
     const growthMb = (after - before) / 1024 / 1024;
-    rows.push({ what: `CSV: рост памяти процесса, МБ`, ms: Math.round(growthMb), goal: CSV_MEM_MB });
+    notes.push(`CSV: рост памяти процесса ${Math.round(growthMb)} МБ при цели ${CSV_MEM_MB} МБ`);
     if (growthMb > CSV_MEM_MB) bad.push(`CSV: память выросла на ${Math.round(growthMb)} МБ при цели ${CSV_MEM_MB} МБ`);
 
     expect(consoleErrors, 'ошибки консоли').toEqual([]);
