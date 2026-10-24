@@ -21,7 +21,7 @@ on:
         options: [burst, outage, scale]
         default: burst
       accounts:
-        description: 'Только для scale: число клиентов (услуг в 3 раза, транзакций в 10 раз больше)'
+        description: 'Только для scale: число клиентов (услуги и платежи генерирует snapgen)'
         type: string
         default: '1000000'
 
@@ -57,6 +57,12 @@ jobs:
             echo "$v=$val" >> "$GITHUB_ENV"
             sed -i "s|^$v=.*|$v=$val|" .env
           done
+
+      - uses: actions/setup-go@v5
+        if: inputs.mode == 'scale'
+        with:
+          go-version-file: backend/go.mod
+          cache: false
 
       # Снимок миллиона клиентов — около 3,3 ГБ: лимит тела поднимаем только на этом стенде, не на проде.
       - name: Лимит снимка для scale
@@ -106,7 +112,7 @@ jobs:
           export OUT="$RUNNER_TEMP/burst-out/kill"
           OUTAGE_MODE=kill docs/load/outage.sh 10000
 
-      # Генерация, загрузка, пересчёт, чтение, залп: красные числа идут в итог, а не роняют прогон (docs/load/scale.sh).
+      # Генерация (snapgen), загрузка, пересчёт, чтение, залп: красные числа идут в итог, а не роняют прогон (docs/load/scale.sh).
       - name: Миллион клиентов
         if: inputs.mode == 'scale'
         env:

@@ -6,7 +6,6 @@
 #
 # Среда: BASE_URL (http://localhost:8080), LOGIN (admin), ADMIN_PASSWORD, METRICS_TOKEN, SOURCE_TOKEN,
 #        OUT (./scale-out), DATA_DIR (каталог данных, $OUT/data), APP_CONTAINER, DB_CONTAINER (имена контейнеров для docker stats).
-# Соотношение 1 : 3 : 10 — клиенты : услуги : транзакции.
 set -euo pipefail
 
 BASE_URL=${BASE_URL:-http://localhost:8080}
@@ -44,15 +43,18 @@ sampler() {
 sampler & SAMPLER=$!
 trap 'kill $SAMPLER 2>/dev/null || true' EXIT
 
-# 1. Генерация.
-note "Генерация: клиентов $ACCOUNTS, услуг $((ACCOUNTS * 3)), транзакций $((ACCOUNTS * 10))"
+# 1. Генерация. cases/analizator/generate.py держит все записи в памяти (на 1M: 14 млн словарей, не влезает в 16 ГБ раннера),
+# поэтому снимок строит backend/tools/snapgen: у аккаунта 1–3 услуги, ≈ 2 услуги и ≈ 4 платежа на клиента.
+note "Генерация snapgen: клиентов $ACCOUNTS"
+(cd "$ROOT/backend" && go build -o "$OUT/snapgen" ./tools/snapgen/cmd)
 T0=$(now)
-/usr/bin/time -v python3 "$ROOT/cases/analizator/generate.py" --accounts "$ACCOUNTS" --services $((ACCOUNTS * 3)) \
-  --transactions $((ACCOUNTS * 10)) --out "$DATA_DIR" 2>"$OUT/generate-time.txt"
+/usr/bin/time -v "$OUT/snapgen" -accounts "$ACCOUNTS" >"$DATA_DIR/data.json" 2>"$OUT/generate-time.txt"
 T1=$(now)
 SIZE=$(stat -c %s "$DATA_DIR/data.json")
 GEN_RSS_KB=$(awk -F: '/Maximum resident set size/ {gsub(/ /,"",$2); print $2}' "$OUT/generate-time.txt")
-note "generate_seconds=$(elapsed "$T0" "$T1") file_bytes=$SIZE generate_peak_rss_kb=$GEN_RSS_KB"
+# Строки считаем по ключам: jq держал бы весь файл в памяти.
+ROWS="accounts=$(grep -o '"email"' "$DATA_DIR/data.json" | wc -l) services=$(grep -o '"ownerId"' "$DATA_DIR/data.json" | wc -l) transactions=$(grep -o '"serviceId"' "$DATA_DIR/data.json" | wc -l)"
+note "generate_seconds=$(elapsed "$T0" "$T1") file_bytes=$SIZE generate_peak_rss_kb=$GEN_RSS_KB rows=$ROWS"
 
 # 2. Загрузка снимка потоком (curl -T не читает файл в память целиком).
 note "Загрузка снимка"
