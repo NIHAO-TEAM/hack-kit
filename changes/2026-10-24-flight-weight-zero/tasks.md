@@ -8,7 +8,7 @@
 
 ## 2. Тексты и числа
 
-- [ ] 2.1 Фронт: `featureInfo.flight` (название, подсказка, вес 0), «О модели», моки — проверка: `pnpm check`
+- [x] 2.1 Фронт: `featureInfo.flight` (название, подсказка, вес 0), «О модели», моки — проверка: `pnpm check`
 - [ ] 2.2 `docs/model.md` (таблица весов, чувствительность), `docs/model-rules.md`, `docs/demo-script.md`, `README.md`, `specs/*` — проверка: grep старых чисел пуст
 - [ ] 2.3 `e2e/tests/demo.spec.ts` — новые числа — проверка: e2e на локальном стенде
 

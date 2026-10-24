@@ -27,7 +27,7 @@ describe('экран «О модели»', () => {
     expect(screen.getAllByText('Автопродление выключено').length).toBeGreaterThan(0);
     expect(screen.getAllByText('0,80').length).toBeGreaterThan(0);
     expect(screen.getByText(/ожидаемая потеря = Σ round/)).toBeInTheDocument();
-    expect(screen.getByText(/3 459,27 €/)).toBeInTheDocument();
+    expect(screen.getByText(/3 189,10 €/)).toBeInTheDocument();
   });
 
   it('берёт веса из настроек сервера', async () => {

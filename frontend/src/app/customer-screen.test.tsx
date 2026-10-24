@@ -12,9 +12,9 @@ describe('экран «Карточка клиента»', () => {
   it('клиент 9: потеря, главное действие с ценой и пояснение суммы', async () => {
     renderApp('/queue/9');
     expect(await screen.findByRole('heading', { name: 'Клиент 9' })).toBeInTheDocument();
-    expect(screen.getAllByText(/3\s459,27\s€/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/3\s189,10\s€/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Пополнить на 529,84/)).toBeInTheDocument();
-    expect(screen.getByText(/−1\s067,48\s€/)).toBeInTheDocument();
+    expect(screen.getByText(/−1\s027,49\s€/)).toBeInTheDocument();
     expect(screen.getByText(/платежи на 30 дней × вероятность срыва/i)).toBeInTheDocument();
   });
 
