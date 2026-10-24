@@ -64,7 +64,7 @@ describe('сводка', () => {
       '/tasks?filter=overdue',
     );
     expect(
-      screen.getByRole('link', { name: 'Высокий риск без работы: 2 клиента · 300,00 €' }),
+      screen.getByRole('link', { name: /^Высокий риск без работы: 2 клиента · 300,00\s€$/ }),
     ).toHaveAttribute('href', '/queue?task=none&level=high');
   });
 
