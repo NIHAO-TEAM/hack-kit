@@ -1216,9 +1216,24 @@ export interface components {
             qualityCounts?: {
                 [key: string]: number;
             };
+            /** @description Ожидаемая потеря по причинам (признакам модели), по убыванию потери. Сумма lossCents равна expectedLossCents. Распределение по вкладу w·f признака, не доказанная причинность. */
+            lossByFeature: components["schemas"]["LossByFeature"][];
             retention?: components["schemas"]["SummaryRetention"];
             /** Format: int64 */
             version: number;
+        };
+        LossByFeature: {
+            /** @description Идентификатор признака модели (funds, noauto, fail и т. д.) */
+            featureId: string;
+            /** Format: int64 */
+            lossCents: number;
+            /** @description Клиенты с ненулевой долей потери по этой причине */
+            customers: number;
+            /**
+             * Format: double
+             * @description Доля в ожидаемой потере, 0..100, два знака
+             */
+            sharePercent: number;
         };
         /** @description Работа с клиентами; нет, если задачи удержания недоступны. Те же числа, что churn_retention_* в /metrics. */
         SummaryRetention: {
