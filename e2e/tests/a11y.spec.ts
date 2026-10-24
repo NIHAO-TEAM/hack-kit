@@ -20,7 +20,9 @@ const widths = [
   { w: 390, h: 844 },
 ];
 
-test.describe.configure({ mode: 'serial' });
+// Тест обходит все экраны и гоняет axe на каждом: в зелёном прогоне 19–25 с, на медленном
+// раннере упирался в лимит по умолчанию 30 с. Лимит 120 с — запас над измеренным, зависание остаётся красным.
+test.describe.configure({ mode: 'serial', timeout: 120_000 });
 
 test.beforeAll(() => {
   test.skip(!juryPassword, 'нужен E2E_JURY_PASSWORD');
