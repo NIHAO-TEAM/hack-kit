@@ -13,12 +13,13 @@ image:
 replicaCount: 1
 
 resources:
-  requests: {cpu: 100m, memory: 128Mi}
-  limits: {memory: 512Mi}
+  requests: {cpu: 250m, memory: 512Mi}
+  limits: {memory: 1536Mi}
 
 # Значения для env приложения, не секретные.
 env:
   HTTP_ADDR: ":8080"
+  DB_MAX_CONNS: "16"
   COOKIE_SECURE: "true"
   TRUSTED_PROXY: "true"
   SEED_ORGANIZERS: "false"
@@ -40,8 +41,25 @@ postgres:
   storage: 5Gi
   storageClassName: ""
   resources:
-    requests: {cpu: 100m, memory: 128Mi}
-    limits: {memory: 512Mi}
+    requests: {cpu: 250m, memory: 768Mi}
+    limits: {memory: 2Gi}
+  # Параметры сервера: shared_buffers 25 % лимита, effective_cache_size 75 %.
+  # fsync и full_page_writes не трогаем.
+  args:
+    - -c
+    - max_connections=100
+    - -c
+    - shared_buffers=512MB
+    - -c
+    - effective_cache_size=1536MB
+    - -c
+    - work_mem=16MB
+    - -c
+    - max_wal_size=4GB
+    - -c
+    - checkpoint_completion_target=0.9
+    - -c
+    - wal_compression=on
   # DATABASE_URL внешней базы (при enabled: false).
   externalUrl: ""
 
