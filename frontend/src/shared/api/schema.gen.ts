@@ -911,6 +911,32 @@ export interface components {
             startedAt?: string;
             error?: string;
             report?: components["schemas"]["StreamReport"];
+            /** @description Секундные отсчёты за последние 60 с прогона, старые первыми; нет у прогона, который ещё не набрал первую секунду. */
+            window?: components["schemas"]["StreamWindowPoint"][];
+        };
+        StreamWindowPoint: {
+            /** @description Секунда прогона, с которой отсчёт закончился (1 — первая). */
+            t: number;
+            /** @description Событий принято в очередь приёма за секунду. */
+            accepted: number;
+            /** @description Событий записано в базу за секунду. */
+            applied: number;
+            /** @description Событий не применено за секунду. */
+            failed: number;
+            /** @description Событий ждало в очереди приёма в конце секунды. */
+            queueDepth: number;
+            /**
+             * Format: float
+             * @description Средний размер записанной пачки за секунду; 0, если пачек не было.
+             */
+            batchSize: number;
+            /**
+             * Format: float
+             * @description Задержка «событие → очередь маркетолога», p95 по событиям, учтённым за секунду, мс; 0, если таких не было.
+             */
+            lagP95Ms: number;
+            /** @description Пересчётов движка за секунду. */
+            recalcs: number;
         };
         /** @enum {string} */
         RiskLevel: "high" | "medium" | "low" | "unscored" | "lost";

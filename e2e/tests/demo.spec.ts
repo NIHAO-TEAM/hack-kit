@@ -153,18 +153,22 @@ test('демо: очередь → карточка → потеря по при
     expect(drop).toBeGreaterThan(30_000);
     expect(drop).toBeLessThan(40_000);
 
-    // Шаг 6. Поток 2 500 событий и сверка с пересчётом с нуля («Источник»).
-    await test.step('Источник: поток 2 500 событий, согласованность 0 центов', async () => {
+    // Шаг 6. Залп 10 000 событий: живые графики во время прогона и сверка с пересчётом с нуля («Источник»).
+    await test.step('Источник: залп 10 000 событий, графики, согласованность 0 центов', async () => {
       const analystPage = await analystCtx.newPage();
       await uiLogin(analystPage, 'analyst', analystPassword);
       await gotoStable(analystPage, '/source', (p) => p.getByRole('region', { name: 'Поток событий' }));
       const panel = analystPage.getByRole('region', { name: 'Поток событий' });
-      await panel.getByLabel('Скорость').click();
-      await analystPage.getByRole('option', { name: 'Без пауз' }).click();
-      await panel.getByRole('button', { name: /Прогнать .*2.500.* событий/ }).click();
+      await expect(panel.getByLabel('Скорость')).toHaveValue('Как можно быстрее');
+      await panel.getByLabel('Залп, событий').click();
+      await analystPage.getByRole('option', { name: /^10\s000$/ }).click();
+      await panel.getByRole('button', { name: /Прогнать .*10.000.* событий/ }).click();
+      await expect(panel.getByRole('region', { name: 'Живые графики потока' })).toBeVisible({ timeout: 60_000 });
+      await expect(panel.getByRole('img', { name: /^Очередь приёма за последние 60 секунд/ })).toBeVisible();
       await expect(panel.getByRole('status').filter({ hasText: /Согласованность: пересчёт с нуля совпал \(разница 0\s¢/ })).toBeVisible({
         timeout: 180_000,
       });
+      await expect(panel.getByText('Ошибок 0 · потерянных 0 · согласованность 0 центов')).toBeVisible();
       await expect(panel.getByRole('region', { name: 'Итог прогона' })).toContainText('Применено событий');
       // Кнопка «Мониторинг» есть только у ролей с правом source.view: маркетологу её не показывают.
       await expect(analystPage.getByRole('link', { name: 'Мониторинг' })).toHaveAttribute('href', '/grafana/');
