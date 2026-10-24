@@ -284,3 +284,16 @@ func TestNoFeed(t *testing.T) {
 		t.Errorf("статус %d, ждали 503", w.Code)
 	}
 }
+
+func TestCustomerLostCents(t *testing.T) {
+	a := api(organizersPortfolio(t))
+	for id, want := range map[int64]int64{7: 680874, 9: 0} {
+		w, d := get(t, a, id)
+		if w.Code != 200 {
+			t.Fatalf("№%d: статус %d", id, w.Code)
+		}
+		if d.Customer.LostCents == nil || *d.Customer.LostCents != want {
+			t.Errorf("№%d: lostCents = %v, ждали %d", id, d.Customer.LostCents, want)
+		}
+	}
+}

@@ -62,11 +62,12 @@ const scenario: Array<Partial<CustomerRow> & { id: number }> = [
     level: 'lost',
     score: null,
     expectedLossCents: 0,
+    lostCents: 680874,
     topReason: 'услуги удалены биллингом',
   },
 ];
 
-function rows(): CustomerRow[] {
+export function rows(): CustomerRow[] {
   const accounts = new Map((data.accounts as Account[]).map((a) => [a.id, a]));
   return scenario.map((s) => {
     const a = accounts.get(s.id) ?? (data.accounts[0] as Account);

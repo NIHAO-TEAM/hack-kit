@@ -102,7 +102,7 @@ func buildCustomer(c risk.Customer, a risk.Account, svcs []risk.Service) analyti
 	out := analytics.Customer{
 		Row: gen.CustomerRow{
 			Id: c.ID, Email: a.Email, Balance: a.Balance, TotalReplenished: a.TotalReplenished,
-			Score: c.Score, Level: level, ExpectedLossCents: c.ExpectedLossCents,
+			Score: c.Score, Level: level, ExpectedLossCents: c.ExpectedLossCents, LostCents: &c.LostCents,
 		},
 		Account: gen.Account{
 			Id: a.ID, Email: a.Email, Balance: a.Balance, WithdrawBalance: a.WithdrawBalance,
