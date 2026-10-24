@@ -1,5 +1,6 @@
 import { HttpResponse, http } from 'msw';
 import type { components } from '@shared/api';
+import { openTaskBrief } from './tasks';
 
 type Detail = components['schemas']['CustomerDetail'];
 
@@ -176,13 +177,17 @@ export function customerDetailHandler(
     const base = fallback(id);
     if (!base) return problem(404, 'Клиент не найден');
     const extra = featured[id];
+    const task = openTaskBrief(id);
+    const detail = extra ? { ...base, ...extra } : base;
+    const withTask = (d: Detail): Detail => ({ ...d, customer: { ...d.customer, task } });
     if (id === 9) {
-      return HttpResponse.json({
-        ...base,
-        ...extra,
-        customer: { ...base.customer, score: 86.95, level: 'high', expectedLossCents: 318910 },
-      });
+      return HttpResponse.json(
+        withTask({
+          ...detail,
+          customer: { ...base.customer, score: 86.95, level: 'high', expectedLossCents: 318910 },
+        }),
+      );
     }
-    return HttpResponse.json(extra ? { ...base, ...extra } : base);
+    return HttpResponse.json(withTask(detail));
   });
 }

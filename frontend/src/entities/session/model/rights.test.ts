@@ -4,6 +4,7 @@ const all: Right[] = [
   'queue.view',
   'summary.view',
   'customer.view',
+  'tasks.view',
   'model.view',
   'model.edit',
   'source.view',
@@ -15,6 +16,7 @@ describe('can', () => {
       'queue.view',
       'summary.view',
       'customer.view',
+      'tasks.view',
     ]);
   });
 
@@ -24,6 +26,16 @@ describe('can', () => {
 
   it('без роли прав нет', () => {
     expect(all.some((r) => can(undefined, r))).toBe(false);
+  });
+});
+
+describe('can: tasks.edit', () => {
+  it.each<Role>(['marketer', 'admin', 'jury'])('%s работает с задачами', (role) => {
+    expect(can(role, 'tasks.edit')).toBe(true);
+  });
+
+  it('аналитик задачи только смотрит', () => {
+    expect(can('analyst', 'tasks.edit')).toBe(false);
   });
 });
 

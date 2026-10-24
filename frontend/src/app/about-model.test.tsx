@@ -33,6 +33,20 @@ describe('экран «О модели»', () => {
     expect(screen.getAllByText('Бонусы заблокированы').length).toBeGreaterThan(0);
   });
 
+  it('блок формулы доступен с клавиатуры и подписан', async () => {
+    signedInAs('marketer');
+    renderApp('/about');
+    const formula = await screen.findByLabelText('Формула модели');
+    expect(formula).toHaveAttribute('tabindex', '0');
+  });
+
+  it('у строчного кода нет собственной прокрутки', async () => {
+    signedInAs('marketer');
+    renderApp('/about');
+    const inline = await screen.findByText('tools/oracle');
+    expect(inline).toHaveStyle({ overflow: 'visible' });
+  });
+
   it('берёт веса из настроек сервера', async () => {
     signedInAs('analyst');
     server.use(

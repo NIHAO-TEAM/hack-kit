@@ -41,6 +41,8 @@ type CustomerCtx struct {
 	Customer Customer
 	Funds    FundsCtx
 	Services []Service // все услуги аккаунта, в том числе не живые
+	// Transactions — все транзакции услуг аккаунта.
+	Transactions []Transaction
 }
 
 // Action — действие с ценой (наполняет money-actions). Apply не меняет переданный снимок.
