@@ -55,11 +55,13 @@
 
 Нужен Docker с Compose. Три команды:
 
+<!-- quickstart:start -->
 ```sh
 cp .env.example .env
 # задайте в .env пароли и токены (случайное значение: openssl rand -hex 16)
 docker compose up -d
 ```
+<!-- quickstart:end -->
 
 Пустые `POSTGRES_PASSWORD` и `ADMIN_PASSWORD` — Compose или приложение не стартуют и называют переменную. База наружу не публикуется, снаружи доступен только порт приложения `8080`. Данные лежат в томе и переживают `docker compose down` (без `-v`).
 

@@ -1,8 +1,9 @@
 package risk
 
 import (
+	"cmp"
 	"math"
-	"sort"
+	"slices"
 )
 
 // FeatureLoss — часть ожидаемой потери, отнесённая к одному признаку (причине).
@@ -22,8 +23,9 @@ func AllocateLoss(loss int64, hits []FeatureHit) []int64 {
 		return nil
 	}
 	// сумма в порядке ID: тот же порядок у оракула, поэтому до последнего бита одно и то же значение
-	byID := append([]FeatureHit(nil), hits...)
-	sort.Slice(byID, func(i, j int) bool { return byID[i].ID < byID[j].ID })
+	var buf [16]FeatureHit
+	byID := append(buf[:0], hits...)
+	slices.SortFunc(byID, func(a, b FeatureHit) int { return cmp.Compare(a.ID, b.ID) })
 	var total float64
 	for _, h := range byID {
 		total += h.Contribution
@@ -74,11 +76,11 @@ func lossByFeature(customers []Customer) []FeatureLoss {
 	for _, fl := range sums {
 		out = append(out, *fl)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].LossCents != out[j].LossCents {
-			return out[i].LossCents > out[j].LossCents
+	slices.SortFunc(out, func(a, b FeatureLoss) int {
+		if a.LossCents != b.LossCents {
+			return cmp.Compare(b.LossCents, a.LossCents)
 		}
-		return out[i].ID < out[j].ID
+		return cmp.Compare(a.ID, b.ID)
 	})
 	return out
 }

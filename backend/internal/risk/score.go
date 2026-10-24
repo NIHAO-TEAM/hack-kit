@@ -1,10 +1,11 @@
 package risk
 
 import (
+	"cmp"
 	"context"
 	"math"
 	"runtime"
-	"sort"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -161,17 +162,11 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 }
 
 func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check, as []Action) (Result, error) {
-	svcByOwner := map[int64][]Service{}
-	for _, sv := range s.Services {
-		svcByOwner[sv.OwnerID] = append(svcByOwner[sv.OwnerID], sv)
-	}
-	txByService := map[int64][]Transaction{}
-	for _, t := range s.Transactions {
-		txByService[t.ServiceID] = append(txByService[t.ServiceID], t)
-	}
+	svcByOwner := groupBy(s.Services, func(sv Service) int64 { return sv.OwnerID })
+	txByService := groupBy(s.Transactions, func(t Transaction) int64 { return t.ServiceID })
 
 	accounts := append([]Account(nil), s.Accounts...)
-	sort.Slice(accounts, func(i, j int) bool { return accounts[i].ID < accounts[j].ID })
+	slices.SortFunc(accounts, func(a, b Account) int { return cmp.Compare(a.ID, b.ID) })
 
 	res := Result{AsOf: asOf, Summary: Summary{
 		Levels:        map[string]int{LevelHigh: 0, LevelMedium: 0, LevelLow: 0, StateLost: 0, StateUnscored: 0},
@@ -184,11 +179,11 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 	// Клиенты не зависят друг от друга: считаем их параллельно в слайс по индексу, а сводку и
 	// проверки собираем потом по порядку индекса — результат тот же, что при последовательном счёте.
 	customers := make([]Customer, len(accounts))
-	err := parallelFor(ctx, len(accounts), opt, func(i int) {
+	err := parallelFor(ctx, len(accounts), opt, func(w *scratch, i int) {
 		a := accounts[i]
-		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs)
+		c, funds := scoreCustomer(a, svcByOwner[a.ID], txByService, st, asOf, fs, cs, false)
 		if c.State == StateScored {
-			c.Actions, c.ActionComboCents = actionResults(s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
+			c.Actions, c.ActionComboCents = actionResults(w, s.AsOf, svcByOwner[a.ID], txByService, st, asOf, a, c, funds, fs, cs, as)
 		}
 		customers[i] = c
 	})
@@ -251,18 +246,43 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 // parallelFor вызывает fn(i) для i в [0, n) пулом воркеров. Индексы нарезаны на пачки: воркер берёт
 // следующую пачку атомарным счётчиком, пишет результат в свою ячейку по индексу, общих блокировок нет.
 // Между пачками проверяется ctx: после отмены новые пачки не берутся, возвращается ошибка контекста.
-func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error {
+//
+// groupBy раскладывает элементы по ключу с сохранением порядка. Группы — срезы одного общего массива:
+// вместо append на каждый ключ — три выделения на весь индекс. Срез группы ограничен ёмкостью (cap = len),
+// дописать в него нельзя, чужую группу он не затрёт.
+func groupBy[T any](items []T, key func(T) int64) map[int64][]T {
+	counts := make(map[int64]int)
+	for _, it := range items {
+		counts[key(it)]++
+	}
+	all := make([]T, len(items))
+	out := make(map[int64][]T, len(counts))
+	pos := 0
+	for k, n := range counts {
+		out[k] = all[pos : pos : pos+n]
+		pos += n
+	}
+	for _, it := range items {
+		k := key(it)
+		out[k] = append(out[k], it)
+	}
+	return out
+}
+
+// scratch — буферы воркера для действий: живут весь прогон воркера и переиспользуются между его клиентами.
+// В результат ничего из них не попадает.
+func parallelFor(ctx context.Context, n int, opt Options, fn func(w *scratch, i int)) error {
 	batch := opt.BatchSize
 	if batch <= 0 {
 		batch = DefaultBatchSize
 	}
-	run := func(lo, hi int) {
+	run := func(w *scratch, lo, hi int) {
 		var t0 time.Time
 		if opt.OnBatch != nil {
 			t0 = time.Now()
 		}
 		for i := lo; i < hi; i++ {
-			fn(i)
+			fn(w, i)
 		}
 		if opt.OnBatch != nil {
 			opt.OnBatch(hi-lo, time.Since(t0))
@@ -270,11 +290,12 @@ func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error 
 	}
 	workers := Workers(n)
 	if workers <= 1 {
+		w := &scratch{}
 		for lo := 0; lo < n; lo += batch {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			run(lo, min(lo+batch, n))
+			run(w, lo, min(lo+batch, n))
 		}
 		return nil
 	}
@@ -284,12 +305,13 @@ func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			w := &scratch{}
 			for ctx.Err() == nil {
 				lo := int(next.Add(int64(batch))) - batch
 				if lo >= n {
 					return
 				}
-				run(lo, min(lo+batch, n))
+				run(w, lo, min(lo+batch, n))
 			}
 		}()
 	}
@@ -297,31 +319,39 @@ func parallelFor(ctx context.Context, n int, opt Options, fn func(i int)) error 
 	return ctx.Err()
 }
 
+// scratch — буферы воркера для расчёта действий (данные одного клиента). Перезаписываются на каждом клиенте.
+type scratch struct {
+	acct [1]Account
+	svcs []Service
+	txs  []Transaction
+}
+
 // actionResults применяет каждое подходящее действие к копии снимка, где изменён только этот клиент.
 // Копия содержит только данные клиента (аккаунт, его услуги и их платежи): действия и пересчёт
 // клиента от остальных не зависят, а копировать весь снимок на каждое действие — квадратичная
-// работа (на 10 000 аккаунтов пересчёт шёл минуту с лишним).
-func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]Transaction, st Settings, asOf time.Time,
+// работа (на 10 000 аккаунтов пересчёт шёл минуту с лишним). Копия лежит в буферах воркера.
+func actionResults(w *scratch, snapAsOf time.Time, svcs []Service, txByService map[int64][]Transaction, st Settings, asOf time.Time,
 	a Account, c Customer, funds FundsCtx, fs []Feature, cs []Check, as []Action) ([]ActionResult, *int64) {
 	out := []ActionResult{}
 	var applicable []Action
-	ctx := CustomerCtx{Account: a, Customer: c, Funds: funds}
-	ctx.Services = append(ctx.Services, svcs...)
-	s := Snapshot{AsOf: snapAsOf, Accounts: []Account{a}, Services: ctx.Services}
-	for _, sv := range s.Services {
-		s.Transactions = append(s.Transactions, txByService[sv.ID]...)
+	w.acct[0] = a
+	w.svcs = append(w.svcs[:0], svcs...)
+	w.txs = w.txs[:0]
+	for _, sv := range w.svcs {
+		w.txs = append(w.txs, txByService[sv.ID]...)
 	}
-	ctx.Transactions = s.Transactions
+	ctx := CustomerCtx{Account: a, Customer: c, Funds: funds, Services: w.svcs, Transactions: w.txs}
+	s := Snapshot{AsOf: snapAsOf, Accounts: w.acct[:], Services: w.svcs, Transactions: w.txs}
 	for _, act := range as {
 		if !act.Applies(ctx) {
 			continue
 		}
 		applicable = append(applicable, act)
-		after := scoreOne(applyAction(act, s, a.ID, st), a.ID, st, asOf, fs, cs)
 		var cost int64
 		if ca, ok := act.(costAction); ok {
 			cost = ca.CostCents(ctx)
 		}
+		after := scoreOne(applyAction(act, s, a.ID, st), s, a.ID, txByService, st, asOf, fs, cs)
 		delta := after.ExpectedLossCents - c.ExpectedLossCents
 		out = append(out, ActionResult{
 			ID:             act.ID(),
@@ -335,8 +365,8 @@ func actionResults(snapAsOf time.Time, svcs []Service, txByService map[int64][]T
 		})
 	}
 	// первое — главное действие: наибольшее снижение потери (правило 9)
-	sort.SliceStable(out, func(i, j int) bool { return out[i].LossDeltaCents < out[j].LossDeltaCents })
-	return out, actionCombo(applicable, s, a.ID, st, asOf, c, fs, cs)
+	slices.SortStableFunc(out, func(a, b ActionResult) int { return cmp.Compare(a.LossDeltaCents, b.LossDeltaCents) })
+	return out, actionCombo(applicable, s, a.ID, txByService, st, asOf, c, fs, cs)
 }
 
 func applyAction(act Action, s Snapshot, accountID int64, st Settings) Snapshot {
@@ -357,7 +387,7 @@ func returnPerEuro(deltaCents, costCents int64) *float64 {
 
 // actionCombo — эффект применения всех применимых действий подряд (порядок comboOrder),
 // каждое к результату предыдущего. Меньше двух действий — сочетания нет.
-func actionCombo(applicable []Action, s Snapshot, accountID int64, st Settings, asOf time.Time, c Customer,
+func actionCombo(applicable []Action, s Snapshot, accountID int64, txByService map[int64][]Transaction, st Settings, asOf time.Time, c Customer,
 	fs []Feature, cs []Check) *int64 {
 	if len(applicable) < 2 {
 		return nil
@@ -369,47 +399,56 @@ func actionCombo(applicable []Action, s Snapshot, accountID int64, st Settings, 
 		}
 		return len(comboOrder)
 	}
-	sort.SliceStable(ordered, func(i, j int) bool { return rank(ordered[i]) < rank(ordered[j]) })
+	slices.SortStableFunc(ordered, func(a, b Action) int { return cmp.Compare(rank(a), rank(b)) })
 	cur := s
 	for _, act := range ordered {
 		cur = applyAction(act, cur, accountID, st)
 	}
-	d := scoreOne(cur, accountID, st, asOf, fs, cs).ExpectedLossCents - c.ExpectedLossCents
+	d := scoreOne(cur, s, accountID, txByService, st, asOf, fs, cs).ExpectedLossCents - c.ExpectedLossCents
 	return &d
 }
 
-// scoreOne считает одного клиента без действий.
-func scoreOne(s Snapshot, accountID int64, st Settings, asOf time.Time, fs []Feature, cs []Check) Customer {
-	txByService := map[int64][]Transaction{}
-	for _, t := range s.Transactions {
-		txByService[t.ServiceID] = append(txByService[t.ServiceID], t)
+// sameTransactions — действие вернуло те же транзакции, что получило (не пересобрало срез).
+func sameTransactions(a, b []Transaction) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
+}
+
+// scoreOne считает одного клиента без действий. Тексты причин не нужны: важны только потеря, скор и уровень.
+// Если действие не тронуло транзакции, берётся индекс снимка (orig — снимок до действия, byService — его индекс).
+func scoreOne(s, orig Snapshot, accountID int64, byService map[int64][]Transaction, st Settings, asOf time.Time, fs []Feature, cs []Check) Customer {
+	txByService := byService
+	if !sameTransactions(s.Transactions, orig.Transactions) {
+		txByService = map[int64][]Transaction{}
+		for _, t := range s.Transactions {
+			txByService[t.ServiceID] = append(txByService[t.ServiceID], t)
+		}
 	}
 	for _, a := range s.Accounts {
 		if a.ID != accountID {
 			continue
 		}
-		var svcs []Service
+		svcs := make([]Service, 0, len(s.Services))
 		for _, sv := range s.Services {
 			if sv.OwnerID == accountID {
 				svcs = append(svcs, sv)
 			}
 		}
-		c, _ := scoreCustomer(a, svcs, txByService, st, asOf, fs, cs)
+		c, _ := scoreCustomer(a, svcs, txByService, st, asOf, fs, cs, true)
 		return c
 	}
 	return Customer{ID: accountID, State: StateUnscored}
 }
 
 func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transaction, st Settings, asOf time.Time,
-	fs []Feature, cs []Check) (Customer, FundsCtx) {
+	fs []Feature, cs []Check, noReason bool) (Customer, FundsCtx) {
 	c := Customer{ID: a.ID, Actions: []ActionResult{}}
 	if len(svcs) == 0 {
 		c.State = StateUnscored
 		return c, FundsCtx{}
 	}
-	sort.Slice(svcs, func(i, j int) bool { return svcs[i].ID < svcs[j].ID })
+	slices.SortFunc(svcs, func(a, b Service) int { return cmp.Compare(a.ID, b.ID) })
 
-	var live []Service
+	live := make([]Service, 0, len(svcs))
 	for _, sv := range svcs {
 		if sv.IsLive() {
 			live = append(live, sv)
@@ -431,8 +470,9 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 
 	funds := accountFunds(a, live, asOf, st)
 	best := 0.0
+	c.Services = make([]ServiceResult, 0, len(live))
 	for _, sv := range live {
-		ctx := ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID], Funds: funds}
+		ctx := ServiceCtx{AsOf: asOf, Account: a, Service: sv, Transactions: txByService[sv.ID], Funds: funds, NoReason: noReason}
 		sr := scoreService(ctx, st, fs, cs)
 		c.Services = append(c.Services, sr)
 		c.ExpectedLossCents += sr.LossCents
@@ -455,6 +495,7 @@ func scoreCustomer(a Account, svcs []Service, txByService map[int64][]Transactio
 func scoreService(ctx ServiceCtx, st Settings, fs []Feature, cs []Check) ServiceResult {
 	sr := ServiceResult{ID: ctx.Service.ID, RCents: amount(ctx.Service, ctx.AsOf, st.horizonHours(), st.PriceBasis)}
 	q := 1.0
+	sr.Features = make([]FeatureHit, 0, len(fs))
 	for _, f := range fs {
 		v, reason, ok := f.Eval(ctx)
 		if !ok {
@@ -465,13 +506,16 @@ func scoreService(ctx ServiceCtx, st Settings, fs []Feature, cs []Check) Service
 		q *= 1 - w*v
 		sr.Features = append(sr.Features, FeatureHit{ID: f.ID(), F: v, Weight: w, Contribution: w * v, Reason: reason})
 	}
+	if len(sr.Features) == 0 {
+		sr.Features = nil
+	}
 	sr.P = 1 - q
 	sr.LossCents = int64(math.RoundToEven(sr.P * float64(sr.RCents)))
-	sort.SliceStable(sr.Features, func(i, j int) bool {
-		if sr.Features[i].Contribution != sr.Features[j].Contribution {
-			return sr.Features[i].Contribution > sr.Features[j].Contribution
+	slices.SortStableFunc(sr.Features, func(a, b FeatureHit) int {
+		if a.Contribution != b.Contribution {
+			return cmp.Compare(b.Contribution, a.Contribution)
 		}
-		return sr.Features[i].ID < sr.Features[j].ID
+		return cmp.Compare(a.ID, b.ID)
 	})
 	h := qualityFlags(ctx, cs)
 	sr.Quality, sr.QualityIDs = h.Messages, h.IDs
