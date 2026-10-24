@@ -35,3 +35,23 @@
 - WHEN клиент отправляет `GET /healthz` с `Accept: text/html`
 - THEN ответ `200`, `Content-Type: application/json`, тело `{"status":"ok"}`
 - Тест: `TestHealthzAccept/браузерный_Accept`
+
+### Requirement: готовность отдельно от живости
+
+Сервер SHALL отвечать на `GET /readyz` кодом `200` только когда БД доступна и первый пересчёт готов; во время остановки — `503`.
+
+#### Scenario: до первого пересчёта
+
+- WHEN сервер запущен, первый пересчёт не завершён
+- THEN `/readyz` отвечает `503`, `/healthz` — `200`
+- Тест: `TestReadyHandler/первый_пересчёт_не_готов`, `TestReadyzServed`
+
+### Requirement: плавная остановка
+
+По SIGTERM сервер SHALL перестать принимать новые соединения, дослать идущие запросы, закрыть SSE-потоки и остановить воркеры до выхода.
+
+#### Scenario: выкат под нагрузкой
+
+- WHEN идёт запрос на 300 мс и открыт SSE-поток, приходит SIGTERM
+- THEN `/readyz` сразу `503`, запрос получает `200`, SSE закрыт, процесс завершился до `SHUTDOWN_TIMEOUT`
+- Тест: `TestServeGracefulShutdown`
