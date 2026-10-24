@@ -20,7 +20,10 @@ export function can(role: Role | undefined, right: Right): boolean {
   return role !== undefined && matrix[role].includes(right);
 }
 
-/** Стартовая страница роли (ADR-0001: маркетолог — очередь, аналитик — модель). */
+/**
+ * Стартовая страница роли (ADR-0001: маркетолог — очередь, аналитик — модель).
+ * Жюри начинает с очереди: демо-сценарий идёт от входа к очереди.
+ */
 export function homePath(role: Role): '/queue' | '/model' {
-  return role === 'marketer' ? '/queue' : '/model';
+  return role === 'marketer' || role === 'jury' ? '/queue' : '/model';
 }

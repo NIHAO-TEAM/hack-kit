@@ -57,6 +57,15 @@ describe('вход и выход', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/queue'));
   });
 
+  it('вход жюри открывает очередь', async () => {
+    const user = userEvent.setup();
+    const { router } = renderApp('/login');
+    await user.type(await screen.findByLabelText('Логин'), 'jury');
+    await user.type(screen.getByLabelText('Пароль'), 'demo');
+    await user.click(screen.getByRole('button', { name: 'Войти' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/queue'));
+  });
+
   it('неверный пароль: текст ошибки, логин сохранён', async () => {
     const user = userEvent.setup();
     renderApp('/login');

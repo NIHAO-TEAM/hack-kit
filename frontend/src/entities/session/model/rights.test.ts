@@ -28,8 +28,10 @@ describe('can', () => {
 });
 
 describe('homePath', () => {
-  it('маркетолог начинает с очереди, остальные с модели', () => {
+  it('маркетолог и жюри начинают с очереди, аналитик и администратор с модели', () => {
     expect(homePath('marketer')).toBe('/queue');
+    expect(homePath('jury')).toBe('/queue');
     expect(homePath('analyst')).toBe('/model');
+    expect(homePath('admin')).toBe('/model');
   });
 });
