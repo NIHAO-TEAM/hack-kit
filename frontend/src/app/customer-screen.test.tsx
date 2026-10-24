@@ -53,12 +53,12 @@ describe('экран «Карточка клиента»', () => {
     await screen.findByRole('table', { name: /Признаки риска/ }, { timeout: 5000 });
     const controls = document.querySelectorAll<HTMLElement>('[data-accordion-control]');
     await user.click(controls[1]!);
-    expect(screen.getAllByText(/Вероятность непродления P = 0,56 \(56 %\)/)).toHaveLength(2);
-    expect(screen.getAllByText(/ожидаемая потеря P·R/)[1]).toHaveTextContent(/3\s451,78\s€/);
+    expect(screen.getAllByText(/Вероятность непродления P = 0,52 \(52 %\)/)).toHaveLength(2);
+    expect(screen.getAllByText(/ожидаемая потеря P·R/)[1]).toHaveTextContent(/3\s181,71\s€/);
     const [table] = screen.getAllByRole('table', { name: 'Признаки услуги' });
     expect(within(table!).getByText('funds')).toBeInTheDocument();
     for (const f of screen.getAllByTestId('service-formula'))
-      expect(f).toHaveTextContent(/= (0,88|0,56)$/);
+      expect(f).toHaveTextContent(/= (0,87|0,52)$/);
     expect(screen.queryByText(/появятся, когда сервер/)).toBeNull();
   });
 
@@ -68,7 +68,7 @@ describe('экран «Карточка клиента»', () => {
       await screen.findByText(/Сумма потерь по услугам = ожидаемая потеря клиента/, undefined, {
         timeout: 5000,
       }),
-    ).toHaveTextContent(/3\s459,27\s€/);
+    ).toHaveTextContent(/3\s189,10\s€/);
     expect(screen.queryByText('Сумма не сходится с шапкой')).toBeNull();
   });
 

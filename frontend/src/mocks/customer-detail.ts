@@ -53,15 +53,15 @@ const featured: Record<
     ],
     explanation: 'Платежи на 30 дней × вероятность срыва',
     // Оценки услуг 9, 19, 29 — расчёт по testdata/golden/organizers.json (веса из настроек, R и P·R
-    // сходятся с ожидаемой потерей клиента 345 927).
+    // сходятся с ожидаемой потерей клиента 318 910).
     // R: golden даёт только Σ R = 616 450 (`exposureCents`) и признаки; R по услугам — из прайса `data.json`
     // и числа списаний за 720 ч (`risk/charges.go`): 850 + 615 600 + 0 (полугодовая услуга 29 в горизонт не продлевается).
     serviceRisks: [
       {
         serviceId: 9,
-        probability: 0.881394,
+        probability: 0.869549,
         rCents: 850,
-        lossCents: 749,
+        lossCents: 739,
         features: [
           {
             id: 'noauto',
@@ -94,18 +94,18 @@ const featured: Record<
           {
             id: 'flight',
             value: 0.605337,
-            weight: 0.15,
-            contribution: 0.0908,
-            reason: 'Баланс уходит',
+            weight: 0,
+            contribution: 0,
+            reason: 'Часть баланса доступна к выводу. Факт вывода в данных не виден',
           },
         ],
         quality: [],
       },
       {
         serviceId: 19,
-        probability: 0.560718,
+        probability: 0.516847,
         rCents: 615600,
-        lossCents: 345178,
+        lossCents: 318171,
         features: [
           {
             id: 'funds',
@@ -124,16 +124,16 @@ const featured: Record<
           {
             id: 'flight',
             value: 0.605337,
-            weight: 0.15,
-            contribution: 0.0908,
-            reason: 'Баланс уходит',
+            weight: 0,
+            contribution: 0,
+            reason: 'Часть баланса доступна к выводу. Факт вывода в данных не виден',
           },
         ],
         quality: [],
       },
       {
         serviceId: 29,
-        probability: 0.560718,
+        probability: 0.516847,
         rCents: 0,
         lossCents: 0,
         features: [
@@ -154,9 +154,9 @@ const featured: Record<
           {
             id: 'flight',
             value: 0.605337,
-            weight: 0.15,
-            contribution: 0.0908,
-            reason: 'Баланс уходит',
+            weight: 0,
+            contribution: 0,
+            reason: 'Часть баланса доступна к выводу. Факт вывода в данных не виден',
           },
         ],
         quality: [],
