@@ -271,19 +271,23 @@ func (p *pendingLag) add(version int64, at time.Time) {
 	p.mu.Unlock()
 }
 
-// settle засчитывает задержку всем событиям, версия которых уже вошла в результат пересчёта.
-func (p *pendingLag) settle(dataVersion int64, now time.Time) {
+// settle засчитывает задержку всем событиям, версия которых уже вошла в результат пересчёта;
+// возвращает задержки, засчитанные этим вызовом.
+func (p *pendingLag) settle(dataVersion int64, now time.Time) []time.Duration {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	var fresh []time.Duration
 	keep := p.pending[:0]
 	for _, e := range p.pending {
 		if e.version <= dataVersion {
-			p.lags = append(p.lags, now.Sub(e.at))
+			fresh = append(fresh, now.Sub(e.at))
 		} else {
 			keep = append(keep, e)
 		}
 	}
 	p.pending = keep
+	p.lags = append(p.lags, fresh...)
+	return fresh
 }
 
 // runStream ставит события в очередь приёма, которая пишет их пачками, и собирает отчёт. Работает в своей горутине.
@@ -309,6 +313,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 	}
 
 	lag := &pendingLag{}
+	win := newWindowRecorder(startRecalcs)
 	stopWatch := make(chan struct{})
 	watchDone := make(chan struct{})
 	go func() {
@@ -321,7 +326,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 				return
 			case <-t.C:
 				if v, ok := a.observer.StreamLatest(); ok {
-					lag.settle(v.DataVersion, time.Now())
+					win.addLags(lag.settle(v.DataVersion, time.Now()))
 				}
 			}
 		}
@@ -348,22 +353,57 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		func(version int64) { a.bus.Publish(TopicChanged, version) },
 		func(res []ingestResult) {
 			now := time.Now()
+			okN, badN := 0, 0
 			for _, r := range res {
 				applyDur = append(applyDur, r.dur)
 				streamApply.Observe(r.dur.Seconds())
 				if r.err != nil {
 					failed++
+					badN++
 					streamEvents.WithLabelValues("failed").Inc()
 					log.Printf("source: поток %s: событие %d не применено: %v", runID, r.seq, r.err)
 					continue
 				}
 				applied++
+				okN++
 				streamEvents.WithLabelValues("applied").Inc()
 				lag.add(r.version, now)
 			}
+			win.addBatch(okN, badN)
 			progress(false)
 		})
 	ing.start(ctx)
+	publishWindow := func() {
+		recalcs := startRecalcs
+		if v, ok := a.observer.StreamLatest(); ok {
+			recalcs = v.Recalcs
+		}
+		pts := win.tick(ing.queueLen(), recalcs)
+		st := a.stream.update(func(s *gen.StreamState) { s.Window = &pts })
+		a.bus.Publish(TopicStreamProgress, st)
+	}
+	stopTick := make(chan struct{})
+	tickDone := make(chan struct{})
+	go func() {
+		defer close(tickDone)
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-stopTick:
+				return
+			case <-t.C:
+				publishWindow()
+			}
+		}
+	}()
+	// stopWindow останавливает тикер и сбрасывает последнюю неполную секунду отдельной точкой:
+	// короткий прогон (меньше секунды) всё равно оставляет в окне хотя бы одну точку.
+	stopWindow := func() {
+		close(stopTick)
+		<-tickDone
+		publishWindow()
+	}
 	var gap time.Duration
 	if rate > 0 {
 		gap = time.Second / time.Duration(rate)
@@ -379,17 +419,21 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		}
 		if !ing.submit(ctx, i, ev) || ctx.Err() != nil {
 			ing.finish()
+			stopWindow()
 			close(stopWatch)
 			<-watchDone
 			fail(fmt.Errorf("прогон прерван: %w", ctx.Err()))
 			return
 		}
+		win.addAccepted()
 	}
 	ing.finish()
 	progress(true)
 	elapsed := time.Since(started)
 
+	// тикер окна живёт до конца сверки: очередь и пересчёты видны, пока идёт settleAndVerify
 	after, cons, err := a.settleAndVerify(ctx)
+	stopWindow()
 	close(stopWatch)
 	<-watchDone
 	if err != nil {
