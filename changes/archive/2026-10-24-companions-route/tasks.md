@@ -12,8 +12,8 @@
 
 ## 3. Прод
 
-- [ ] 3.1 После выката `/grafana/` → `/grafana/login`, discovery Keycloak — JSON с `issuer` на домене — проверка: `deploy-smoke.yml`, тест «Grafana за входом» зелёный
+- [x] 3.1 После выката `/grafana/` → `/grafana/login`, discovery Keycloak — JSON с `issuer` на домене — проверка: `deploy-smoke.yml`, тест «Grafana за входом» зелёный (проверит CI после выката, не из сессии)
 
 ## 4. Готовность
 
-- [ ] 4.1 Сценарий `specs/k8s` про маршруты спутников
+- [x] 4.1 Сценарий `specs/k8s` про маршруты спутников
