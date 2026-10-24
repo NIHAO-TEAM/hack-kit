@@ -1244,6 +1244,58 @@ components:
         asOfMode:
           type: string
           enum: [snapshot, server]
+    ModelSensitivity:
+      type: object
+      required: [features, shiftPercent, sampled, customers, snapshotVersion, settingsVersion]
+      properties:
+        shiftPercent:
+          type: integer
+          description: Размер сдвига веса, процентов (20).
+        sampled:
+          type: boolean
+          description: Расчёт на выборке; число сменивших уровень тогда относится к выборке.
+        customers:
+          type: integer
+          minimum: 0
+          description: Сколько клиентов в расчёте (размер выборки, если sampled).
+        snapshotVersion:
+          type: integer
+          format: int64
+        settingsVersion:
+          type: integer
+          format: int64
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureSensitivity"
+    FeatureSensitivity:
+      type: object
+      required: [id, weight, down, up]
+      properties:
+        id:
+          type: string
+        weight:
+          type: number
+          format: double
+        down:
+          $ref: "#/components/schemas/WeightShift"
+        up:
+          $ref: "#/components/schemas/WeightShift"
+    WeightShift:
+      type: object
+      required: [levelChanges, topThreeChanged, lossDeltaCents]
+      properties:
+        levelChanges:
+          type: integer
+          minimum: 0
+          description: Сколько клиентов сменили уровень.
+        topThreeChanged:
+          type: boolean
+          description: Изменился ли состав первой тройки по ожидаемой потере.
+        lossDeltaCents:
+          type: integer
+          format: int64
+          description: Изменение суммарной ожидаемой потери, евроцентов.
     DryRunResult:
       type: object
       required: [levelChanges, expectedLossDeltaCents]
@@ -1970,6 +2022,37 @@ paths:
           $ref: "#/components/responses/UnprocessableEntity"
         "501":
           $ref: "#/components/responses/NotImplemented"
+  /api/v1/model/sensitivity:
+    get:
+      operationId: getModelSensitivity
+      tags: [model]
+      summary: Чувствительность очереди к весам признаков (аналитик, jury)
+      description: >-
+        Для каждого признака с ненулевым весом: что будет, если сдвинуть вес на −20 % и на +20 %.
+        Только чтение, сохранённые настройки не меняются. Результат кэшируется по версии снимка и
+        настроек. Клиентов больше 20 000 — расчёт на выборке 5 000 (sampled=true).
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Чувствительность
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSensitivity"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+        "503":
+          description: Расчёт не уложился в 10 секунд или ещё нет снимка данных
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
   /api/v1/source/snapshot:
     put:
       operationId: putSnapshot
