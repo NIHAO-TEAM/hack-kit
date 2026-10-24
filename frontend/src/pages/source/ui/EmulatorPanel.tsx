@@ -9,7 +9,7 @@ import { useAfterWrite } from './useAfterWrite';
 export function EmulatorPanel() {
   const after = useAfterWrite();
   const [customer, setCustomer] = useState<number | ''>('');
-  const [euros, setEuros] = useState('');
+  const [euros, setEuros] = useState<string | number>('');
   const [error, setError] = useState<string | null>(null);
 
   const run = useMutation({
@@ -25,7 +25,7 @@ export function EmulatorPanel() {
   }
 
   function topUp() {
-    const cents = eurosToCents(euros);
+    const cents = eurosToCents(String(euros));
     if (cents === null || cents === 0) return setError('Сумма пополнения в евро, например 529,84');
     withCustomer((id) => emulatorActions([{ actionId: 'top_up', customerId: id, cents }]));
   }
@@ -72,7 +72,7 @@ export function EmulatorPanel() {
             decimalSeparator=","
             decimalScale={2}
             value={euros}
-            onChange={(v) => setEuros(String(v).replace('.', ','))}
+            onChange={setEuros}
           />
           <Button variant="default" loading={run.isPending} onClick={topUp}>
             Пополнить
