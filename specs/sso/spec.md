@@ -87,3 +87,19 @@
 - WHEN Keycloak падает на старте с сообщением, где есть слово `password`
 - THEN текст ошибки есть в логе выката, значения переменных заменены на `***`
 - Тест: проверка `sed` на строках ошибки и `KEY=value` (вручную, см. design.md)
+
+### Requirement: ключи SSO из выката
+
+Выкат SHALL дописывать недостающие ключи SSO в `.env` сервера до старта приложения и Keycloak.
+
+#### Scenario: сервер без блока SSO
+
+- WHEN в `.env` нет `KC_SECURE_PASSWORD`, `KC_SECURE_TOTP_SECRET`, `OIDC_CLIENT_SECRET` и `OIDC_*`, запущен выкат
+- THEN ключи дописаны без значений в логе, у приложения и в realm один `OIDC_CLIENT_SECRET`, discovery `/sso` отвечает 200
+- Тест: прогон `deploy/k3s/sso-env.sh` на копии `.env` (вручную); discovery — `e2e/tests/smoke.spec.ts`
+
+#### Scenario: ключи уже есть
+
+- WHEN все ключи SSO заданы
+- THEN `.env` не меняется
+- Тест: повторный прогон `deploy/k3s/sso-env.sh` на той же копии (вручную, `cmp`)
