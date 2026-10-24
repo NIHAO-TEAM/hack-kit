@@ -1339,10 +1339,12 @@ export interface operations {
                 level?: components["schemas"]["RiskLevel"];
                 /** @description Подстрока email или id */
                 q?: string;
-                sort?: "id" | "email" | "balance" | "totalReplenished" | "score" | "expectedLoss";
-                order?: "asc" | "desc";
-                /** @description `exclude` — без строк «к биллингу», `only` — только они, не задан — все. */
-                billing?: "exclude" | "only";
+                /** @description Как у списка: id, email, balance, totalReplenished, score, expectedLoss; по умолчанию expectedLoss. */
+                sort?: string;
+                /** @description asc или desc; по умолчанию desc. */
+                order?: string;
+                /** @description `exclude` — без строк «к биллингу», `only` — только они, не задан — все. Другое значение — 400. */
+                billing?: string;
             };
             header?: never;
             path?: never;

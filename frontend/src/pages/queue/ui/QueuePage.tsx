@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import {
+  customersExportHref,
   customersOptions,
   QUEUE_PAGE_SIZE,
   type CustomerParams,
@@ -13,6 +14,7 @@ import {
 import { ApiError } from '@shared/api';
 import type { Role } from '@entities/session';
 import {
+  IconDownload,
   IconSearch,
   StateEmpty,
   StateError,
@@ -199,6 +201,15 @@ export function QueuePage({
             onParams(withView({ ...params, level: (value as RiskLevel | null) ?? undefined }))
           }
         />
+        <Button
+          component="a"
+          href={customersExportHref(params)}
+          download
+          variant="default"
+          leftSection={<IconDownload size={16} aria-hidden />}
+        >
+          Скачать CSV
+        </Button>
       </Group>
       {body}
       <BillingGroup

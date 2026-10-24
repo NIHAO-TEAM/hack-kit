@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { HttpResponse, http } from 'msw';
 import { server } from '../../../mocks/server';
-import { customersOptions } from './customers';
+import { customersExportHref, customersOptions } from './customers';
 
 describe('customersOptions', () => {
   it('ключ содержит параметры: смена сортировки — другой запрос', () => {
@@ -43,5 +43,31 @@ describe('customersOptions', () => {
     await new QueryClient().fetchQuery(customersOptions({ sort: 'expectedLoss', order: 'desc' }));
     expect(query.get('limit')).toBe('200');
     expect(query.has('offset')).toBe(false);
+  });
+});
+
+describe('customersExportHref', () => {
+  it('несёт сортировку, уровень и поиск, без страниц', () => {
+    const href = customersExportHref({
+      sort: 'balance',
+      order: 'asc',
+      level: 'high',
+      q: 'a@b.test',
+      page: 3,
+      limit: 50,
+    });
+    const url = new URL(href, 'http://x');
+    expect(url.pathname).toBe('/api/v1/customers/export.csv');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      sort: 'balance',
+      order: 'asc',
+      level: 'high',
+      q: 'a@b.test',
+    });
+  });
+
+  it('без фильтров — только сортировка', () => {
+    const url = new URL(customersExportHref({ sort: 'expectedLoss', order: 'desc' }), 'http://x');
+    expect([...url.searchParams.keys()]).toEqual(['sort', 'order']);
   });
 });
