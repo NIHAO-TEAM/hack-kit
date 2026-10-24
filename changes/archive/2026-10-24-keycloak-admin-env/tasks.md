@@ -4,9 +4,9 @@
 
 ## 1. Выкат
 
-- [x] 1.1 `single-ingress.sh`: дописать непустой `KC_ADMIN_PASSWORD`, если нет (пустую строку заменить) — проверка: `bash -n`, `shellcheck`, прогон на копии `.env` без ключа и с `KC_ADMIN_PASSWORD=`
+- [x] 1.1 `single-ingress.sh`: дописать непустой `KC_ADMIN_PASSWORD`, если нет (пустую строку заменить) — проверка: `bash -n`, `shellcheck`, прогон на копии `.env` без ключа и с `KC_ADMIN_PASSWORD=` (shellcheck не запускался)
 - [x] 1.2 `docker-compose.prod.yml`: `KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_PASSWORD:+kcadmin}` — проверка: `docker compose config` с паролем и без
-- [x] 1.3 Предупреждение по именам `KC_SECURE_PASSWORD`, `KC_SECURE_TOTP_SECRET`, `OIDC_CLIENT_SECRET` без значений — проверка: прогон на копии `.env`
+- [x] 1.3 Предупреждение по именам `KC_SECURE_PASSWORD`, `KC_SECURE_TOTP_SECRET`, `OIDC_CLIENT_SECRET` без значений — проверка: прогон на копии `.env` (shellcheck не запускался)
 
 ## 2. Диагностика
 
@@ -14,5 +14,5 @@
 
 ## 3. Готовность
 
-- [x] 3.1 После слияния: `deploy-smoke.yml` зелёный, тест discovery проходит — проверка: лог прогона (проверит CI после выката; до слияния не выполнить)
+- [ ] 3.1 После слияния: `deploy-smoke.yml` зелёный, тест discovery проходит — проверка: лог прогона (до выката не выполнить; единственная проверка допущения про пустой `KC_BOOTSTRAP_ADMIN_USERNAME`)
 - [x] 3.2 Сценарий `specs/sso` про старт без пароля админа

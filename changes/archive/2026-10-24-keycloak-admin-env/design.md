@@ -4,7 +4,7 @@
 
 1. Ключ в `.env` дописывает `single-ingress.sh` до `up -d … keycloak`: значение генерируется на сервере и не попадает ни в лог job, ни в репозиторий. Файл `.env` правится от пользователя выката (`PROD_USER`), владелец и права не меняются.
 2. `${KC_ADMIN_PASSWORD:+kcadmin}` — подстановка Compose: пусто, если пароля нет. Второй рубеж на случай ручного `docker compose up` без выката.
-3. Маскировка: `sed -E '/password|secret|token|totp/I s/(=|: )[^ ]+/\1***/g'` — проверка на строке ошибки «bootstrap-admin-username available only when bootstrap admin password is set» (текст остаётся) и на строке `KEY=value` (значение — `***`).
+3. Маскировка: `sed -E 's/((password|secret|token|totp)[A-Za-z_.-]*(=|: ))[^ ]+/\1***/gI'` — проверка на строке ошибки «bootstrap-admin-username available only when bootstrap admin password is set» (текст остаётся) и на строке `KEY=value` (значение — `***`).
 4. Проверка: выкат зелёный, `deploy-smoke.yml` — тест «Keycloak: discovery на /sso» проходит.
 
 ## Допущения
