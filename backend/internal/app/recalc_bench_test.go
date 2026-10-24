@@ -2,6 +2,8 @@ package app_test
 
 import (
 	"bytes"
+	"context"
+	"strconv"
 	"testing"
 
 	"example.com/app/internal/app"
@@ -35,3 +37,18 @@ func benchRecalc(b *testing.B, accounts int) {
 
 func BenchmarkRecalc10k(b *testing.B)  { benchRecalc(b, 10_000) }
 func BenchmarkRecalc100k(b *testing.B) { benchRecalc(b, 100_000) }
+
+func BenchmarkRecalc100kBatch(b *testing.B) {
+	rs := syntheticSnapshot(b, 100_000)
+	st := risk.Defaults()
+	for _, batch := range []int{64, 256, 512, 1024} {
+		b.Run(strconv.Itoa(batch), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				if _, err := risk.ScoreContext(context.Background(), rs, st, rs.AsOf, risk.Options{BatchSize: batch}); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
