@@ -19,7 +19,8 @@ func fastRetry(t *testing.T) {
 // База пропала на много попыток: пачка ждёт ping и пишется целиком, ошибки наружу нет.
 func TestRetryCommitWaitsForDB(t *testing.T) {
 	fastRetry(t)
-	down := 6 // больше, чем пауз: доходит до ожидания ping
+	down := 4 // больше, чем пауз (2): доходит до ожидания ping
+	pings := 0
 	calls := 0
 	commit := func() (int64, map[int]error, error) {
 		calls++
@@ -30,7 +31,8 @@ func TestRetryCommitWaitsForDB(t *testing.T) {
 		return 7, nil, nil
 	}
 	ping := func(context.Context) error {
-		if down > 2 {
+		pings++
+		if pings < 3 {
 			return syscall.ECONNREFUSED
 		}
 		return nil
@@ -39,8 +41,8 @@ func TestRetryCommitWaitsForDB(t *testing.T) {
 	if err != nil || v != 7 {
 		t.Fatalf("версия %d, ошибка %v", v, err)
 	}
-	if calls != 7 {
-		t.Fatalf("попыток %d, ждали 7", calls)
+	if calls != 5 || pings != 4 {
+		t.Fatalf("попыток %d (ждали 5), ping %d (ждали 4)", calls, pings)
 	}
 }
 
