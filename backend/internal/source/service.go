@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -627,6 +628,9 @@ type eventWriter struct {
 	in   chan ingestItem
 	done chan struct{}
 
+	// offerSem — один запрос приёма ставит свои события за раз (offerAll).
+	offerSem chan struct{} // ёмкость 1; канал, а не мьютекс, чтобы ожидание укладывалось в срок
+
 	mu   sync.Mutex
 	seen map[int]struct{} // номера, которые уже были приняты в обработку
 	dups int
@@ -636,7 +640,7 @@ func newEventWriter(pool *pgxpool.Pool, st *ingestState, now func() time.Time, p
 	return &eventWriter{
 		pool: pool, state: st, now: now, publish: publish, onBatch: onBatch,
 		in: make(chan ingestItem, ingestQueueSize), done: make(chan struct{}),
-		seen: map[int]struct{}{},
+		seen: map[int]struct{}{}, offerSem: make(chan struct{}, 1),
 	}
 }
 
@@ -1256,3 +1260,54 @@ func ingest(ctx context.Context, pool *pgxpool.Pool, body io.Reader, now time.Ti
 
 // queueLen — сколько событий сейчас ждёт в очереди приёма.
 func (g *eventWriter) queueLen() int { return len(g.in) }
+
+type pgEventIDs struct{ pool *pgxpool.Pool }
+
+func (s pgEventIDs) claim(ctx context.Context, ids []string, now time.Time) ([]string, idTx, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Порядок id фиксирован: два запроса с общими id не ждут друг друга по кругу.
+	sorted := append([]string(nil), ids...)
+	sort.Strings(sorted)
+	rows, err := tx.Query(ctx, `INSERT INTO source_event_ids (event_id, seen_at)
+		SELECT id, $2 FROM unnest($1::text[]) AS id ON CONFLICT (event_id) DO NOTHING RETURNING event_id`, sorted, now)
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, nil, err
+	}
+	fresh, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, nil, err
+	}
+	return fresh, tx, nil
+}
+
+func (s pgEventIDs) clean(ctx context.Context, before time.Time) error {
+	_, err := s.pool.Exec(ctx, "DELETE FROM source_event_ids WHERE seen_at < $1", before)
+	return err
+}
+
+// newEventIntake собирает приём над пулом и запускает писателя. Писатель живёт до конца процесса.
+func newEventIntake(pool *pgxpool.Pool, now func() time.Time, publish func(Change)) *eventIntake {
+	w := newEventWriter(pool, newOpenIngestState(), now, publish, func(res []ingestResult) {
+		for _, r := range res {
+			if r.err != nil {
+				ingestAPIEvents.WithLabelValues("failed").Inc()
+				continue
+			}
+			ingestAPIEvents.WithLabelValues("applied").Inc()
+		}
+	})
+	w.in = make(chan ingestItem, ingestAPIQueueSize)
+	w.start(context.Background())
+	return &eventIntake{
+		w: w, ids: pgEventIDs{pool}, now: now, wait: eventsQueueWait,
+		version: func(ctx context.Context) (int64, bool, error) {
+			st, ok, err := currentStatus(ctx, pool)
+			return st.Version, ok, err
+		},
+	}
+}
