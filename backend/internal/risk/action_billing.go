@@ -41,7 +41,8 @@ func (toBilling) Applies(ctx CustomerCtx) bool {
 }
 
 func (toBilling) Title(ctx CustomerCtx) string {
-	return fmt.Sprintf("К биллингу: %d продлений не прошли при достаточном балансе", failedProlongs(ctx))
+	n := failedProlongs(ctx)
+	return fmt.Sprintf("К биллингу: %d %s при достаточном балансе", n, plural(n, "продление не прошло", "продления не прошли", "продлений не прошли"))
 }
 
 // Apply не меняет данные: эффект 0.

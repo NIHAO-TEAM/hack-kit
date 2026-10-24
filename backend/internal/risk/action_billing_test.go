@@ -43,7 +43,7 @@ func TestToBillingTitleCountsAttempts(t *testing.T) {
 			{Type: "prolong", Status: "not_performed", ServiceID: 2},
 		},
 	}
-	want := "К биллингу: 2 продлений не прошли при достаточном балансе"
+	want := "К биллингу: 2 продления не прошли при достаточном балансе"
 	if got := (toBilling{}).Title(ctx); got != want {
 		t.Errorf("заголовок %q, ждали %q", got, want)
 	}

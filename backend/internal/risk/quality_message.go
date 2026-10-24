@@ -21,14 +21,4 @@ func checkMessage(c Check, count int) string {
 	return fmt.Sprintf("%d %s %s", count, servicesWord(count), subject)
 }
 
-func servicesWord(n int) string {
-	switch {
-	case n%100 >= 11 && n%100 <= 14:
-		return "услуг"
-	case n%10 == 1:
-		return "услуга"
-	case n%10 >= 2 && n%10 <= 4:
-		return "услуги"
-	}
-	return "услуг"
-}
+func servicesWord(n int) string { return plural(n, "услуга", "услуги", "услуг") }
