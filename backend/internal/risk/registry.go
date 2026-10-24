@@ -53,6 +53,16 @@ type Action interface {
 	Title(ctx CustomerCtx) string
 }
 
+// costAction — действие, у которого есть цена для клиента в центах; у остальных цена 0.
+type costAction interface {
+	Action
+	CostCents(ctx CustomerCtx) int64
+}
+
+// comboOrder — порядок применения действий в сочетании: биллинг, автопродление, пополнение.
+// Остальные действия идут после, по идентификатору.
+var comboOrder = map[string]int{"to_billing": 0, "enable_autoprolong": 1, "top_up": 2}
+
 // settingsAction — действие, которому для Apply нужны настройки расчёта (например, основа цены).
 type settingsAction interface {
 	Action
