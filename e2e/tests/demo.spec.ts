@@ -120,8 +120,8 @@ test('демо: очередь → карточка → потеря по при
 
     // Устойчивость очереди к весам видит аналитик на «О модели».
     await test.step('О модели: устойчивость очереди к весам', async () => {
+      // Аналитик уже вошёл через apiLogin: cookie общие с окнами контекста, экранный вход (он ждёт очередь маркетолога) не нужен.
       const analystPage = await analystCtx.newPage();
-      await uiLogin(analystPage, 'analyst', analystPassword);
       await gotoStable(analystPage, '/about', (p) => p.getByRole('heading', { name: 'Насколько устойчива очередь' }));
       await expect(analystPage.getByRole('region', { name: 'Устойчивость очереди к весам' })).toBeVisible();
       await analystPage.close();
@@ -150,8 +150,8 @@ test('демо: очередь → карточка → потеря по при
 
     // Шаг 6. Залп 10 000 событий: живые графики во время прогона и сверка с пересчётом с нуля («Источник»).
     await test.step('Источник: залп 10 000 событий, графики, согласованность 0 центов', async () => {
+      // Аналитик уже вошёл через apiLogin: cookie общие с окнами контекста, экранный вход (он ждёт очередь маркетолога) не нужен.
       const analystPage = await analystCtx.newPage();
-      await uiLogin(analystPage, 'analyst', analystPassword);
       await gotoStable(analystPage, '/source', (p) => p.getByRole('region', { name: 'Поток событий' }));
       const panel = analystPage.getByRole('region', { name: 'Поток событий' });
       await expect(panel.getByLabel('Скорость')).toHaveValue('Как можно быстрее');
@@ -179,11 +179,26 @@ test('демо: очередь → карточка → потеря по при
     );
   } finally {
     // Возврат стенда в начальное состояние, чтобы следующий прогон начинался чисто.
-    await mutate(analyst, 'post', '/api/v1/source/emulator/actions', { actions: [{ customerId: 0, actionId: 'reset' }] })
-      .catch(() => undefined);
-    await setNoauto(analyst, 0.55).catch(() => undefined);
-    await marketerCtx.close();
-    await analystCtx.close();
+    // Запросы с тайм-аутом, ошибки очистки логируются, а не глотаются; закрытие контекстов не держит тест.
+    const cleanupTimeout = 10_000;
+    const csrf = { 'X-CSRF-Token': csrfTokens.get(analyst) ?? '' };
+    const cleanup = await Promise.allSettled([
+      analyst.post('/api/v1/source/emulator/actions', {
+        data: { actions: [{ customerId: 0, actionId: 'reset' }] },
+        headers: csrf,
+        timeout: cleanupTimeout,
+      }),
+      analyst.patch('/api/v1/model/settings', {
+        data: { weights: { noauto: 0.55 } },
+        headers: csrf,
+        timeout: cleanupTimeout,
+      }),
+      marketerCtx.close(),
+      analystCtx.close(),
+    ]);
+    for (const r of cleanup) {
+      if (r.status === 'rejected') console.warn('очистка стенда:', r.reason);
+    }
   }
 });
 
