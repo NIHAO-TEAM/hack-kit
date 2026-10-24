@@ -7,7 +7,7 @@ type Detail = components['schemas']['CustomerDetail'];
 /** Карточки двух ключевых клиентов демо-сценария; остальные собирает `fallback`. */
 const featured: Record<
   number,
-  Pick<Detail, 'features' | 'actions' | 'explanation' | 'serviceRisks'>
+  Pick<Detail, 'features' | 'actions' | 'actionCombo' | 'explanation' | 'serviceRisks'>
 > = {
   // Числа — из testdata/golden/organizers.json, клиент 9 (признаки услуги 9).
   9: {
@@ -41,6 +41,8 @@ const featured: Record<
         id: 'topup',
         title: 'Пополнить на 529,84 €',
         effectCents: -102749,
+        costCents: 52984,
+        returnPerEuro: 1.94,
         newScore: 0.8245,
         newLevel: 'high',
       },
@@ -48,10 +50,13 @@ const featured: Record<
         id: 'autoprolong',
         title: 'Включить автопродление',
         effectCents: -123,
+        costCents: 0,
         newScore: 0.7364,
         newLevel: 'high',
       },
     ],
+    // Сочетание двух действий — testdata/golden/organizers.json, actionComboCents клиента 9.
+    actionCombo: -102932,
     explanation: 'Платежи на 30 дней × вероятность срыва',
     // Оценки услуг 9, 19, 29 — расчёт по testdata/golden/organizers.json (веса из настроек, R и P·R
     // сходятся с ожидаемой потерей клиента 318 910).

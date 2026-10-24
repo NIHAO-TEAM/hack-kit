@@ -157,7 +157,7 @@ func run() error {
 	lc := httpx.NewLifecycle()
 	lc.Ready = func() bool { return recalc.Engine.Latest() != nil }
 	lc.Ping = pool.Ping
-	opts := []app.Option{app.WithCollectors(lc.Collector())}
+	opts := []app.Option{app.WithCollectors(lc.Collector(), authAPI.Collector())}
 
 	// Опрос REST-биллинга включается, только если задан BILLING_URL.
 	if bc := source.AdapterConfigFromEnv(); bc != nil {

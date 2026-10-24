@@ -64,6 +64,10 @@ func (r *Recalc) Portfolio() *analytics.Portfolio {
 	if c := r.cache.Load(); c != nil && c.version == calc.Version {
 		return c.pf
 	}
+	if pf, ok := calc.Extra.(*analytics.Portfolio); ok {
+		r.cache.Store(&portfolioCache{calc.Version, pf}) // частичный пересчёт собрал портфель сам
+		return pf
+	}
 	snap, ok := r.snaps.get(calc.DataVersion)
 	if !ok {
 		return nil
@@ -146,8 +150,9 @@ func buildCustomer(c risk.Customer, a risk.Account, svcs []risk.Service) analyti
 			out.Row.TopReason = &reason
 		}
 	}
+	out.ActionCombo = c.ActionComboCents
 	for _, ar := range c.Actions {
-		act := gen.Action{Id: ar.ID, Title: ar.Title, EffectCents: ar.LossDeltaCents}
+		act := gen.Action{Id: ar.ID, Title: ar.Title, EffectCents: ar.LossDeltaCents, CostCents: &ar.CostCents, ReturnPerEuro: ar.ReturnPerEuro}
 		if ar.ScoreAfter != nil {
 			act.NewScore = *ar.ScoreAfter
 		}

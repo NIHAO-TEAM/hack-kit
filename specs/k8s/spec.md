@@ -47,3 +47,25 @@
 - THEN манифесты проходят `kubeconform`, у приложения заданы `BILLING_URL` и `OIDC_ISSUER_URL`, есть ServiceMonitor, нет спутников и своего Postgres
 
 Держит: `.github/workflows/deploy-k8s-values.yml`.
+
+### Requirement: ресурсы прода вмещаются в узел
+
+Лимиты памяти приложения и PostgreSQL SHALL быть заданы в Helm и Compose, а выкат SHALL проверять, что узел их вмещает; иначе выкат останавливается с «нужен человек».
+
+#### Scenario: лимиты не вмещаются в узел
+
+- WHEN сумма лимитов памяти чарта больше allocatable памяти узла
+- THEN `deploy/k3s/deploy.sh` завершается с ошибкой «нужен человек» до выката
+
+Держит: `deploy/k3s/deploy.sh` (проверка allocatable). Значения лимитов пока выбраны до замера; подбор по замеру пика на 100 000 клиентов — отдельное изменение.
+
+### Requirement: бинарь собран по профилю и знает предел памяти
+
+Образ приложения SHALL собираться с профилем `default.pgo`, а под — получать `GOMEMLIMIT` ниже лимита памяти контейнера.
+
+#### Scenario: выкат
+
+- WHEN выкачена новая версия
+- THEN `go version -m` бинаря показывает сборку с PGO, в окружении пода есть `GOMEMLIMIT`
+
+Держит CI: шаг `go version -m /out/api | grep -- "-pgo="` в `Dockerfile` (сборка образа падает без профиля). `GOMEMLIMIT` в `deploy/helm/churn/values.yaml` проверяется ревью: `helm template` его только рендерит.

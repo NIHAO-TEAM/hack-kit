@@ -30,7 +30,7 @@
 | Критерий (`docs/scale.md`) | На проде | В репозитории |
 |---|---|---|
 | Бизнес-польза: кому, почему, сколько евро | [/queue](https://nihao-churn.duckdns.org/queue), карточка клиента, [/tasks](https://nihao-churn.duckdns.org/tasks), [/summary](https://nihao-churn.duckdns.org/summary) | [docs/case.md](docs/case.md), [docs/model.md](docs/model.md), `backend/internal/risk`, `frontend/src` |
-| Обоснованность модели | [/about](https://nihao-churn.duckdns.org/about), [/model](https://nihao-churn.duckdns.org/model) | [docs/model.md](docs/model.md), [docs/model-rules.md](docs/model-rules.md), оракул `tools/oracle`, golden-тесты `testdata/golden` |
+| Обоснованность модели | [/about](https://nihao-churn.duckdns.org/about), [/model](https://nihao-churn.duckdns.org/model) | [docs/model.md](docs/model.md), [docs/model-rules.md](docs/model-rules.md), [docs/model-check.md](docs/model-check.md) (прокрутка 30 суток против простых правил, `make backtest`), оракул `tools/oracle`, golden-тесты `testdata/golden` |
 | Архитектура и расширяемость | Helm/k3s: домен с TLS; Swagger [/api/v1/docs](https://nihao-churn.duckdns.org/api/v1/docs) | [docs/architecture.md](docs/architecture.md), чарт [deploy/helm/churn](deploy/helm/churn), [values.yaml](deploy/helm/churn/values.yaml), [api/openapi.yaml](api/openapi.yaml) |
 | Метрики и нагрузка | [Grafana /grafana/](https://nihao-churn.duckdns.org/grafana/) (дашборд `churn`), `/metrics` по токену, Prometheus | [deploy/grafana](deploy/grafana), [deploy/prometheus](deploy/prometheus), замеры [docs/load/](docs/load/README.md) (цели частично не достигнуты, числа честные) |
 | Вход и роли | экран входа, «Войти через SSO» | [deploy/keycloak/churn-realm.json](deploy/keycloak/churn-realm.json), раздел «Вход через SSO» ниже |
@@ -55,11 +55,13 @@
 
 Нужен Docker с Compose. Три команды:
 
+<!-- quickstart:start -->
 ```sh
 cp .env.example .env
 # задайте в .env пароли и токены (случайное значение: openssl rand -hex 16)
 docker compose up -d
 ```
+<!-- quickstart:end -->
 
 Пустые `POSTGRES_PASSWORD` и `ADMIN_PASSWORD` — Compose или приложение не стартуют и называют переменную. База наружу не публикуется, снаружи доступен только порт приложения `8080`. Данные лежат в томе и переживают `docker compose down` (без `-v`).
 
@@ -82,6 +84,7 @@ docker compose up -d
 | `METRICS_TOKEN`, `SOURCE_TOKEN` | токены `/metrics` и приёма снимка источника |
 | `OIDC_ISSUER_URL`, `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URL` | вход через SSO; пустой `OIDC_ISSUER_URL` — кнопка выключена |
 | `SEED_ORGANIZERS` | загрузить набор организаторов при старте |
+| `GOMEMLIMIT` | мягкий предел памяти Go (по умолчанию в Compose `1GiB`, в Helm — 80 % лимита пода) |
 | `BILLING_URL`, `BILLING_TOKEN`, `BILLING_POLL_SECONDS` | опрос REST-биллинга: снимок той же формы, что `data.json`; пустой `BILLING_URL` — выключен, интервал по умолчанию 60 с |
 
 ## Вход через SSO (Keycloak)
@@ -97,6 +100,59 @@ docker compose --profile sso up -d
 ```
 
 Демо-пользователь `secure` (пароль `KC_SECURE_PASSWORD`, роль маркетолог) входит с паролем и кодом TOTP (секрет — `KC_SECURE_TOTP_SECRET`, обязателен, пустым не оставлять; в приложение-аутентификатор вводится как ключ из UTF-8 строки секрета в Base32); ключ доступа добавляется в консоли аккаунта Keycloak, шаги — в [docs/architecture.md](docs/architecture.md#проверка-входа-через-keycloak). Если SSO не настроен, кнопки на экране входа нет. Роль берётся из claim `roles` ID-токена (`marketer`, `analyst`); без неё вход отклоняется. Realm — `deploy/keycloak/churn-realm.json`. Админка Keycloak наружу не открыта.
+
+## Как это устроено внутри
+
+Ядро — один процесс Go на всех ядрах: приём, пересчёт и выдача работают в одной памяти, сети между ними нет. Источник правды — PostgreSQL. Почему без Kafka, Redis и ClickHouse и когда это пересматривать — [ADR-0009](docs/adr/0009-in-process-core.md). Подробно — [docs/architecture.md](docs/architecture.md).
+
+```mermaid
+flowchart LR
+  B[Биллинг / эмулятор] -->|снимок потоком, правки, события| S[source]
+  S -->|COPY, точечные UPDATE| PG[(PostgreSQL)]
+  S -->|сигнал «данные изменились»| BUS{{шина в памяти}}
+  BUS --> R[пересчёт: воркеры по ядрам, отмена]
+  R -->|risk: признаки → P → скор → деньги → действия| A[неизменяемый результат]
+  A -->|REST| UI[веб-клиент]
+  A -->|SSE| UI
+  A -->|/metrics| P[Prometheus → Grafana]
+```
+
+### Путь одного изменения
+
+| Шаг | Что происходит | Где в коде | Чем проверено |
+|---|---|---|---|
+| 1. Приём | снимок читается потоком (`json.Decoder`) в конвейер на каналах с ограниченным буфером: пока база занята, разбор ждёт, память не растёт с объёмом | `backend/internal/source/ingest.go`, `snapshot.go` | интеграционные тесты приёма 100k/300k |
+| 2. Запись | `COPY` трёх таблиц в одной транзакции; ошибка любой записи откатывает всё | `backend/internal/source/service.go` | тесты крайних снимков |
+| 3. Сигнал | событие в шину процесса; медленный подписчик не тормозит издателя, потери считаются | `backend/internal/platform/events` | тест конкурентной подписки с `-race` |
+| 4. Пересчёт | клиенты пачками раздаются воркерам по числу ядер; новое событие отменяет текущий прогон через `context`, события склеиваются | `backend/internal/app/recalc.go` | тест «результат конвейера = последовательный расчёт» |
+| 5. Модель | признаки → риск услуги (шумовое ИЛИ) → скор → деньги в центах → действия с ценой; без БД и HTTP | `backend/internal/risk` | golden-тесты против эталона `tools/oracle` |
+| 6. Публикация | готовый результат публикуется атомарно (`atomic.Pointer`), читатели работают без блокировок | `backend/internal/analytics/engine.go` | тесты движка |
+| 7. Выдача | REST по контракту `api/openapi.yaml`, сигнал SSE — фронт перечитывает нужные запросы | `backend/internal/analytics/http.go`, `events.go` | `Demo e2e` на чистом стенде |
+
+### Числа
+
+Контейнер разработки или раннер GitHub, 4 vCPU, PostgreSQL на той же машине. Это порядок величин, а не обещание для боевого сервера; железо и команды — в каждом файле.
+
+| Что | Число | Источник |
+|---|---|---|
+| Сверка расчёта Go с независимым эталоном | 300 000 клиентов — 0 расхождений | [oracle-parity](docs/load/2026-10-24-oracle-parity.md) |
+| Загрузка снимка 100 000 клиентов (1,4 млн строк) | 4,6–5,4 с (было 42–45 с) | [snapshot-stream](docs/load/2026-10-24-snapshot-stream.md) |
+| Загрузка снимка 300 000 клиентов | 15,8–16,9 с, рост памяти за загрузку 28 МБ | там же |
+| Расчёт 100 000 клиентов на всех ядрах | 647 мс, выделений в 3,5 раза меньше, чем было | [recalc-alloc](docs/load/2026-10-24-recalc-alloc.md) |
+| Сборка по профилю (PGO) | пересчёт 100k −9 % | [pgo](docs/load/2026-10-24-pgo.md) |
+| Страница очереди, 100 000 клиентов, сортировка | сборка ответа на сервере 0,65 мс (было 145 мс): готовая отсортированная модель и заранее сериализованные строки; сеть не входит | [read-model](docs/load/2026-10-24-read-model.md) |
+| Поток событий на 100 000 клиентов | залп 50 000 событий — ≈ 2,4 с (≈ 20 700 событий/с), применено 50 000 из 50 000, итог совпал с пересчётом с нуля до цента; было 1,4 события/с на 10 000 | [ingest-delta](docs/load/2026-10-24-ingest-delta.md) |
+
+Недостигнутые и неизмеренные цели называем как есть: [docs/load/README.md](docs/load/README.md).
+
+### Что в Go сделано сознательно
+
+- Горутины и пул воркеров пересчёта по `GOMAXPROCS`, отмена через `context` — а не «потоки на каждый запрос».
+- Каналы с ограниченным буфером как обратное давление при приёме — память не зависит от размера снимка.
+- Неизменяемый результат и `atomic.Pointer` — чтение очереди не ждёт пересчёт.
+- Буферы на воркер вместо выделений на каждую услугу; профиль снимается `pprof` (`/debug/pprof/`, только по токену метрик).
+- Плавная остановка: `/readyz` → `503`, запросы дорабатывают, потоки SSE закрываются — выкат без обрывов.
+- Все тесты пакетов — с `-race`; бенчмарки пересчёта, шины и приёма лежат рядом с кодом.
 
 ## Модель и архитектура
 
@@ -132,6 +188,20 @@ docker compose --profile sso up -d
 - Вход через Keycloak (ключ доступа, TOTP), пароль остаётся запасным.
 - Замеры нагрузки на 100k клиентов: [docs/load/README.md](docs/load/README.md) (числа честные, часть целей пока не достигнута).
 - Образец «как добавить признак модели»: `backend/internal/risk/feature_bonus_locked.go` (один файл признака + тест + строка оракула), см. `changes/archive/2026-10-23-feature-bonus-locked/`.
+
+## Профиль сборки (PGO)
+
+Бинарь собирается по профилю `backend/cmd/api/default.pgo` (`go build -pgo=auto`, в `Dockerfile` флаг явный). Профиль не ломает сборку, если устарел, но выигрыш падает. Обновить после заметных правок горячего кода (пересчёт, шина событий):
+
+```sh
+cd backend
+go test ./internal/app -run '^$' -bench 'Recalc(10k|100k)$' -benchtime 5x -cpuprofile /tmp/recalc.pprof
+go test ./internal/platform/events -run '^$' -bench Publish -cpuprofile /tmp/events.pprof
+go test ./internal/retention -run '^$' -bench Observe -cpuprofile /tmp/ret.pprof
+go tool pprof -proto /tmp/recalc.pprof /tmp/events.pprof /tmp/ret.pprof > cmd/api/default.pgo
+```
+
+Замеры до и после — [docs/load/2026-10-24-pgo.md](docs/load/2026-10-24-pgo.md).
 
 ## Разработка
 

@@ -473,13 +473,13 @@ components:
         events:
           type: integer
           minimum: 100
-          maximum: 5000
+          maximum: 100000
           default: 2500
           description: Сколько событий применить
         ratePerSecond:
           type: integer
           minimum: 0
-          maximum: 2000
+          maximum: 20000
           default: 100
           description: Скорость, событий в секунду; 0 — без пауз между событиями
         seed:
@@ -552,6 +552,9 @@ components:
           type: number
         applyP95Ms:
           type: number
+        applyP99Ms:
+          type: number
+          description: p99 длительности применения одного события
         applyMaxMs:
           type: number
         recalcs:
@@ -601,6 +604,42 @@ components:
           type: string
         report:
           $ref: "#/components/schemas/StreamReport"
+        window:
+          type: array
+          maxItems: 60
+          description: Секундные отсчёты за последние 60 с прогона, старые первыми; нет у прогона, который ещё не набрал первую секунду.
+          items:
+            $ref: "#/components/schemas/StreamWindowPoint"
+    StreamWindowPoint:
+      type: object
+      required: [t, accepted, applied, failed, queueDepth, batchSize, lagP95Ms, recalcs]
+      properties:
+        t:
+          type: integer
+          description: Секунда прогона, с которой отсчёт закончился (1 — первая).
+        accepted:
+          type: integer
+          description: Событий принято в очередь приёма за секунду.
+        applied:
+          type: integer
+          description: Событий записано в базу за секунду.
+        failed:
+          type: integer
+          description: Событий не применено за секунду.
+        queueDepth:
+          type: integer
+          description: Событий ждало в очереди приёма в конце секунды.
+        batchSize:
+          type: number
+          format: float
+          description: Средний размер записанной пачки за секунду; 0, если пачек не было.
+        lagP95Ms:
+          type: number
+          format: float
+          description: Задержка «событие → очередь маркетолога», p95 по событиям, учтённым за секунду, мс; 0, если таких не было.
+        recalcs:
+          type: integer
+          description: Пересчётов движка за секунду.
     RiskLevel:
       type: string
       enum: [high, medium, low, unscored, lost]
@@ -676,6 +715,9 @@ components:
           type: integer
           format: int64
           description: Версия пересчёта, по которому построена страница.
+        nextCursor:
+          type: string
+          description: Курсор следующей страницы; нет, если страница последняя.
     TaskStatus:
       type: string
       description: "В работе, связались, отложено, закрыто."
@@ -994,6 +1036,14 @@ components:
           description: Риск после действия, 0..100.
         newLevel:
           $ref: "#/components/schemas/RiskLevel"
+        costCents:
+          type: integer
+          format: int64
+          description: Что действие стоит клиенту, центы (пополнение — сумма, остальные — 0).
+        returnPerEuro:
+          type: number
+          format: double
+          description: Снятая ожидаемая потеря на каждый евро цены, 2 знака. Нет при цене 0. Оценка сценария «клиент выполнил действие полностью», не ROI.
     ServiceRisk:
       type: object
       required: [serviceId, probability, rCents, lossCents, features, quality]
@@ -1050,6 +1100,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Action"
+        actionCombo:
+          type: integer
+          format: int64
+          description: Эффект от совместного применения всех применимых действий (потеря после − до), центы. Нет, если применимо меньше двух действий.
         explanation:
           type: string
     Summary:
@@ -1622,6 +1676,15 @@ paths:
           schema:
             type: string
             enum: [exclude, only]
+        - name: cursor
+          in: query
+          description: >-
+            Курсор следующей страницы из `nextCursor` предыдущего ответа. Заменяет `offset`
+            (вместе с ним — 400); сортировка и порядок должны быть те же, что у страницы, из которой
+            он получен. Курсор привязан к версии пересчёта: после нового пересчёта — 409,
+            начните с первой страницы.
+          schema:
+            type: string
       responses:
         "200":
           description: Страница клиентов
@@ -1631,6 +1694,12 @@ paths:
                 $ref: "#/components/schemas/CustomerPage"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Курсор построен по другой версии пересчёта
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "501":

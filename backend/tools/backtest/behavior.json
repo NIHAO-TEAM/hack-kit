@@ -1,0 +1,12 @@
+{
+  "topUpLow": 0.03,
+  "topUpIdle": 0.005,
+  "topUpShareMin": 0.1,
+  "topUpShareMax": 0.5,
+  "enableAuto": 0.002,
+  "disableAuto": 0.002,
+  "suspend": 0.001,
+  "resume": 0.02,
+  "selfDelete": 0.0005,
+  "selfDeleteWaiting": 0.05
+}
