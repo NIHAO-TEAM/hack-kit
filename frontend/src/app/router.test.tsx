@@ -22,6 +22,14 @@ describe('охрана маршрутов', () => {
     expect(screen.getByText(/Раздел «Модель» доступен аналитику/)).toBeInTheDocument();
   });
 
+  it('в навигации нет «Задач», а старый адрес /tasks ведёт на очередь', async () => {
+    signedInAs('marketer');
+    const { router } = renderApp('/tasks');
+    const nav = await screen.findByRole('navigation', { name: 'Разделы' });
+    expect(nav).not.toHaveTextContent('Задачи');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/queue'));
+  });
+
   it('в навигации маркетолога нет «Модели» и «Источника»', async () => {
     signedInAs('marketer');
     renderApp('/queue');
