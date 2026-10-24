@@ -23,7 +23,8 @@ func AllocateLoss(loss int64, hits []FeatureHit) []int64 {
 		return nil
 	}
 	// сумма в порядке ID: тот же порядок у оракула, поэтому до последнего бита одно и то же значение
-	byID := append([]FeatureHit(nil), hits...)
+	var buf [16]FeatureHit
+	byID := append(buf[:0], hits...)
 	slices.SortFunc(byID, func(a, b FeatureHit) int { return cmp.Compare(a.ID, b.ID) })
 	var total float64
 	for _, h := range byID {

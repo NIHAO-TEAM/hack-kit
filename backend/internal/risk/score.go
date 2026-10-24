@@ -155,14 +155,8 @@ func scoreWith(s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check
 }
 
 func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf time.Time, fs []Feature, cs []Check, as []Action) (Result, error) {
-	svcByOwner := map[int64][]Service{}
-	for _, sv := range s.Services {
-		svcByOwner[sv.OwnerID] = append(svcByOwner[sv.OwnerID], sv)
-	}
-	txByService := map[int64][]Transaction{}
-	for _, t := range s.Transactions {
-		txByService[t.ServiceID] = append(txByService[t.ServiceID], t)
-	}
+	svcByOwner := groupBy(s.Services, func(sv Service) int64 { return sv.OwnerID })
+	txByService := groupBy(s.Transactions, func(t Transaction) int64 { return t.ServiceID })
 
 	accounts := append([]Account(nil), s.Accounts...)
 	slices.SortFunc(accounts, func(a, b Account) int { return cmp.Compare(a.ID, b.ID) })
@@ -246,6 +240,28 @@ func scoreCtx(ctx context.Context, opt Options, s Snapshot, st Settings, asOf ti
 // следующую пачку атомарным счётчиком, пишет результат в свою ячейку по индексу, общих блокировок нет.
 // Между пачками проверяется ctx: после отмены новые пачки не берутся, возвращается ошибка контекста.
 //
+// groupBy раскладывает элементы по ключу с сохранением порядка. Группы — срезы одного общего массива:
+// вместо append на каждый ключ — три выделения на весь индекс. Срез группы ограничен ёмкостью (cap = len),
+// дописать в него нельзя, чужую группу он не затрёт.
+func groupBy[T any](items []T, key func(T) int64) map[int64][]T {
+	counts := make(map[int64]int)
+	for _, it := range items {
+		counts[key(it)]++
+	}
+	all := make([]T, len(items))
+	out := make(map[int64][]T, len(counts))
+	pos := 0
+	for k, n := range counts {
+		out[k] = all[pos : pos : pos+n]
+		pos += n
+	}
+	for _, it := range items {
+		k := key(it)
+		out[k] = append(out[k], it)
+	}
+	return out
+}
+
 // scratch — буферы воркера для действий: живут весь прогон воркера и переиспользуются между его клиентами.
 // В результат ничего из них не попадает.
 func parallelFor(ctx context.Context, n int, opt Options, fn func(w *scratch, i int)) error {
