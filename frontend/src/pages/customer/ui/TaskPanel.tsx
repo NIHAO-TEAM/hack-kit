@@ -22,9 +22,12 @@ import {
   channelLabel,
   dueText,
   fromLocalInput,
+  OBSERVATION_NOTE,
+  observations,
   outcomeLabel,
   patchTask,
   statusLabel,
+  suggestedOutcome,
   takeTask,
   taskKey,
   taskQuery,
@@ -53,12 +56,41 @@ function eventText(e: TaskEvent): string {
       return `связались${e.channel ? ` (${channelLabel[e.channel].toLowerCase()})` : ''}${e.text ? `: ${e.text}` : ''}`;
     case 'note':
       return `заметка: ${e.text}`;
+    case 'observed':
+      return e.text;
     default:
       return e.text || 'изменена задача';
   }
 }
 
+/** «После взятия в работу»: что показал биллинг. Подпись обязательна — это «после», а не «благодаря». */
+function Observed({ events }: { events: readonly TaskEvent[] }) {
+  const list = observations(events);
+  if (list.length === 0) return null;
+  return (
+    <Stack gap={4} component="section" aria-label="После взятия в работу">
+      <Title order={3} size="h5">
+        После взятия в работу
+      </Title>
+      <List listStyleType="none" spacing={4} aria-label="Наблюдения биллинга">
+        {list.map((e) => (
+          <List.Item key={e.id}>
+            <Text size="sm">
+              {when.format(new Date(e.at))} · {e.text}
+            </Text>
+          </List.Item>
+        ))}
+      </List>
+      <Text size="xs" c="dimmed">
+        {OBSERVATION_NOTE}
+      </Text>
+    </Stack>
+  );
+}
+
 function History({ events }: { events: readonly TaskEvent[] }) {
+  // Наблюдения биллинга живут в своём разделе, в истории действий сотрудников их нет.
+  events = events.filter((e) => e.kind !== 'observed');
   if (events.length === 0) return null;
   return (
     <Stack gap={4}>
@@ -374,7 +406,15 @@ export function TaskPanel({
               <Button size="lg" variant="default" onClick={() => setMode('postpone')}>
                 Отложить до…
               </Button>
-              <Button size="lg" variant="default" onClick={() => setMode('close')}>
+              <Button
+                size="lg"
+                variant="default"
+                onClick={() => {
+                  // Продление или автопродление в наблюдениях — итог «Продлил» по умолчанию, выбирает человек.
+                  setOutcome((cur) => cur ?? suggestedOutcome(task.events ?? []));
+                  setMode('close');
+                }}
+              >
                 Закрыть
               </Button>
             </Group>
@@ -434,6 +474,7 @@ export function TaskPanel({
         ) : task.note ? (
           <Text size="sm">Заметка: {task.note}</Text>
         ) : null}
+        <Observed events={task.events ?? []} />
         <History events={task.events ?? []} />
       </Stack>
     </Card>

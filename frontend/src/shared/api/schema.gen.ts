@@ -902,8 +902,11 @@ export interface components {
             /** Format: date-time */
             at: string;
             actor: string;
-            /** @enum {string} */
-            kind: "created" | "changed" | "contact" | "note";
+            /**
+             * @description observed — наблюдение сервера по данным биллинга после взятия в работу, actor — system. Не доказывает, что помог именно контакт.
+             * @enum {string}
+             */
+            kind: "created" | "changed" | "contact" | "note" | "observed";
             channel?: components["schemas"]["TaskChannel"];
             text: string;
             /** @description Что поменялось в задаче; пусто у контакта и заметки. */
@@ -939,6 +942,8 @@ export interface components {
             updatedBy: string;
             /** Format: date-time */
             closedAt?: string;
+            /** @description Текст последнего наблюдения по данным биллинга (kind observed); нет, пока наблюдений не было. */
+            lastObservation?: string;
             /** @description История по порядку, старые сверху. Есть в ответах по одной задаче, в списке нет. */
             events?: components["schemas"]["TaskEvent"][];
         };

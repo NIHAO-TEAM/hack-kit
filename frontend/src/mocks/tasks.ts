@@ -128,7 +128,11 @@ export const taskHandlers = [
       .filter(
         (t) => q.get('overdue') !== 'true' || (isOpen(t) && new Date(t.dueAt).getTime() < now),
       )
-      .map((t) => ({ ...t, events: undefined }));
+      .map((t) => ({
+        ...t,
+        events: undefined,
+        lastObservation: [...(t.events ?? [])].reverse().find((e) => e.kind === 'observed')?.text,
+      }));
     return HttpResponse.json({ items, total: items.length });
   }),
   http.get(`${API}/tasks/assignees`, () => {
