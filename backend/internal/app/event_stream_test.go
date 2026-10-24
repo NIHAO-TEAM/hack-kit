@@ -1,9 +1,11 @@
-package source_test
+package app_test
 
 import (
+	"bytes"
 	"context"
 	"math/rand"
 	"net/http"
+	"os"
 	"sort"
 	"testing"
 	"time"
@@ -26,7 +28,13 @@ func TestEventStreamConsistency(t *testing.T) {
 	analyst := s.As(t, "analyst")
 	marketer := s.As(t, "marketer")
 	ctx := context.Background()
-	put(t, analyst, organizers(t))
+	body, err := os.ReadFile("../../../cases/analizator/data.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, err := analyst.PutSnapshotWithBodyWithResponse(ctx, "application/json", bytes.NewReader(body)); err != nil || res.JSON200 == nil {
+		t.Fatalf("загрузка набора: %v %v", err, res)
+	}
 
 	snap, _, err := source.NewReader(s.Pool).Load(ctx)
 	if err != nil {

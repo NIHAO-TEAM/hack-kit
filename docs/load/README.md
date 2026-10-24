@@ -20,7 +20,7 @@
 
 ## Поток событий пользователей (`events-load-proof`)
 
-Отчёт: [2026-10-24-events-2500.md](2026-10-24-events-2500.md). Тест свойства `TestEventStreamConsistency` (`go test ./internal/source -run EventStream`) подаёт 2 500 событий через `PATCH /source/services/{id}` и `PATCH /source/accounts/{id}` и сверяет итог с пересчётом с нуля. Сценарий k6: `docs/load/k6/events.js` (30 событий/с, чтение очереди в параллели; на стенде не прогонялся).
+Отчёт: [2026-10-24-events-2500.md](2026-10-24-events-2500.md). Тест свойства `TestEventStreamConsistency` (`go test ./internal/app -run EventStream`) подаёт 2 500 событий через `PATCH /source/services/{id}` и `PATCH /source/accounts/{id}` и сверяет итог с пересчётом с нуля. Сценарий k6: `docs/load/k6/events.js` (30 событий/с, чтение очереди в параллели; на стенде не прогонялся).
 
 | Сценарий | Что доказывает | Результат |
 |---|---|---|
