@@ -21,6 +21,7 @@ import {
   StateOffline,
 } from '@shared/ui';
 import { summaryOptions } from '@entities/summary';
+import { BillingGroup } from './BillingGroup';
 import { DeletionStrip } from './DeletionStrip';
 import { QueueTable } from './QueueTable';
 import { SummaryCards } from './SummaryCards';
@@ -57,7 +58,7 @@ export function QueuePage({
   const router = useRouter();
   const page = params.page ?? 1;
   const customers = useQuery({
-    ...customersOptions({ ...params, limit: QUEUE_PAGE_SIZE }),
+    ...customersOptions({ ...params, billing: 'exclude', limit: QUEUE_PAGE_SIZE }),
     placeholderData: keepPreviousData,
   });
   const total = customers.data?.total ?? 0;
@@ -72,7 +73,13 @@ export function QueuePage({
   }, [customers.data, customers.isPlaceholderData]);
   const summary = useQuery(summaryOptions);
   // Полоса «удалит биллинг» не зависит от поиска и фильтра: к биллингу уходят все.
-  const unfiltered = useQuery(customersOptions({ sort: 'expectedLoss', order: 'desc' }));
+  const unfiltered = useQuery(
+    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'exclude' }),
+  );
+  // Группа «У биллинга»: сбой автосписания, маркетолог не действует; сортировка и поиск очереди не влияют.
+  const billing = useQuery(
+    customersOptions({ sort: 'expectedLoss', order: 'desc', billing: 'only' }),
+  );
 
   const [whatIf, setWhatIf] = useState(false);
   const [search, setSearch] = useState(params.q ?? '');
@@ -194,6 +201,14 @@ export function QueuePage({
         />
       </Group>
       {body}
+      <BillingGroup
+        rows={billing.data?.items}
+        total={billing.data?.total}
+        loading={billing.isPending}
+        failed={billing.isError && !billing.data}
+        onRetry={() => void billing.refetch()}
+        onOpen={open}
+      />
     </Stack>
   );
 }
