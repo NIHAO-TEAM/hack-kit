@@ -182,6 +182,7 @@ test('демо: очередь → карточка → потеря по при
     // Запросы с тайм-аутом, ошибки очистки логируются, а не глотаются; закрытие контекстов не держит тест.
     const cleanupTimeout = 10_000;
     const csrf = { 'X-CSRF-Token': csrfTokens.get(analyst) ?? '' };
+    // Сначала сброс (запросы идут через analystCtx), и только потом закрытие контекстов.
     const cleanup = await Promise.allSettled([
       analyst.post('/api/v1/source/emulator/actions', {
         data: { actions: [{ customerId: 0, actionId: 'reset' }] },
@@ -193,10 +194,9 @@ test('демо: очередь → карточка → потеря по при
         headers: csrf,
         timeout: cleanupTimeout,
       }),
-      marketerCtx.close(),
-      analystCtx.close(),
     ]);
-    for (const r of cleanup) {
+    const closed = await Promise.allSettled([marketerCtx.close(), analystCtx.close()]);
+    for (const r of [...cleanup, ...closed]) {
       if (r.status === 'rejected') console.warn('очистка стенда:', r.reason);
     }
   }
