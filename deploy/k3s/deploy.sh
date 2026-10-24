@@ -43,9 +43,9 @@ chmod 600 "$values"
 
 # Узел должен вмещать лимиты памяти чарта: иначе под зависнет в Pending или узел уйдёт в OOM.
 # Не вмещает — выкат красный, лимиты и прод не трогаем (нужен человек).
-alloc_ki="$(kubectl get nodes -o jsonpath='{.items[0].status.allocatable.memory}' 2>/dev/null | sed 's/Ki$//')"
+alloc_ki="$(kubectl get nodes -o jsonpath='{.items[0].status.allocatable.memory}' 2>/dev/null | sed 's/Ki$//' || true)"
 need_mi="$(helm template "$RELEASE" "$SRC/deploy/helm/churn" -n "$NS" --set domain=x --set postgres.password=x 2>/dev/null \
-  | awk '/^ *limits:/ {l=1; next} l && /memory:/ {v=$2; gsub(/"/, "", v); if (v ~ /Gi$/) {sub(/Gi$/, "", v); n+=v*1024} else if (v ~ /Mi$/) {sub(/Mi$/, "", v); n+=v}} {if ($0 !~ /memory:/ && $0 !~ /^ *limits:/) l=0} END {print n+0}')"
+  | awk '/^ *limits:/ {l=1; next} l && /memory:/ {v=$2; gsub(/"/, "", v); if (v ~ /Gi$/) {sub(/Gi$/, "", v); n+=v*1024} else if (v ~ /Mi$/) {sub(/Mi$/, "", v); n+=v}} {if ($0 !~ /memory:/ && $0 !~ /^ *limits:/) l=0} END {print n+0}' || true)"
 if [[ "$alloc_ki" =~ ^[0-9]+$ ]]; then
   echo "узел: allocatable память $((alloc_ki / 1024)) МиБ, лимиты чарта (без спутников Compose) $need_mi МиБ"
   if [ "$need_mi" -gt "$((alloc_ki / 1024))" ]; then
