@@ -127,3 +127,40 @@ func TestEnvDuration(t *testing.T) {
 		t.Fatal("ждали ошибку")
 	}
 }
+
+// Остановка не отменяет контекст обычных запросов: обработчик, который слушает r.Context(),
+// дорабатывает; отменяется только контекст потока событий.
+func TestServeKeepsRequestContext(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.Handle("/", newMux())
+	mux.HandleFunc("GET /ctx", func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-time.After(500 * time.Millisecond):
+			_, _ = io.WriteString(w, "done")
+		case <-r.Context().Done():
+			http.Error(w, "ctx canceled", http.StatusInternalServerError)
+		}
+	})
+	base, _, stop, done := startServe(t, mux, 100*time.Millisecond, 5*time.Second)
+
+	res := make(chan string, 1)
+	go func() {
+		resp, err := http.Get(base + "/ctx")
+		if err != nil {
+			res <- "ошибка: " + err.Error()
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+		b, _ := io.ReadAll(resp.Body)
+		res <- string(b)
+	}()
+	time.Sleep(50 * time.Millisecond)
+	stop()
+
+	if got := <-res; got != "done" {
+		t.Fatalf("запрос в работе при остановке: %q", got)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("остановка: %v", err)
+	}
+}

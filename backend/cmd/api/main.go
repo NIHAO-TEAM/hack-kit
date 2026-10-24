@@ -181,7 +181,7 @@ func run() error {
 }
 
 // newServer оборачивает обработчик приложения: /readyz отвечает мимо сессии и счётчика запросов,
-// остальные запросы считаются, а их контекст наследует отмену потоков при остановке.
+// остальные запросы считаются, а контекст потока событий отменяется при остановке.
 func newServer(addr string, h http.Handler, lc *httpx.Lifecycle) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /readyz", lc.ReadyHandler)
@@ -192,7 +192,6 @@ func newServer(addr string, h http.Handler, lc *httpx.Lifecycle) *http.Server {
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,
-		BaseContext:       func(net.Listener) context.Context { return lc.BaseContext() },
 	}
 	srv.RegisterOnShutdown(lc.CancelStreams)
 	return srv

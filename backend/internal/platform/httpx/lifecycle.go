@@ -57,14 +57,21 @@ func (l *Lifecycle) InflightAtShutdown() int64 { return l.atSignal.Load() }
 // CancelStreams отменяет контекст долгих потоков; подключается через srv.RegisterOnShutdown.
 func (l *Lifecycle) CancelStreams() { l.cancelStreams() }
 
-// BaseContext отдаётся http.Server.BaseContext: контекст каждого запроса наследует отмену потоков.
-func (l *Lifecycle) BaseContext() context.Context { return l.streams }
+// streamPath — долгий поток, который закрывается при остановке; остальные запросы дорабатывают.
+const streamPath = "/api/v1/events"
 
-// Track считает запросы в работе. Сам /readyz проходит мимо него.
+// Track считает запросы в работе. Сам /readyz проходит мимо него. Контекст потока SSE
+// отменяется при остановке, контексты остальных запросов остаются как есть.
 func (l *Lifecycle) Track(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		l.inflight.Add(1)
 		defer l.inflight.Add(-1)
+		if r.URL.Path == streamPath {
+			ctx, cancel := context.WithCancel(r.Context())
+			defer cancel()
+			defer context.AfterFunc(l.streams, cancel)()
+			r = r.WithContext(ctx)
+		}
 		next.ServeHTTP(w, r)
 	})
 }
