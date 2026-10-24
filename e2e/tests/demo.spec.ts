@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 // Сценарий — docs/demo-script.md. Учётки и пароли только из окружения.
 const marketerPassword = process.env.E2E_MARKETER_PASSWORD ?? '';
@@ -38,6 +38,14 @@ async function uiLogin(page: Page, login: string, password: string) {
   await expect(page.getByRole('table', { name: 'Клиенты под риском оттока' })).toBeVisible();
 }
 
+// Переход, после которого страница доведена до устойчивого состояния: следующий goto не обрывает загрузку (Firefox: NS_BINDING_ABORTED).
+async function gotoStable(page: Page, path: string, ready: (page: Page) => Locator) {
+  await page.goto(path);
+  await expect(ready(page)).toBeVisible();
+}
+
+const queueTable = (page: Page) => page.getByRole('table', { name: 'Клиенты под риском оттока' });
+
 async function customers(request: APIRequestContext): Promise<Row[]> {
   const res = await request.get('/api/v1/customers?sort=expectedLoss&order=desc&limit=100');
   expect(res.ok()).toBeTruthy();
@@ -69,8 +77,8 @@ test('демо: очередь → карточка → потеря по при
     // Шаг 1. Очередь маркетолога.
     const page = await marketerCtx.newPage();
     await uiLogin(page, 'marketer', marketerPassword);
-    await page.goto('/queue');
-    const table = page.getByRole('table', { name: 'Клиенты под риском оттока' });
+    await gotoStable(page, '/queue', queueTable);
+    const table = queueTable(page);
     await expect(page.getByRole('region', { name: 'Ожидаемая потеря за 30 дней' })).toContainText(
       money('3 599,07'),
     );
@@ -83,14 +91,13 @@ test('демо: очередь → карточка → потеря по при
     await table.locator('tbody tr').first().click();
     await expect(page).toHaveURL(/\/queue\/9$/);
     await expect(page.getByText(money('3 189,10')).first()).toBeVisible();
-    await page.goto('/queue');
+    await gotoStable(page, '/queue', queueTable);
 
     // Шаг 3. «Сводка»: где теряем деньги, по причинам.
     await test.step('Сводка: где теряем деньги', async () => {
-      await page.goto('/summary');
-      await expect(page.getByRole('heading', { name: 'Где теряем деньги' })).toBeVisible();
+      await gotoStable(page, '/summary', (p) => p.getByRole('heading', { name: 'Где теряем деньги' }));
       await expect(page.getByText('Это не доказанная причинность.')).toBeVisible();
-      await page.goto('/queue');
+      await gotoStable(page, '/queue', queueTable);
     });
 
     // Шаг 4. Аналитик меняет вес — очередь обновляется без перезагрузки.
