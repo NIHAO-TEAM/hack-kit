@@ -20,7 +20,7 @@ var implemented = map[string]bool{
 	"login": true, "getMe": true, "logout": true, "getAuthConfig": true,
 	"putSnapshot": true, "getSourceStatus": true, "getEvents": true,
 	"getModelSettings": true, "patchModelSettings": true,
-	"listCustomers": true, "getCustomer": true,
+	"listCustomers": true, "exportCustomers": true, "getCustomer": true,
 	"getSummary": true, "getChurnChart": true, "getMetrics": true, "getMetricsAlias": true,
 	"emulatorTick": true, "emulatorActions": true,
 	"patchService": true, "patchAccount": true, "setSourcePolling": true, "listAudit": true,
