@@ -61,3 +61,65 @@ for _ in $(seq 1 120); do
   sleep 5
 done
 check "GET /healthz" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/healthz")"
+
+# --- 3. Обязательные эндпоинты
+code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+check "GET / (веб-клиент)" 200 "$(code "$BASE/")"
+check "GET /api/v1/docs (Swagger)" 200 "$(code "$BASE/api/v1/docs")"
+
+# без входа — 401 на путях с данными
+for p in /api/v1/auth/me /api/v1/customers /api/v1/customers/1 /api/v1/analytics/summary /api/v1/model/settings; do
+  check "без входа 401: GET $p" 401 "$(code "$BASE$p")"
+done
+check "без входа 401: PUT /api/v1/source/snapshot" 401 \
+  "$(code -X PUT -H 'Content-Type: application/json' -d '{}' "$BASE/api/v1/source/snapshot")"
+check "без входа 401: GET /metrics" 401 "$(code "$BASE/metrics")"
+
+# вход jury (демо-пароль из .env), cookie + CSRF
+JURY_PW="$(envval DEMO_JURY_PASSWORD)"
+login_body="$(jq -n --arg p "$JURY_PW" '{login:"jury",password:$p}')"
+login_resp="$(curl -s -c "$JAR" -w '\n%{http_code}' -H 'Content-Type: application/json' -d "$login_body" "$BASE/api/v1/auth/login")"
+check "POST /api/v1/auth/login (jury)" 200 "${login_resp##*$'\n'}"
+CSRF="$(printf '%s' "${login_resp%$'\n'*}" | jq -r '.csrfToken // empty')"
+[ -n "$CSRF" ] && ok "login вернул csrfToken" || bad "login вернул csrfToken" "нет поля"
+
+get() { curl -s -b "$JAR" "$BASE$1"; }
+gcode() { code -b "$JAR" "$BASE$1"; }
+check "GET /api/v1/auth/me" 200 "$(gcode /api/v1/auth/me)"
+check "GET /api/v1/analytics/summary" 200 "$(gcode /api/v1/analytics/summary)"
+check "GET /api/v1/model/settings" 200 "$(gcode /api/v1/model/settings)"
+check "GET /customers?limit=5" 200 "$(gcode '/api/v1/customers?limit=5')"
+
+first_id="$(get '/api/v1/customers?limit=1' | jq -r '.items[0].id // empty')"
+if [ -n "$first_id" ]; then
+  check "GET /customers/{id}" 200 "$(gcode "/api/v1/customers/$first_id")"
+else
+  bad "GET /customers/{id}" "очередь пуста, нет id"
+fi
+
+# сортировки по каждому полю в обе стороны: порядок проверяем по ответу
+for field in id email balance totalReplenished; do
+  for order in asc desc; do
+    vals="$(get "/api/v1/customers?sort=$field&order=$order&limit=100" | jq -c "[.items[].$field]")"
+    if [ -z "$vals" ] || [ "$vals" = "[]" ] || [ "$vals" = "null" ]; then
+      bad "сортировка $field $order" "пустой ответ"
+      continue
+    fi
+    if [ "$order" = asc ]; then expr='. == sort'; else expr='. == (sort | reverse)'; fi
+    if printf '%s' "$vals" | jq -e "$expr" >/dev/null; then
+      ok "сортировка $field $order"
+    else
+      bad "сортировка $field $order" "порядок нарушен"
+    fi
+  done
+done
+
+# /metrics по токену
+check "GET /metrics по токену" 200 "$(code -H "Authorization: Bearer $(envval METRICS_TOKEN)" "$BASE/metrics")"
+
+# PUT /source/snapshot по сервисному токену: один счёт, одна услуга, один платёж
+snap='{"accounts":[{"id":900001,"email":"quickstart@example.com","balance":1000,"withdrawBalance":0,"totalReplenished":5000,"bonusBalance":0,"bonusState":"locked"}],
+"services":[{"id":900001,"name":"vps","ownerId":900001,"paymentTerm":"month","autoProlong":true,"createdAt":"2026-01-01T00:00:00Z","expiresAt":"2030-01-01T00:00:00Z","status":"active","price":500}],
+"transactions":[{"id":900001,"amount":500,"status":"performed","createdAt":"2026-01-01T00:00:00Z","type":"order","serviceId":900001}]}'
+check "PUT /api/v1/source/snapshot по токену" 200 "$(code -X PUT -H "Authorization: Bearer $(envval SOURCE_TOKEN)" \
+  -H 'Content-Type: application/json' -d "$snap" "$BASE/api/v1/source/snapshot")"
