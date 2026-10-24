@@ -20,6 +20,17 @@ describe('экран «Карточка клиента»', () => {
     expect(screen.queryByText(/сохранит/i)).not.toBeInTheDocument();
   });
 
+  it('в карточке нет цикла «взять в работу», кнопок закрытия и блока наблюдений (ADR-0004)', async () => {
+    renderApp('/queue/9');
+    await screen.findByRole('heading', { name: 'Клиент 9' });
+    expect(screen.getByRole('heading', { name: 'Что сделать' })).toBeInTheDocument();
+    for (const name of ['Отметить: взято в работу', 'Закрыть', 'Связались', 'Отложить до…']) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+    }
+    expect(screen.queryByRole('region', { name: 'Работа с клиентом' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'После взятия в работу' })).toBeNull();
+  });
+
   it('клиент 9: скор в шапке «87 %», в формуле вероятность «0,87»', async () => {
     renderApp('/queue/9');
     expect(await screen.findByText('скор 87 %')).toBeInTheDocument();
