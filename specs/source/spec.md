@@ -216,3 +216,29 @@
 - WHEN пачку шлёт токен источника, аналитик или `jury`
 - THEN ответ 202; маркетологу 403, без сессии и с токеном метрик 401
 - Тест: `TestPermissionMatrixCoversEveryOperation`, `TestSourceTokenOpensOnlySnapshot`, `TestPostSourceEventsRoles` (интеграционный)
+
+### Requirement: состояние прогона потока одинаково на всех репликах
+
+Сервер SHALL отдавать на `GET /source/emulator/stream` одно и то же состояние прогона с любой реплики, а прогон, реплика которого остановилась, — как `failed`.
+
+#### Scenario: опрос не той реплики
+
+- WHEN прогон идёт на реплике A, а `GET /source/emulator/stream` попал на реплику B
+- THEN ответ — `running` с тем же `runId` и счётчиками не старше 1 с; по окончании — `done` с отчётом
+- Тест: `TestStreamStateVisibleFromAnotherReplica` (интеграционный); `Deploy chaos`
+
+#### Scenario: ведущая реплика умерла
+
+- WHEN реплика, которая вела прогон, остановилась и не обновляла состояние больше 10 с
+- THEN ответ — `failed` с ошибкой об остановленной реплике, новый прогон можно запустить
+- Тест: `TestStreamStateOfDeadReplicaIsFailed`, `TestStreamStateWithLiveLeaderStaysRunning` (интеграционные)
+
+### Requirement: реплика узнаёт о снимке, загруженном через другую
+
+Сервер SHALL пересчитать данные на каждой реплике после загрузки снимка через любую из них, без перезапуска.
+
+#### Scenario: снимок загружен через другую реплику
+
+- WHEN снимок загружен через реплику A, а реплика B отвечает на чтение
+- THEN в течение нескольких секунд (`RECALC_PEER_POLL`, 2 с) B пересчитывает данные, и чтение на ней отвечает 200 вместо 503 «расчёт ещё не готов»
+- Тест: `TestReplicaSeesSnapshotLoadedViaPeer`; `Deploy chaos`

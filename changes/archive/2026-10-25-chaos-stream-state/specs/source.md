@@ -10,13 +10,13 @@
 
 - WHEN прогон идёт на реплике A, а `GET /source/emulator/stream` попал на реплику B
 - THEN ответ — `running` с тем же `runId` и счётчиками не старше 1 с; по окончании — `done` с отчётом
-- Тест: тест двух `SourceAPI` над одной базой; `Deploy chaos`
+- Тест: `TestStreamStateVisibleFromAnotherReplica` (интеграционный); `Deploy chaos`
 
 #### Scenario: ведущая реплика умерла
 
 - WHEN реплика, которая вела прогон, остановилась и не обновляла состояние больше 10 с
 - THEN ответ — `failed` с ошибкой об остановленной реплике, новый прогон можно запустить
-- Тест: тест с устаревшей записью
+- Тест: `TestStreamStateOfDeadReplicaIsFailed`, `TestStreamStateWithLiveLeaderStaysRunning` (интеграционные)
 
 ### Requirement: реплика узнаёт о снимке, загруженном через другую
 
