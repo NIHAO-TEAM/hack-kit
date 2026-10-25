@@ -1,7 +1,6 @@
 import { Badge, Group, Stack, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { settingsQuery } from '@entities/model-config';
-import { AuditLog } from '@widgets/audit-log';
 import { ApiError } from '@shared/api';
 import { StateError, StateLoading, StateOffline } from '@shared/ui';
 import { SettingsForm } from './SettingsForm';
@@ -40,7 +39,6 @@ export function ModelPage() {
       </Group>
       {query.isError ? <StateOffline onRetry={() => void query.refetch()} /> : null}
       <SettingsForm key={query.data.version} settings={query.data} />
-      <AuditLog />
     </Stack>
   );
 }

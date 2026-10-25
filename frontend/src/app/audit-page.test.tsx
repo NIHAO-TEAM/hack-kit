@@ -8,13 +8,16 @@ function signedInAs(role: 'analyst' | 'marketer' | 'admin' | 'jury') {
 }
 
 describe('журнал — отдельная страница', () => {
-  it.each(['analyst', 'admin', 'jury'] as const)('%s открывает /audit и видит записи', async (role) => {
-    signedInAs(role);
-    renderApp('/audit');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Журнал' })).toBeInTheDocument();
-    const log = await screen.findByRole('region', { name: 'Журнал действий' });
-    expect(await within(log).findByText('Вход в систему')).toBeInTheDocument();
-  });
+  it.each(['analyst', 'admin', 'jury'] as const)(
+    '%s открывает /audit и видит записи',
+    async (role) => {
+      signedInAs(role);
+      renderApp('/audit');
+      expect(await screen.findByRole('heading', { level: 1, name: 'Журнал' })).toBeInTheDocument();
+      const log = await screen.findByRole('region', { name: 'Журнал действий' });
+      expect(await within(log).findByText('Вход в систему')).toBeInTheDocument();
+    },
+  );
 
   it.each(['analyst', 'admin', 'jury'] as const)('%s видит пункт меню «Журнал»', async (role) => {
     signedInAs(role);
