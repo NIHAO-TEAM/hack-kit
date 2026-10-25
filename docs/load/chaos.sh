@@ -75,6 +75,12 @@ check_readers() {
   SSE_DROPS=$(jq -r '.metrics.sse_drops.count // 0' "$s")
   SSE_ALIVE=$(jq -r '.metrics.sse_window_alive.value // 0' "$s")
   echo "этап $1: запросов чтения $READ_N, доля ошибок $READ_FAIL, обрывов SSE (переподключены) $SSE_DROPS, живых окон SSE $SSE_ALIVE"
+  if [ "$READ_FAIL" != 0 ]; then
+    echo "этап $1: ошибки чтения по коду ответа (0 — оборванный запрос):"
+    jq -r '.metrics | to_entries[] | select(.key | startswith("read_err_")) | select(.value.count > 0) | "  \(.key | sub("read_err_"; "")): \(.value.count)"' "$f"
+    echo "этап $1: первые ошибки k6:"
+    grep 'ошибка чтения' "$OUT/k6-read-$1.log" | head -10 || true
+  fi
   [ "$READ_N" -gt 0 ] || fail "этап $1: читатели не сделали ни одного запроса"
   [ "$READ_FAIL" = 0 ] || fail "этап $1: ошибок чтения очереди (5xx и обрывы соединения): доля $READ_FAIL"
   # SSE обязаны вернуться: после обрыва есть живые окна, то есть клиенты переподключились к оставшейся реплике.
