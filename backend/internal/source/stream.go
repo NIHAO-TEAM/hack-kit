@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"example.com/app/internal/platform/api/gen"
@@ -172,11 +171,24 @@ func (a *SourceAPI) streamState(ctx context.Context) gen.StreamState {
 	}
 	var raw []byte
 	var age time.Duration
-	err := a.pool.QueryRow(ctx, `SELECT state, now() - updated_at FROM stream_runs ORDER BY updated_at DESC LIMIT 1`).Scan(&raw, &age)
+	rows, err := a.pool.Query(ctx, `SELECT state, now() - updated_at FROM stream_runs ORDER BY updated_at DESC LIMIT 1`)
 	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			log.Printf("source: поток, состояние из базы: %v", err)
-		}
+		log.Printf("source: поток, состояние из базы: %v", err)
+		return local
+	}
+	found := rows.Next()
+	if found {
+		err = rows.Scan(&raw, &age)
+	}
+	rows.Close()
+	if err == nil {
+		err = rows.Err()
+	}
+	if err != nil {
+		log.Printf("source: поток, состояние из базы: %v", err)
+		return local
+	}
+	if !found {
 		return local
 	}
 	var st gen.StreamState
