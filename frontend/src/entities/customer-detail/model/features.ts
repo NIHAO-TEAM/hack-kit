@@ -10,14 +10,59 @@ export function scorePercentText(score: number): string {
   return `скор ${Math.round(score)} %`;
 }
 
-/** Формула вероятности срыва с числами ответа: `P = 1 − (1 − w·f)(…) = 0,87`. Скор с сервера — в процентах, в формуле вероятность 0..1. */
-export function formulaText(features: readonly CustomerFeature[], scorePercent: number): string {
-  const num = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
-  const terms = byContribution(features).map((f) => `(1 − ${num(f.weight)}·${num(f.value)})`);
-  return `P = 1 − ${terms.join(' · ') || '1'} = ${num(scorePercent / 100)}`;
-}
-
 /** Сумма ожидаемых потерь по услугам; на сервере ожидаемая потеря клиента — ровно эта сумма (`risk/score.go`). */
 export function lossSum(risks: readonly ServiceRisk[]): number {
   return risks.reduce((sum, r) => sum + r.lossCents, 0);
+}
+
+export type ReasonStrength = 'strong' | 'noticeable' | 'weak';
+
+export type RiskReason = {
+  id: string;
+  text: string;
+  strength: ReasonStrength;
+};
+
+export type ServiceReasons = {
+  serviceId: number;
+  lossCents: number;
+  /** Доля услуги в потере клиента, 0..1: ширина полосы. */
+  share: number;
+  reasons: RiskReason[];
+};
+
+/** Пороги силы причины по доле её вклада в сумме вкладов: на глаз, не расчёт [ПРЕДПОЛОЖЕНО]. */
+const STRONG_SHARE = 0.4;
+const NOTICEABLE_SHARE = 0.15;
+
+/** Действующие причины (вклад > 0) по убыванию силы; текст — с сервера, без него название признака. */
+export function activeReasons(
+  features: readonly CustomerFeature[],
+  title: (id: string) => string,
+): RiskReason[] {
+  const active = byContribution(features).filter((f) => f.contribution > 0);
+  const total = active.reduce((sum, f) => sum + f.contribution, 0);
+  return active.map((f) => {
+    const part = total > 0 ? f.contribution / total : 0;
+    return {
+      id: f.id,
+      text: f.reason || title(f.id),
+      strength: part >= STRONG_SHARE ? 'strong' : part >= NOTICEABLE_SHARE ? 'noticeable' : 'weak',
+    };
+  });
+}
+
+/** Услуги с потерей > 0 по убыванию потери: доля в потере клиента и причины каждой. */
+export function riskReasons(
+  risks: readonly ServiceRisk[],
+  title: (id: string) => string,
+): ServiceReasons[] {
+  const lossy = risks.filter((r) => r.lossCents > 0).sort((a, b) => b.lossCents - a.lossCents);
+  const total = lossy.reduce((sum, r) => sum + r.lossCents, 0);
+  return lossy.map((r) => ({
+    serviceId: r.serviceId,
+    lossCents: r.lossCents,
+    share: r.lossCents / total,
+    reasons: activeReasons(r.features, title),
+  }));
 }

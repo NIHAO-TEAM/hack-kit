@@ -1,16 +1,11 @@
 import { Alert, Stack, Table, Text } from '@mantine/core';
-import {
-  byContribution,
-  formulaText,
-  type CustomerFeature,
-  type ServiceRisk,
-} from '@entities/customer-detail';
+import { byContribution, type CustomerFeature, type ServiceRisk } from '@entities/customer-detail';
 import { featureTitle } from '@entities/model-config';
 import { Money } from '@shared/ui';
 
 const num = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
 
-/** Оценка одной живой услуги: P, R, P·R, признаки с весом и значением, формула, проверки качества. */
+/** Оценка одной живой услуги: P, R, P·R, признаки с весом и значением, проверки качества. */
 export function ServiceRiskPanel({ risk }: { risk: ServiceRisk }) {
   const features: readonly CustomerFeature[] = risk.features;
   return (
@@ -50,9 +45,6 @@ export function ServiceRiskPanel({ risk }: { risk: ServiceRisk }) {
           </Table.Tbody>
         </Table>
       ) : null}
-      <Text size="sm" ff="monospace" data-testid="service-formula">
-        {formulaText(features, risk.probability * 100)}
-      </Text>
       {risk.quality.length > 0 ? (
         <Alert color="yellow" variant="light" title="Проверки качества данных">
           {risk.quality.map((q) => (

@@ -46,48 +46,76 @@ describe('экран «Карточка клиента»', () => {
     expect(screen.queryByRole('region', { name: 'После взятия в работу' })).toBeNull();
   });
 
-  it('клиент 9: скор в шапке «87 %», в формуле вероятность «0,87»', async () => {
+  it('клиент 9: скор в шапке «87 %», формулы нет', async () => {
     renderApp('/queue/9');
     expect(await screen.findByText('скор 87 %')).toBeInTheDocument();
     expect(screen.queryByText(/8814/)).toBeNull();
-    expect(await screen.findByText(/^P = 1 − /)).toHaveTextContent(/= 0,87$/);
+    await screen.findByRole('heading', { name: 'Причины риска' });
+    expect(screen.queryByText(/P = 1/)).toBeNull();
   });
 
-  it('карточка клиента 9: признаки по убыванию вклада и формула с числами ответа', async () => {
+  it('карточка клиента 9: причины по услугам по убыванию потери, без весов и таблицы', async () => {
     renderApp('/queue/9');
-    const table = await screen.findByRole('table', { name: 'Признаки риска клиента' });
-    const rows = within(table).getAllByRole('row');
-    expect(rows[1]).toHaveTextContent('noauto');
-    expect(rows[2]).toHaveTextContent('fail');
-    expect(within(table!).getByText('funds')).toBeInTheDocument();
-    expect(within(table).getByText('susp')).toBeInTheDocument();
-    expect(within(table).getByText('Вклад')).toBeInTheDocument();
-    expect(screen.getByText(/^P = 1 − \(1 − 0,55·1\)/)).toHaveTextContent('= 0,87');
+    await screen.findByRole('heading', { name: 'Причины риска' }, { timeout: 5000 });
+    const blocks = screen.getAllByTestId('risk-service');
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toHaveTextContent(/3\s181,71\s€ под угрозой/);
+    expect(blocks[1]).toHaveTextContent(/7,39\s€ под угрозой/);
+    expect(within(blocks[0]!).getByText('Баланса не хватит')).toBeInTheDocument();
+    expect(within(blocks[0]!).getAllByText(/сильная|заметная|слабая/).length).toBeGreaterThan(0);
+    expect(
+      within(blocks[0]!).queryByText('Часть баланса доступна к выводу', { exact: false }),
+    ).toBeNull();
+    expect(screen.queryByRole('table', { name: /Признаки риска/ })).toBeNull();
+    expect(screen.queryByText('Вклад')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Как считается риск' })).toHaveAttribute(
+      'href',
+      '/about',
+    );
   });
 
-  it('раскрытая услуга не выдаёт признаки клиента за свои', async () => {
+  it('раскрытая услуга: признаки услуги есть, формулы нет', async () => {
     const user = userEvent.setup();
     renderApp('/queue/9');
-    await screen.findByRole('table', { name: /Признаки риска/ });
-    const control = document.querySelector<HTMLElement>('[data-accordion-control]');
-    if (!control) throw new Error('нет раскрывающейся услуги');
-    await user.click(control);
-    expect(screen.getAllByRole('table', { name: /Признаки риска/ })).toHaveLength(1);
-  });
-
-  it('услуга клиента 9: P, R, P·R, признаки услуги и формула, заканчивающаяся её вероятностью', async () => {
-    const user = userEvent.setup();
-    renderApp('/queue/9');
-    await screen.findByRole('table', { name: /Признаки риска/ }, { timeout: 5000 });
+    await screen.findByRole('heading', { name: 'Причины риска' }, { timeout: 5000 });
     const controls = document.querySelectorAll<HTMLElement>('[data-accordion-control]');
     await user.click(controls[1]!);
     expect(screen.getAllByText(/Вероятность непродления P = 0,52 \(52 %\)/)).toHaveLength(2);
     expect(screen.getAllByText(/ожидаемая потеря P·R/)[1]).toHaveTextContent(/3\s181,71\s€/);
     const [table] = screen.getAllByRole('table', { name: 'Признаки услуги' });
     expect(within(table!).getByText('funds')).toBeInTheDocument();
-    for (const f of screen.getAllByTestId('service-formula'))
-      expect(f).toHaveTextContent(/= (0,87|0,52)$/);
-    expect(screen.queryByText(/появятся, когда сервер/)).toBeNull();
+    expect(screen.queryByTestId('service-formula')).toBeNull();
+    expect(screen.queryByText(/P = 1/)).toBeNull();
+  });
+
+  it('без serviceRisks причины клиента — одним списком без группировки', async () => {
+    const { server } = await import('../mocks/server');
+    const res = await fetch('/api/v1/customers/9');
+    const detail = (await res.json()) as CustomerDetail;
+    server.use(
+      http.get('/api/v1/customers/9', () =>
+        HttpResponse.json({ ...detail, serviceRisks: undefined }),
+      ),
+    );
+    renderApp('/queue/9');
+    await screen.findByRole('heading', { name: 'Причины риска' }, { timeout: 5000 });
+    expect(screen.getByText('Автопродление выключено')).toBeInTheDocument();
+    expect(screen.queryByTestId('risk-service')).toBeNull();
+  });
+
+  it('без действующих признаков — «Явных причин риска нет»', async () => {
+    const { server } = await import('../mocks/server');
+    const res = await fetch('/api/v1/customers/9');
+    const detail = (await res.json()) as CustomerDetail;
+    server.use(
+      http.get('/api/v1/customers/9', () =>
+        HttpResponse.json({ ...detail, serviceRisks: undefined, features: [] }),
+      ),
+    );
+    renderApp('/queue/9');
+    expect(
+      await screen.findByText('Явных причин риска нет', undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
   });
 
   it('клиент 9: сумма потерь по услугам сходится с шапкой', async () => {
@@ -140,7 +168,7 @@ describe('экран «Карточка клиента»', () => {
     const rest = { ...detail, serviceRisks: undefined };
     server.use(http.get('/api/v1/customers/9', () => HttpResponse.json(rest)));
     renderApp('/queue/9');
-    await screen.findByRole('table', { name: /Признаки риска/ }, { timeout: 5000 });
+    await screen.findByRole('heading', { name: 'Причины риска' }, { timeout: 5000 });
     await user.click(document.querySelector<HTMLElement>('[data-accordion-control]')!);
     expect(screen.getAllByText('Оценок по услугам нет.').length).toBeGreaterThan(0);
     expect(screen.queryByText(/Сумма потерь по услугам/)).toBeNull();
