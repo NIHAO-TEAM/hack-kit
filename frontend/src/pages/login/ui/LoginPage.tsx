@@ -20,19 +20,26 @@ const SSO_LOGIN_URL = '/api/v1/auth/oidc/login';
 
 export function LoginPage({
   onSubmit,
+  onGuest,
 }: {
   onSubmit: (credentials: { login: string; password: string }) => Promise<void>;
+  /** Гостевой вход без пароля; кнопка показывается, если сервер его включил. */
+  onGuest?: () => Promise<void>;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [ssoEnabled, setSsoEnabled] = useState(false);
+  const [guestEnabled, setGuestEnabled] = useState(false);
 
   // Пока ответа нет и при ошибке запроса кнопки SSO нет: вход по паролю работает без неё.
   useEffect(() => {
     const ctrl = new AbortController();
     fetch(AUTH_CONFIG_URL, { signal: ctrl.signal })
       .then((res) => (res.ok ? res.json() : null))
-      .then((cfg: { ssoEnabled?: boolean } | null) => setSsoEnabled(cfg?.ssoEnabled === true))
+      .then((cfg: { ssoEnabled?: boolean; guestEnabled?: boolean } | null) => {
+        setSsoEnabled(cfg?.ssoEnabled === true);
+        setGuestEnabled(cfg?.guestEnabled === true);
+      })
       .catch(() => {});
     return () => ctrl.abort();
   }, []);
@@ -52,6 +59,19 @@ export function LoginPage({
     } catch (e) {
       setError(loginErrorText(e));
       form.setFieldValue('password', '');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function enterAsGuest() {
+    if (!onGuest) return;
+    setError(null);
+    setPending(true);
+    try {
+      await onGuest();
+    } catch (e) {
+      setError(loginErrorText(e));
     } finally {
       setPending(false);
     }
@@ -104,6 +124,11 @@ export function LoginPage({
               {ssoEnabled ? (
                 <Button component="a" href={SSO_LOGIN_URL} variant="default">
                   Войти через SSO
+                </Button>
+              ) : null}
+              {guestEnabled && onGuest ? (
+                <Button variant="default" onClick={() => void enterAsGuest()} disabled={pending}>
+                  Посмотреть как гость
                 </Button>
               ) : null}
             </Stack>

@@ -57,7 +57,14 @@ function formField(field: string): string {
   return field.replace(/^thresholds\./, '');
 }
 
-export function SettingsForm({ settings }: { settings: ModelSettings }) {
+export function SettingsForm({
+  settings,
+  readOnly = false,
+}: {
+  settings: ModelSettings;
+  /** Только просмотр (гость): поля заблокированы, кнопок и расчёта эффекта нет. */
+  readOnly?: boolean;
+}) {
   const form = useForm<FormValues>({ initialValues: toFormValues(settings) });
   const queryClient = useQueryClient();
 
@@ -115,17 +122,32 @@ export function SettingsForm({ settings }: { settings: ModelSettings }) {
               max={1}
               step={0.05}
               thumbLabel={featureTitle(id)}
+              disabled={readOnly}
               {...form.getInputProps(`weights.${id}`)}
             />
           </Card>
         ))}
         <Card withBorder>
           <Stack>
-            <NumberInput label="Порог высокого уровня" {...form.getInputProps('high')} />
-            <NumberInput label="Порог среднего уровня" {...form.getInputProps('medium')} />
-            <NumberInput label="Горизонт, дней" min={1} {...form.getInputProps('horizonDays')} />
+            <NumberInput
+              label="Порог высокого уровня"
+              readOnly={readOnly}
+              {...form.getInputProps('high')}
+            />
+            <NumberInput
+              label="Порог среднего уровня"
+              readOnly={readOnly}
+              {...form.getInputProps('medium')}
+            />
+            <NumberInput
+              label="Горизонт, дней"
+              min={1}
+              readOnly={readOnly}
+              {...form.getInputProps('horizonDays')}
+            />
             <SegmentedControl
               aria-label="Основа цены"
+              disabled={readOnly}
               data={[
                 { value: 'per_period', label: 'За период' },
                 { value: 'per_month', label: 'За месяц' },
@@ -136,13 +158,21 @@ export function SettingsForm({ settings }: { settings: ModelSettings }) {
         </Card>
       </Stack>
       <Stack flex="0 1 320px" pos="sticky" top={16}>
-        <PreviewPanel patch={toPatch(form.values)} changed={form.isDirty()} />
-        <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!form.isDirty()}>
-          Сохранить
-        </Button>
-        <Button variant="default" onClick={reset}>
-          Сбросить к умолчанию
-        </Button>
+        {readOnly ? null : (
+          <>
+            <PreviewPanel patch={toPatch(form.values)} changed={form.isDirty()} />
+            <Button
+              onClick={() => save.mutate()}
+              loading={save.isPending}
+              disabled={!form.isDirty()}
+            >
+              Сохранить
+            </Button>
+            <Button variant="default" onClick={reset}>
+              Сбросить к умолчанию
+            </Button>
+          </>
+        )}
       </Stack>
     </Group>
   );

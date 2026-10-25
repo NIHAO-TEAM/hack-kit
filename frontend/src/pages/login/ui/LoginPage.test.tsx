@@ -1,5 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
 import { LoginPage } from './LoginPage';
 
@@ -49,6 +50,38 @@ describe('LoginPage', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.queryByRole('link', { name: 'Войти через SSO' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
+  });
+
+  it('гостевой вход включён — есть кнопка «Посмотреть как гость», она вызывает onGuest', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ssoEnabled: false, guestEnabled: true }),
+      }),
+    );
+    const onGuest = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MantineProvider>
+        <LoginPage onSubmit={async () => {}} onGuest={onGuest} />
+      </MantineProvider>,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Посмотреть как гость' }));
+    expect(onGuest).toHaveBeenCalledTimes(1);
+  });
+
+  it('гостевой вход выключен — кнопки нет', async () => {
+    const fetchMock = config(false);
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <MantineProvider>
+        <LoginPage onSubmit={async () => {}} onGuest={async () => {}} />
+      </MantineProvider>,
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByRole('button', { name: 'Посмотреть как гость' })).not.toBeInTheDocument();
   });
 
   it('фон скрыт от читалок и с орбитой, названия и заголовок на месте, логотип в main', () => {

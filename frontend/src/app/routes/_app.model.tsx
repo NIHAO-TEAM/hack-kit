@@ -16,7 +16,7 @@ function Section() {
   const { user } = Route.useRouteContext();
   return (
     <RightGate role={user.role} right="model.view" section="Модель">
-      <ModelPage />
+      <ModelPage editable={can(user.role, 'model.edit')} />
     </RightGate>
   );
 }

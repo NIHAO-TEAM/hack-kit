@@ -32,6 +32,16 @@ export async function login(credentials: { login: string; password: string }) {
   return data.user;
 }
 
+/** Гостевой вход без пароля (роль viewer). Выключен на сервере — 404. */
+export async function guestLogin() {
+  const { data, error, response } = await api.POST('/api/v1/auth/guest').catch(() => {
+    throw toApiError(0, null);
+  });
+  if (error || !data) throw toApiError(response.status, error, response);
+  setCsrfToken(data.csrfToken ?? null);
+  return data.user;
+}
+
 /** Завершает сессию на сервере. Не вышло (не 401) — бросает ошибку, локальное состояние не трогает. */
 export async function logout() {
   const { error, response } = await api.POST('/api/v1/auth/logout').catch(() => {

@@ -10,7 +10,9 @@ export type Right =
   | 'tasks.edit'
   | 'model.view'
   | 'model.edit'
-  | 'source.view';
+  | 'source.view'
+  | 'audit.view'
+  | 'sensitivity.view';
 
 const user: readonly Right[] = [
   'queue.view',
@@ -21,6 +23,17 @@ const user: readonly Right[] = [
   'model.view',
   'model.edit',
   'source.view',
+  'audit.view',
+  'sensitivity.view',
+];
+
+/** Гость (viewer): только чтение; журнал, чувствительность и источник сервер ему не отдаёт. */
+const guest: readonly Right[] = [
+  'queue.view',
+  'summary.view',
+  'customer.view',
+  'tasks.view',
+  'model.view',
 ];
 
 /** Права для вида. Настоящую проверку делает сервер для каждой операции. */
@@ -29,6 +42,7 @@ const matrix: Record<Role, readonly Right[]> = {
   analyst: user,
   admin: user,
   jury: user,
+  viewer: guest,
 };
 
 export function can(role: Role | undefined, right: Right): boolean {

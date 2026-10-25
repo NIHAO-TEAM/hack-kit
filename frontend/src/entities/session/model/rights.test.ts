@@ -8,6 +8,8 @@ const all: Right[] = [
   'model.view',
   'model.edit',
   'source.view',
+  'audit.view',
+  'sensitivity.view',
 ];
 
 describe('can', () => {
@@ -32,5 +34,25 @@ describe('homePath', () => {
     expect(homePath('analyst')).toBe('/queue');
     expect(homePath('jury')).toBe('/queue');
     expect(homePath('admin')).toBe('/model');
+  });
+});
+
+describe('can: viewer (гость)', () => {
+  it.each<Right>(['queue.view', 'summary.view', 'customer.view', 'tasks.view', 'model.view'])(
+    'читает: %s',
+    (right) => {
+      expect(can('viewer', right)).toBe(true);
+    },
+  );
+
+  it.each<Right>(['tasks.edit', 'model.edit', 'source.view', 'audit.view', 'sensitivity.view'])(
+    'не получает: %s',
+    (right) => {
+      expect(can('viewer', right)).toBe(false);
+    },
+  );
+
+  it('начинает с очереди', () => {
+    expect(homePath('viewer')).toBe('/queue');
   });
 });
