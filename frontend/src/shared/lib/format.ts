@@ -23,7 +23,10 @@ export function formatCountdown(ms: number): string {
   return 'меньше минуты';
 }
 
-const compactFmt = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 });
+const compactFmt = new Intl.NumberFormat('ru-RU', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
 const plainFmt = new Intl.NumberFormat('ru-RU');
 
 /** Число для подписей осей и подсказок: до 1000 как есть, дальше «1,2 тыс.», «3,4 млн». */

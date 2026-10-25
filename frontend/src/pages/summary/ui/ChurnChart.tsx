@@ -1,4 +1,6 @@
-import { Box, Group, Stack, Text } from '@mantine/core';
+import type { ReactNode } from 'react';
+import { Box, Group, Stack, Text, Tooltip } from '@mantine/core';
+import { formatCompact } from '@shared/lib';
 import type { ChurnPoint } from '../api/analytics';
 import { layout, path } from '../model/geometry';
 
@@ -10,6 +12,28 @@ const dateFmt = new Intl.DateTimeFormat('ru-RU', {
   timeZone: 'UTC',
 });
 const fmt = (iso: string) => dateFmt.format(new Date(`${iso}T00:00:00Z`));
+
+/** Точка графика с подсказкой по наведению и фокусу; зона попадания — невидимый круг r=12. */
+function PointHint({
+  x,
+  y,
+  label,
+  children,
+}: {
+  x: number;
+  y: number;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip label={label} events={{ hover: true, focus: true, touch: true }} openDelay={0}>
+      <g tabIndex={0} role="img" aria-label={label} data-testid="chart-point">
+        <circle cx={x} cy={y} r={12} fill="transparent" />
+        {children}
+      </g>
+    </Tooltip>
+  );
+}
 
 /**
  * График оттока по неделям. Факт — сплошная линия с маркерами-кругами, прогноз — штриховая с
@@ -56,7 +80,7 @@ export function ChurnChart({ points }: { points: ChurnPoint[] }) {
                 fontSize={11}
                 fill="var(--text-muted)"
               >
-                {v}
+                {formatCompact(v)}
               </text>
             </g>
           );
@@ -105,20 +129,37 @@ export function ChurnChart({ points }: { points: ChurnPoint[] }) {
           strokeWidth={2.5}
           data-testid="chart-actual"
         />
-        {g.actual.map((p) => (
-          <circle key={`a${p.x}`} cx={p.x} cy={p.y} r={3.5} fill="var(--primary-fg)" />
-        ))}
-        {g.forecast.map((p) => (
-          <rect
-            key={`f${p.x}`}
-            x={p.x - 3.5}
-            y={p.y - 3.5}
-            width={7}
-            height={7}
-            fill="var(--warn-solid)"
-            transform={`rotate(45 ${p.x} ${p.y})`}
-          />
-        ))}
+        {points.map((p, i) =>
+          p.actual !== null ? (
+            <PointHint
+              key={`a${p.weekStart}`}
+              x={g.xOf(i)}
+              y={g.yOf(p.actual)}
+              label={`${fmt(p.weekStart)}: удалено услуг: ${formatCompact(p.actual)}`}
+            >
+              <circle cx={g.xOf(i)} cy={g.yOf(p.actual)} r={3.5} fill="var(--primary-fg)" />
+            </PointHint>
+          ) : null,
+        )}
+        {points.map((p, i) =>
+          p.forecast !== null ? (
+            <PointHint
+              key={`f${p.weekStart}`}
+              x={g.xOf(i)}
+              y={g.yOf(p.forecast)}
+              label={`${fmt(p.weekStart)}: ожидается непродлений: ${formatCompact(Math.round(p.forecast))}`}
+            >
+              <rect
+                x={g.xOf(i) - 3.5}
+                y={g.yOf(p.forecast) - 3.5}
+                width={7}
+                height={7}
+                fill="var(--warn-solid)"
+                transform={`rotate(45 ${g.xOf(i)} ${g.yOf(p.forecast)})`}
+              />
+            </PointHint>
+          ) : null,
+        )}
       </Box>
       <Group gap="lg" aria-label="Легенда графика">
         <Group gap={6}>
