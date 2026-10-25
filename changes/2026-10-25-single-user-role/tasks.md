@@ -4,11 +4,11 @@
 
 ## 0. Проверка
 
-- [ ] 0.1 Нет ли сторожа в `tests/invariants/` про права маркетолога и аналитика — проверка: поиск; если есть — `needs-human`
+- [x] 0.1 Нет ли сторожа в `tests/invariants/` про права маркетолога и аналитика — проверка: поиск; если есть — `needs-human` (сторожей в tests/invariants нет)
 
 ## 1. Сервер
 
-- [ ] 1.1 `accessStaff` и `accessWork` пускают `marketer` и `analyst` — проверка: тест прав (маркетолог `PATCH /model/settings` → 200; аналитик `POST /customers/{id}/task` → 200; без сессии → 401)
+- [x] 1.1 `accessStaff` и `accessWork` пускают `marketer` и `analyst` — проверка: тест прав (маркетолог `PATCH /model/settings` → 200; аналитик `POST /customers/{id}/task` → 200; без сессии → 401) (интеграционные тесты с БД проверит CI)
 
 ## 2. Экран
 
