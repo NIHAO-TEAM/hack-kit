@@ -162,11 +162,4 @@ describe('экран «Источник»', () => {
     await user.click(within(panel).getByRole('button', { name: 'Изменить счёт' }));
     expect(await within(panel).findByText('Такого клиента нет')).toBeInTheDocument();
   });
-
-  it('маркетолог видит «Недостаточно прав»', async () => {
-    signedInAs('marketer');
-    renderApp('/source');
-    expect(await screen.findByText(/Недостаточно прав/)).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Эмулятор биллинга' })).not.toBeInTheDocument();
-  });
 });

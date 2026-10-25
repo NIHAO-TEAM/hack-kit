@@ -6,6 +6,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const pptxgen = require('pptxgenjs');
 const sharp = require('sharp');
+const JSZip = require('jszip');
 
 const [shots, qrs, out] = process.argv.slice(2);
 if (!shots || !qrs || !out) {
@@ -259,7 +260,18 @@ function bullets(s, items, x, y, w, h, size = 18) {
     });
   }
 
-  await pres.writeFile({ fileName: out });
+  // Проверка организаторов отвергает пакет с пустыми ppt/embeddings, ppt/charts и объявлениями
+  // типов gif/mp4/xlsx, которые pptxgenjs пишет всегда. Оставляем только файлы и нужные типы.
+  const raw = await JSZip.loadAsync(await pres.write({ outputType: 'nodebuffer' }));
+  const clean = new JSZip();
+  const ct = (await raw.file('[Content_Types].xml').async('string'))
+    .replace(/<Default Extension="(jpeg|jpg|svg|gif|m4v|mp4|vml|xlsx)"[^>]*\/>/g, '');
+  clean.file('[Content_Types].xml', ct, { createFolders: false });
+  for (const f of Object.values(raw.files)) {
+    if (f.dir || f.name === '[Content_Types].xml') continue;
+    clean.file(f.name, await f.async('nodebuffer'), { createFolders: false });
+  }
+  fs.writeFileSync(out, await clean.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }));
   const left = Object.entries(NUM).filter(([, v]) => v === 'ЗАПОЛНИТЬ').map(([k]) => k);
   console.log(out);
   if (left.length) console.log('НЕ ЗАПОЛНЕНО: ' + left.join(', '));

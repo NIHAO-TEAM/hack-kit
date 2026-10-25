@@ -93,21 +93,6 @@ describe('экран «О модели»', () => {
     expect(screen.getByLabelText('Устойчивость очереди к весам')).toHaveAttribute('tabindex', '0');
   });
 
-  it('маркетологу блок устойчивости не показывается и вызов не идёт', async () => {
-    signedInAs('marketer');
-    let called = false;
-    server.use(
-      http.get('/api/v1/model/sensitivity', () => {
-        called = true;
-        return HttpResponse.json({ title: 'Нет прав' }, { status: 403 });
-      }),
-    );
-    renderApp('/about');
-    await screen.findByRole('heading', { name: 'О модели' });
-    expect(screen.queryByRole('heading', { name: 'Насколько устойчива очередь' })).toBeNull();
-    expect(called).toBe(false);
-  });
-
   it('при расчёте на выборке объясняет, что числа относятся к выборке', async () => {
     signedInAs('jury');
     server.use(

@@ -123,13 +123,6 @@ describe('панель «Поток событий»', () => {
     expect(await screen.findByText('другой прогон потока ещё идёт')).toBeInTheDocument();
   });
 
-  it('маркетолог экрана «Источник» и панели не видит', async () => {
-    signedInAs('marketer');
-    renderApp('/source');
-    expect(await screen.findByRole('heading', { name: 'Недостаточно прав' })).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Поток событий' })).not.toBeInTheDocument();
-  });
-
   it('выбор залпа: 2 500 / 10 000 / 50 000 / 100 000, скорость по умолчанию «как можно быстрее»', async () => {
     signedInAs('analyst');
     let body: unknown;

@@ -19,24 +19,13 @@ describe('журнал — отдельная страница', () => {
     },
   );
 
-  it.each(['analyst', 'admin', 'jury'] as const)('%s видит пункт меню «Журнал»', async (role) => {
-    signedInAs(role);
-    renderApp('/summary');
-    const nav = await screen.findByRole('navigation', { name: 'Разделы' });
-    expect(within(nav).getByRole('link', { name: 'Журнал' })).toHaveAttribute('href', '/audit');
-  });
-
-  it('маркетолог: пункта нет, прямой переход — «Недостаточно прав»', async () => {
-    signedInAs('marketer');
-    renderApp('/summary');
-    const nav = await screen.findByRole('navigation', { name: 'Разделы' });
-    expect(within(nav).queryByRole('link', { name: 'Журнал' })).not.toBeInTheDocument();
-  });
-
-  it('маркетолог на /audit не видит записей', async () => {
-    signedInAs('marketer');
-    renderApp('/audit');
-    expect(await screen.findByText(/Недостаточно прав/i)).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Журнал действий' })).not.toBeInTheDocument();
-  });
+  it.each(['marketer', 'analyst', 'admin', 'jury'] as const)(
+    '%s видит пункт меню «Журнал»',
+    async (role) => {
+      signedInAs(role);
+      renderApp('/summary');
+      const nav = await screen.findByRole('navigation', { name: 'Разделы' });
+      expect(within(nav).getByRole('link', { name: 'Журнал' })).toHaveAttribute('href', '/audit');
+    },
+  );
 });

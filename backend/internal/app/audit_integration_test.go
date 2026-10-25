@@ -110,7 +110,7 @@ func changeText(cs []gen.AuditChange) (out []string) {
 func TestAuditPermissions(t *testing.T) {
 	r := newRig(t, false)
 	ctx := context.Background()
-	for role, want := range map[string]int{"marketer": http.StatusForbidden, "analyst": http.StatusOK, "admin": http.StatusOK, "jury": http.StatusOK} {
+	for role, want := range map[string]int{"marketer": http.StatusOK, "analyst": http.StatusOK, "admin": http.StatusOK, "jury": http.StatusOK} {
 		res, err := r.As(t, role).ListAuditWithResponse(ctx, &gen.ListAuditParams{})
 		if err != nil || res.StatusCode() != want {
 			t.Errorf("%s: %v %d, ждали %d", role, err, res.StatusCode(), want)

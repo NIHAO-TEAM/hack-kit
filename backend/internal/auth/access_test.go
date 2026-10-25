@@ -104,24 +104,27 @@ func TestPublicPathsOpen(t *testing.T) {
 	}
 }
 
-func TestMarketerCannotChangeModelOrData(t *testing.T) {
+// Маркетолог и аналитик — один пользователь (ADR-0001, дополнение 25.10): модель меняет и тот и другой.
+func TestMarketerAndAnalystShareRights(t *testing.T) {
 	s := apitest.New(t)
-	m := s.As(t, "marketer")
 	ctx := context.Background()
-	patch, err := m.PatchModelSettingsWithBody(ctx, nil, "application/json", strings.NewReader("{}"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = patch.Body.Close() }()
-	if patch.StatusCode != http.StatusForbidden || patch.Header.Get("Content-Type") != "application/problem+json" {
-		t.Errorf("PATCH model/settings: %d", patch.StatusCode)
-	}
-	get, err := m.GetModelSettingsWithResponse(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if get.StatusCode() == http.StatusForbidden || get.StatusCode() == http.StatusUnauthorized {
-		t.Errorf("GET model/settings закрыт для маркетолога: %d", get.StatusCode())
+	for _, role := range []string{"marketer", "analyst"} {
+		c := s.As(t, role)
+		get, err := c.GetModelSettingsWithResponse(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if get.StatusCode() == http.StatusForbidden || get.StatusCode() == http.StatusUnauthorized {
+			t.Errorf("%s: GET model/settings закрыт: %d", role, get.StatusCode())
+		}
+		patch, err := c.PatchModelSettingsWithBody(ctx, nil, "application/json", strings.NewReader("{}"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = patch.Body.Close()
+		if patch.StatusCode == http.StatusForbidden || patch.StatusCode == http.StatusUnauthorized {
+			t.Errorf("%s: PATCH model/settings закрыт: %d", role, patch.StatusCode)
+		}
 	}
 }
 
@@ -130,11 +133,7 @@ func TestModelSensitivityAccess(t *testing.T) {
 	if resp := do(t, s, http.MethodGet, "/api/v1/model/sensitivity", nil); resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("без сессии: %d, ждали 401", resp.StatusCode)
 	}
-	marketer := sessionCookie(login(t, s, "marketer", apitest.Password("marketer")))
-	if resp := do(t, s, http.MethodGet, "/api/v1/model/sensitivity", func(r *http.Request) { r.AddCookie(marketer) }); resp.StatusCode != http.StatusForbidden {
-		t.Errorf("маркетолог: %d, ждали 403", resp.StatusCode)
-	}
-	for _, role := range []string{"analyst", "jury"} {
+	for _, role := range []string{"marketer", "analyst", "jury"} {
 		c := sessionCookie(login(t, s, role, apitest.Password(role)))
 		resp := do(t, s, http.MethodGet, "/api/v1/model/sensitivity", func(r *http.Request) { r.AddCookie(c) })
 		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized {

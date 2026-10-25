@@ -173,7 +173,7 @@ func TestPutSnapshotRoles(t *testing.T) {
 		want int
 	}{
 		{"аноним", s.Anonymous(t), http.StatusUnauthorized},
-		{"маркетолог", s.As(t, "marketer"), http.StatusForbidden},
+		{"маркетолог", s.As(t, "marketer"), http.StatusOK},
 		{"аналитик", s.As(t, "analyst"), http.StatusOK},
 		{"жюри", s.As(t, "jury"), http.StatusOK},
 		{"администратор", s.As(t, "admin"), http.StatusOK},

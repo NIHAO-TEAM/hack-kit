@@ -96,7 +96,7 @@ func TestEmulatorPermissions(t *testing.T) {
 	for _, tc := range []struct {
 		role string
 		want int
-	}{{"marketer", http.StatusForbidden}, {"analyst", http.StatusOK}, {"jury", http.StatusOK}, {"admin", http.StatusOK}} {
+	}{{"marketer", http.StatusOK}, {"analyst", http.StatusOK}, {"jury", http.StatusOK}, {"admin", http.StatusOK}} {
 		c := s.As(t, tc.role)
 		tick, err := c.EmulatorTickWithResponse(context.Background(), gen.EmulatorTickRequest{Hours: &hours})
 		if err != nil || tick.StatusCode() != tc.want {

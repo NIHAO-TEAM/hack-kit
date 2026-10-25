@@ -45,12 +45,12 @@ describe('«что если» в очереди', () => {
     await waitFor(() => expect(listCalls).toBeGreaterThan(before));
   });
 
-  it('маркетолог: «Применить» нет, только просмотр', async () => {
+  it('маркетолог — тот же пользователь: «Применить» есть', async () => {
     signedIn('marketer');
     const user = userEvent.setup();
     renderApp('/queue');
     await user.click(await screen.findByRole('button', { name: 'Что если' }));
-    expect(await screen.findByText(/Вам доступен просмотр/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Применить' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Применить' })).toBeInTheDocument();
+    expect(screen.queryByText(/Вам доступен просмотр/)).not.toBeInTheDocument();
   });
 });

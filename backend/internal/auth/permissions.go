@@ -16,9 +16,9 @@ const (
 	accessPublic access = iota
 	// accessAnyRole — любая роль с сессией.
 	accessAnyRole
-	// accessStaff — аналитик, jury, администратор: операции, которые меняют модель и данные.
+	// accessStaff — маркетолог, аналитик, jury, администратор: операции, которые меняют модель и данные.
 	accessStaff
-	// accessWork — работа с клиентом: маркетолог, jury, администратор. Аналитик только читает.
+	// accessWork — работа с клиентом: маркетолог, аналитик, jury, администратор.
 	accessWork
 	// accessService — только служебный токен сборщика метрик; ни одна роль с сессией не допущена.
 	accessService
@@ -89,9 +89,9 @@ func can(role, operationID string) bool {
 		case accessAnyRole:
 			return isRole(role)
 		case accessStaff:
-			return role == RoleAnalyst || role == RoleJury || role == RoleAdmin
+			return role == RoleMarketer || role == RoleAnalyst || role == RoleJury || role == RoleAdmin
 		case accessWork:
-			return role == RoleMarketer || role == RoleJury || role == RoleAdmin
+			return role == RoleMarketer || role == RoleAnalyst || role == RoleJury || role == RoleAdmin
 		}
 	}
 	return false

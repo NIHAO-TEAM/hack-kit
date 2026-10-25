@@ -219,7 +219,7 @@ func TestPollingEndpointWithoutAdapterIs404(t *testing.T) {
 	if st := status(t, s.As(t, "analyst")); st.Polling != nil {
 		t.Errorf("polling без BILLING_URL: %+v", st.Polling)
 	}
-	if res, _ := s.As(t, "marketer").SetSourcePollingWithResponse(context.Background(), gen.SourcePollingRequest{Paused: true}); res.StatusCode() != http.StatusForbidden {
-		t.Errorf("маркетолог: %d, ждали 403", res.StatusCode())
+	if res, _ := s.Anonymous(t).SetSourcePollingWithResponse(context.Background(), gen.SourcePollingRequest{Paused: true}); res.StatusCode() != http.StatusUnauthorized {
+		t.Errorf("без сессии: %d, ждали 401", res.StatusCode())
 	}
 }

@@ -78,12 +78,12 @@ func TestMiddlewareSessionCache(t *testing.T) {
 		api, _, sess, h := middlewareStand(t, Config{SessionCacheTTL: 5 * time.Second})
 		n := countDB(api)
 		get(h, sess.Token) // прогрев кэша
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/model/sensitivity", nil)
+		req := httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
 		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: sess.Token})
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {
-			t.Fatalf("маркетолог на операции аналитика: статус %d, ждали 403", rec.Code)
+			t.Fatalf("роль с сессией на служебной операции: статус %d, ждали 403", rec.Code)
 		}
 		if n.Load() != 1 {
 			t.Fatalf("запросов к БД %d, ждали 1 (второй запрос из кэша)", n.Load())

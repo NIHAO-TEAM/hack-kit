@@ -15,13 +15,6 @@ describe('охрана маршрутов', () => {
     expect(router.state.location.pathname).toBe('/login');
   });
 
-  it('маркетолог на адресе раздела «Модель» видит «Недостаточно прав»', async () => {
-    signedInAs('marketer');
-    renderApp('/model');
-    expect(await screen.findByRole('heading', { name: 'Недостаточно прав' })).toBeInTheDocument();
-    expect(screen.getByText(/Раздел «Модель» доступен аналитику/)).toBeInTheDocument();
-  });
-
   it('в навигации нет «Задач», а старый адрес /tasks ведёт на очередь', async () => {
     signedInAs('marketer');
     const { router } = renderApp('/tasks');
@@ -30,14 +23,14 @@ describe('охрана маршрутов', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/queue'));
   });
 
-  it('в навигации маркетолога нет «Модели» и «Источника»', async () => {
+  it('в навигации пользователя (маркетолога) есть «Модель» и «Источник»', async () => {
     signedInAs('marketer');
     renderApp('/queue');
     const nav = await screen.findByRole('navigation', { name: 'Разделы' });
     expect(nav).toHaveTextContent('Очередь');
     expect(nav).toHaveTextContent('Сводка');
-    expect(nav).not.toHaveTextContent('Модель');
-    expect(nav).not.toHaveTextContent('Источник');
+    expect(nav).toHaveTextContent('Модель');
+    expect(nav).toHaveTextContent('Источник');
   });
 
   it('в навигации аналитика есть «Модель» и «Источник»', async () => {
@@ -48,8 +41,8 @@ describe('охрана маршрутов', () => {
     expect(nav).toHaveTextContent('Источник');
   });
 
-  it('аналитик и жюри видят ссылку «Мониторинг» на /grafana/ в новой вкладке', async () => {
-    for (const role of ['analyst', 'jury'] as const) {
+  it('пользователь и жюри видят ссылку «Мониторинг» на /grafana/ в новой вкладке', async () => {
+    for (const role of ['marketer', 'analyst', 'jury'] as const) {
       signedInAs(role);
       renderApp('/queue');
       const link = await screen.findByRole('link', { name: /Мониторинг/ });
@@ -60,17 +53,10 @@ describe('охрана маршрутов', () => {
     }
   });
 
-  it('маркетологу ссылка «Мониторинг» не показывается', async () => {
-    signedInAs('marketer');
-    renderApp('/queue');
-    await screen.findByRole('navigation', { name: 'Разделы' });
-    expect(screen.queryByRole('link', { name: /Мониторинг/ })).not.toBeInTheDocument();
-  });
-
   it('корень ведёт на стартовую страницу роли', async () => {
     signedInAs('analyst');
     const { router } = renderApp('/');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/model'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/queue'));
   });
 });
 
