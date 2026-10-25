@@ -55,6 +55,19 @@ AUTH="Authorization: Bearer $TOKEN"
 
 [ "$(ready_pods | wc -l)" -ge 2 ] || { fail "нет двух Ready-реплик до начала"; exit 1; }
 
+# wait_calc — после загрузки снимка обе реплики пересчитывают его (≈20–30 с на 100 000 клиентов); пока у реплики нет
+# результата, она честно отвечает 503 «расчёт ещё не готов» (под при этом Ready: на пустой базе иначе нельзя
+# загрузить первый снимок, cmd/api/main.go ready). Читатели стартуют, когда 20 запросов подряд к Service вернули 200:
+# при двух репликах это значит, что готовы обе. Порог ошибок чтения не меняется: он считается с этого момента.
+wait_calc() {
+  local t0=$SECONDS ok=0
+  while [ $ok -lt 20 ]; do
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$API/customers?limit=1" -H "$AUTH")" = 200 ]; then ok=$((ok + 1)); else ok=0; sleep 1; fi
+    [ $((SECONDS - t0)) -lt 300 ] || { fail "расчёт после загрузки снимка не готов за 5 минут"; exit 1; }
+  done
+  echo "расчёт после загрузки снимка готов на обеих репликах через $((SECONDS - t0)) с"
+}
+
 start_readers() { # $1 — метка этапа; k6 идёт, пока ему не пошлют SIGINT
   K6PIDS=()
   k6 run --quiet --summary-export "$OUT/k6-read-$1.json" -e PASSWORD="$ADMIN_PASSWORD" -e LOGIN="$LOGIN" -e BASE_URL="$BASE_URL" \
@@ -104,6 +117,7 @@ dump_prev_logs() {
 
 # ---- Этап A: убийство пода под залпом ----
 echo "=== Этап A: залп $EVENTS событий, $RATE/с, удаление пода без потока ==="
+wait_calc
 start_readers A
 curl_api -X POST "$API/source/emulator/stream" -H "$AUTH" -H 'Content-Type: application/json' \
   -d "{\"events\":$EVENTS,\"ratePerSecond\":$RATE,\"seed\":1}" -o /dev/null
