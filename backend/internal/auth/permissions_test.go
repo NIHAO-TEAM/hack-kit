@@ -28,9 +28,17 @@ var wantAccess = map[string]struct{ marketer, analyst, jury, admin bool }{
 	"startEmulatorStream": {true, true, true, true}, "getEmulatorStream": {true, true, true, true},
 }
 
+// Гость (viewer) читает; пишущие операции и служебные (журнал, чувствительность, поток эмулятора) ему закрыты.
+var viewerAllowed = map[string]bool{
+	"getMe": true, "logout": true, "listCustomers": true, "exportCustomers": true, "getCustomer": true,
+	"getSummary": true, "getChurnChart": true, "getEvents": true, "getSourceStatus": true,
+	"getModelSettings": true, "getMetrics": true, "getMetricsAlias": true,
+	"listTasks": true, "getTask": true, "listTaskAssignees": true,
+}
+
 // Операции без сессии: вход, документация, спека, служебные пути.
 var publicOperations = []string{
-	"login", "getAuthConfig", "oidcLogin", "oidcCallback", "docs", "openapiYaml", "openapiJson",
+	"login", "guestLogin", "getAuthConfig", "oidcLogin", "oidcCallback", "docs", "openapiYaml", "openapiJson",
 	"healthz", "version", "ping", "pingHead",
 }
 
@@ -63,7 +71,7 @@ func TestPermissionMatrixCoversEveryOperation(t *testing.T) {
 			}
 			seen++
 			if public[id] {
-				for _, role := range []string{RoleMarketer, RoleAnalyst, RoleJury, RoleAdmin} {
+				for _, role := range []string{RoleMarketer, RoleAnalyst, RoleJury, RoleAdmin, RoleViewer} {
 					if !can(role, id) {
 						t.Errorf("%s открыта без сессии, но can(%s) = false", id, role)
 					}
@@ -74,6 +82,9 @@ func TestPermissionMatrixCoversEveryOperation(t *testing.T) {
 			if !ok {
 				t.Errorf("%s: нет в ожидаемой матрице теста", id)
 				continue
+			}
+			if got := can(RoleViewer, id); got != viewerAllowed[id] {
+				t.Errorf("can(viewer, %s) = %v, ждали %v", id, got, viewerAllowed[id])
 			}
 			for role, allowed := range map[string]bool{RoleMarketer: want.marketer, RoleAnalyst: want.analyst, RoleJury: want.jury, RoleAdmin: want.admin} {
 				if got := can(role, id); got != allowed {

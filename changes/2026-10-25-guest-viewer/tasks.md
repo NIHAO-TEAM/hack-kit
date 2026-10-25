@@ -8,10 +8,10 @@
 
 ## 2. Сервер
 
-- [ ] 2.1 Роль `viewer` в `permissions.go` и миграция `CHECK` — проверка: тест прав (`viewer` — 200 на чтение, 403 на каждую пишущую операцию, `listAudit`, `getModelSensitivity`, `getEmulatorStream`)
-- [ ] 2.2 `GUEST_LOGIN_ENABLED`: пользователь `guest` заводится, `POST /auth/guest` выдаёт сессию; выключен — 404; вход `guest` по паролю невозможен — проверка: тест `auth`
-- [ ] 2.3 Лимит частоты на `POST /auth/guest` — проверка: тест (429)
-- [ ] 2.4 `GET /auth/config` отдаёт `guestEnabled` — проверка: тест
+- [x] 2.1 Роль `viewer` в `permissions.go` и миграция `CHECK` — проверка: тест прав (`viewer` — 200 на чтение, 403 на каждую пишущую операцию, `listAudit`, `getModelSensitivity`, `getEmulatorStream`) (тест с БД — проверит CI)
+- [x] 2.2 `GUEST_LOGIN_ENABLED`: пользователь `guest` заводится, `POST /auth/guest` выдаёт сессию; выключен — 404; вход `guest` по паролю невозможен — проверка: тест `auth` (тест с БД — проверит CI)
+- [x] 2.3 Лимит частоты на `POST /auth/guest` — проверка: тест (429) (тест с БД — проверит CI)
+- [x] 2.4 `GET /auth/config` отдаёт `guestEnabled` — проверка: тест (тест с БД — проверит CI)
 
 ## 3. Интерфейс
 

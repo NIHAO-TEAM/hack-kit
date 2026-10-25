@@ -6,6 +6,8 @@ const (
 	RoleAnalyst  = "analyst"
 	RoleJury     = "jury"
 	RoleAdmin    = "admin"
+	// RoleViewer — гость: только чтение, без пароля (POST /auth/guest).
+	RoleViewer = "viewer"
 )
 
 // access — кому открыта операция.
@@ -14,7 +16,7 @@ type access int
 const (
 	// accessPublic — без сессии.
 	accessPublic access = iota
-	// accessAnyRole — любая роль с сессией.
+	// accessAnyRole — любая роль с сессией, включая гостя (viewer): только чтение.
 	accessAnyRole
 	// accessStaff — маркетолог, аналитик, jury, администратор: операции, которые меняют модель и данные.
 	accessStaff
@@ -41,6 +43,7 @@ var operations = map[string]struct {
 	"GET /{$}":                             {"front", accessPublic},
 	"GET /":                                {"frontSPA", accessPublic},
 	"POST /api/v1/auth/login":              {"login", accessPublic},
+	"POST /api/v1/auth/guest":              {"guestLogin", accessPublic},
 	"GET /api/v1/auth/config":              {"getAuthConfig", accessPublic},
 	"GET /api/v1/auth/oidc/login":          {"oidcLogin", accessPublic},
 	"GET /api/v1/auth/oidc/callback":       {"oidcCallback", accessPublic},
@@ -99,7 +102,7 @@ func can(role, operationID string) bool {
 
 func isRole(role string) bool {
 	switch role {
-	case RoleMarketer, RoleAnalyst, RoleJury, RoleAdmin:
+	case RoleMarketer, RoleAnalyst, RoleJury, RoleAdmin, RoleViewer:
 		return true
 	}
 	return false

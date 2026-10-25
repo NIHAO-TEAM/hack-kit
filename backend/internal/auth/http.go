@@ -196,6 +196,31 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GuestLogin — POST /api/v1/auth/guest: сессия гостя (роль viewer) без пароля. Выключен — 404.
+func (a *AuthAPI) GuestLogin(w http.ResponseWriter, r *http.Request) {
+	if !a.cfg.GuestEnabled {
+		httpx.WriteProblem(w, r, http.StatusNotFound, "гостевой вход выключен")
+		return
+	}
+	if wait, blocked := a.svc.reserveGuest(a.clientIP(r)); blocked {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
+		httpx.WriteProblem(w, r, http.StatusTooManyRequests, "слишком много попыток входа")
+		return
+	}
+	sess, err := a.svc.guestSession(r.Context())
+	if err != nil {
+		httpx.WriteFailure(w, r, err, "ошибка входа")
+		return
+	}
+	a.record(r, audit.Entry{Actor: sess.Login, Action: audit.ActionLogin, Summary: "Гостевой вход"})
+	a.setSessionCookie(w, sess)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := json.NewEncoder(w).Encode(gen.LoginResult{User: toUser(sess.Identity), Token: &sess.Token, CsrfToken: &sess.CSRFToken}); err != nil {
+		log.Printf("auth: ответ гостевого входа: %v", err)
+	}
+}
+
 // Logout — POST /api/v1/auth/logout.
 func (a *AuthAPI) Logout(w http.ResponseWriter, r *http.Request) {
 	id, _ := identityFrom(r.Context())
@@ -241,7 +266,7 @@ func (a *AuthAPI) flowCookie(value string, maxAge int) *http.Cookie {
 // GetAuthConfig — GET /api/v1/auth/config: открытый признак для экрана входа, настроен ли SSO.
 func (a *AuthAPI) GetAuthConfig(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(gen.AuthConfig{SsoEnabled: a.oidc != nil}); err != nil {
+	if err := json.NewEncoder(w).Encode(gen.AuthConfig{SsoEnabled: a.oidc != nil, GuestEnabled: a.cfg.GuestEnabled}); err != nil {
 		log.Printf("auth: ответ config: %v", err)
 	}
 }
