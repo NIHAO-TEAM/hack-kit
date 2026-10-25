@@ -77,7 +77,14 @@ test('экраны на 100 тыс. клиентов: время, консоль
     const consoleErrors: string[] = [];
     // Обрыв потока /api/v1/events при переходе между экранами — штатное закрытие SSE, не ошибка экрана.
     const sseClosed = /api\/v1\/events/;
-    page.on('console', (m) => m.type() === 'error' && !sseClosed.test(m.text()) && consoleErrors.push(`${page.url()}: ${m.text()}`));
+    // Firefox отменил загрузку шрифта, потому что тест уже перешёл на другой экран (NS_BINDING_ABORTED = 2152398850) — не ошибка экрана.
+    // Другие статусы (404, неверный формат) остаются ошибками.
+    const fontAborted = /downloadable font: download failed.*status=2152398850/;
+    page.on('console', (m) => {
+      if (m.type() !== 'error' || sseClosed.test(m.text())) return;
+      if (fontAborted.test(m.text())) return step('шрифт: загрузка прервана переходом');
+      consoleErrors.push(`${page.url()}: ${m.text()}`);
+    });
     page.on('pageerror', (e) => !sseClosed.test(e.message) && consoleErrors.push(`${page.url()}: ${e.message}`));
     const failedApi: string[] = [];
     page.on('response', (r) => r.url().includes('/api/') && r.status() >= 500 && failedApi.push(`${r.status()} ${r.url()}`));
