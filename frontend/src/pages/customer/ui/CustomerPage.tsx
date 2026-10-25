@@ -16,7 +16,7 @@ import {
   StateOffline,
 } from '@shared/ui';
 import { ActionsCard } from './ActionsCard';
-import { FeaturesCard } from './FeaturesCard';
+import { RiskReasonsCard } from './RiskReasonsCard';
 import { ServiceList } from './ServiceList';
 
 function BackLink() {
@@ -160,7 +160,7 @@ export function CustomerPage({ id }: { id: number }) {
               asOf={summary.data?.asOf ?? null}
               asOfFailed={summary.isError}
             />
-            <FeaturesCard features={features} score={customer.score ?? null} />
+            <RiskReasonsCard services={services} risks={serviceRisks ?? []} features={features} />
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
