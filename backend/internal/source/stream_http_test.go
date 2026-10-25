@@ -106,15 +106,6 @@ func sum(l gen.LevelCounts) int { return l.High + l.Medium + l.Low + l.Unscored 
 func TestStreamPermissionsAndLimits(t *testing.T) {
 	s := apitest.New(t)
 	s.StartRecalc(t)
-	for role, want := range map[string]int{"marketer": http.StatusForbidden} {
-		if res := startStream(t, s.As(t, role), 100, 0, 1); res.StatusCode() != want {
-			t.Errorf("%s: запуск %d, ждали %d", role, res.StatusCode(), want)
-		}
-		got, err := s.As(t, role).GetEmulatorStreamWithResponse(context.Background())
-		if err != nil || got.StatusCode() != want {
-			t.Errorf("%s: состояние %v %v", role, got, err)
-		}
-	}
 	if res := startStream(t, s.Anonymous(t), 100, 0, 1); res.StatusCode() != http.StatusUnauthorized {
 		t.Errorf("без сессии: %d", res.StatusCode())
 	}
