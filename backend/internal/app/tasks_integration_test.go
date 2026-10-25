@@ -358,19 +358,15 @@ func TestTaskPermissions(t *testing.T) {
 	task := take(t, r.As(t, auth.RoleMarketer), 9).JSON201
 	analyst := r.As(t, auth.RoleAnalyst)
 
-	if res := take(t, analyst, 1); res.StatusCode() != http.StatusForbidden {
+	// Маркетолог и аналитик — один пользователь: аналитик работает с задачами так же.
+	if res := take(t, analyst, 1); res.StatusCode() != http.StatusCreated {
 		t.Errorf("аналитик берёт в работу: %d", res.StatusCode())
 	}
-	if res := patchTask(t, analyst, task.Id, gen.TaskPatch{Version: task.Version, Note: strPtr("x")}); res.StatusCode() != http.StatusForbidden {
+	if res := patchTask(t, analyst, task.Id, gen.TaskPatch{Version: task.Version, Note: strPtr("x")}); res.StatusCode() != http.StatusOK {
 		t.Errorf("аналитик правит: %d", res.StatusCode())
 	}
-	if res, _ := analyst.AddTaskEventWithResponse(ctx, task.Id, gen.TaskEventCreate{Kind: gen.TaskEventCreateKindNote, Text: strPtr("x")}); res.StatusCode() != http.StatusForbidden {
+	if res, _ := analyst.AddTaskEventWithResponse(ctx, task.Id, gen.TaskEventCreate{Kind: gen.TaskEventCreateKindNote, Text: strPtr("x")}); res.StatusCode() != http.StatusCreated {
 		t.Errorf("аналитик пишет в историю: %d", res.StatusCode())
-	}
-	var n int
-	_ = r.Pool.QueryRow(ctx, "SELECT count(*) FROM retention_tasks").Scan(&n)
-	if n != 1 {
-		t.Errorf("задач %d, ждали 1: запись аналитика прошла", n)
 	}
 	// Чтение открыто любой роли.
 	if res, _ := analyst.GetTaskWithResponse(ctx, task.Id); res.JSON200 == nil {

@@ -16,16 +16,16 @@ var wantAccess = map[string]struct{ marketer, analyst, jury, admin bool }{
 	"getModelSettings": {true, true, true, true},
 	"getMetrics":       {true, true, true, true}, "getMetricsAlias": {true, true, true, true},
 	"listTasks": {true, true, true, true}, "getTask": {true, true, true, true}, "listTaskAssignees": {true, true, true, true},
-	"takeCustomerTask": {true, false, true, true}, "patchTask": {true, false, true, true}, "addTaskEvent": {true, false, true, true},
-	"patchModelSettings":  {false, true, true, true},
-	"getModelSensitivity": {false, true, true, true},
-	"listAudit":           {false, true, true, true},
-	"putSnapshot":         {false, true, true, true},
-	"postSourceEvents":    {false, true, true, true},
-	"setSourcePolling":    {false, true, true, true},
-	"patchService":        {false, true, true, true}, "patchAccount": {false, true, true, true},
-	"emulatorTick": {false, true, true, true}, "emulatorActions": {false, true, true, true},
-	"startEmulatorStream": {false, true, true, true}, "getEmulatorStream": {false, true, true, true},
+	"takeCustomerTask": {true, true, true, true}, "patchTask": {true, true, true, true}, "addTaskEvent": {true, true, true, true},
+	"patchModelSettings":  {true, true, true, true},
+	"getModelSensitivity": {true, true, true, true},
+	"listAudit":           {true, true, true, true},
+	"putSnapshot":         {true, true, true, true},
+	"postSourceEvents":    {true, true, true, true},
+	"setSourcePolling":    {true, true, true, true},
+	"patchService":        {true, true, true, true}, "patchAccount": {true, true, true, true},
+	"emulatorTick": {true, true, true, true}, "emulatorActions": {true, true, true, true},
+	"startEmulatorStream": {true, true, true, true}, "getEmulatorStream": {true, true, true, true},
 }
 
 // Операции без сессии: вход, документация, спека, служебные пути.
@@ -94,7 +94,7 @@ func TestCanRejectsUnknown(t *testing.T) {
 	if can(RoleAdmin, "noSuchOperation") {
 		t.Error("неизвестная операция разрешена")
 	}
-	if can(RoleMarketer, "patchModelSettings") {
-		t.Error("маркетолог меняет модель")
+	if !can(RoleMarketer, "patchModelSettings") || !can(RoleAnalyst, "takeCustomerTask") {
+		t.Error("маркетолог и аналитик — один пользователь, права должны совпадать")
 	}
 }

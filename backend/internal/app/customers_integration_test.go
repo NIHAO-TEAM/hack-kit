@@ -76,8 +76,8 @@ func TestPatchAccountRecalculatesLoss(t *testing.T) {
 	}
 	loss(318910)
 
-	if res, _ := marketer.PatchAccountWithResponse(ctx, 9, gen.AccountPatch{}); res.StatusCode() != http.StatusForbidden {
-		t.Errorf("маркетолог правит данные: %d", res.StatusCode())
+	if res, _ := r.Anonymous(t).PatchAccountWithResponse(ctx, 9, gen.AccountPatch{}); res.StatusCode() != http.StatusUnauthorized {
+		t.Errorf("без сессии правят данные: %d", res.StatusCode())
 	}
 	analyst := r.As(t, auth.RoleAnalyst)
 	balance := int64(91506 + 52984) // баланс №9 в сиде организаторов + 529,84 €
