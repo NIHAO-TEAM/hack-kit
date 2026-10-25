@@ -167,7 +167,7 @@ components:
                 type: string
     Role:
       type: string
-      enum: [marketer, analyst, admin, jury]
+      enum: [marketer, analyst, admin, jury, viewer]
     User:
       type: object
       required: [id, login, role]
@@ -181,11 +181,14 @@ components:
           $ref: "#/components/schemas/Role"
     AuthConfig:
       type: object
-      required: [ssoEnabled]
+      required: [ssoEnabled, guestEnabled]
       properties:
         ssoEnabled:
           type: boolean
           description: Вход через SSO настроен на сервере. Адрес провайдера и другие настройки не раскрываются.
+        guestEnabled:
+          type: boolean
+          description: Включён гостевой вход (POST /api/v1/auth/guest, роль viewer — только просмотр).
     LoginRequest:
       type: object
       required: [login, password]
@@ -1606,6 +1609,24 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
         "501":
           $ref: "#/components/responses/NotImplemented"
+  /api/v1/auth/guest:
+    post:
+      operationId: guestLogin
+      tags: [auth]
+      security: []
+      summary: Гостевой вход без пароля, роль viewer — только просмотр (открыт)
+      description: Включается переменной GUEST_LOGIN_ENABLED; выключенный отвечает 404.
+      responses:
+        "200":
+          description: Сессия гостя создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /api/v1/auth/me:
     get:
       operationId: getMe

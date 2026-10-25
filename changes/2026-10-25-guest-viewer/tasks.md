@@ -4,7 +4,7 @@
 
 ## 1. Контракт
 
-- [ ] 1.1 `api/openapi.yaml`: `Role` + `viewer`, `AuthConfig.guestEnabled`, `POST /api/v1/auth/guest` (200 `LoginResult`, 404, 429); код сервера и типы фронта перегенерированы — проверка: `go-generate`, `oasdiff` без ломающих
+- [x] 1.1 `api/openapi.yaml`: `Role` + `viewer`, `AuthConfig.guestEnabled`, `POST /api/v1/auth/guest` (200 `LoginResult`, 404, 429); код сервера и типы фронта перегенерированы — проверка: `go-generate`, `oasdiff` без ломающих
 
 ## 2. Сервер
 
