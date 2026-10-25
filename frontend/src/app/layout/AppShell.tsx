@@ -19,7 +19,7 @@ import { Route } from '../routes/_app';
 import { ThemeSwitch } from './ThemeSwitch';
 
 const sections: {
-  to: '/queue' | '/summary' | '/model' | '/source' | '/about';
+  to: '/queue' | '/summary' | '/model' | '/source' | '/audit' | '/about';
   label: string;
   right: Right;
 }[] = [
@@ -27,6 +27,7 @@ const sections: {
   { to: '/summary', label: 'Сводка', right: 'summary.view' },
   { to: '/model', label: 'Модель', right: 'model.view' },
   { to: '/source', label: 'Источник', right: 'source.view' },
+  { to: '/audit', label: 'Журнал', right: 'model.view' },
   { to: '/about', label: 'О модели', right: 'summary.view' },
 ];
 

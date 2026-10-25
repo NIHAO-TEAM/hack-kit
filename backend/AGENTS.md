@@ -1,6 +1,6 @@
 # AGENTS.md — backend
 
-Дополняет корневой [AGENTS.md](../AGENTS.md). Стек по умолчанию — Go + PostgreSQL (наш опыт SwapOwl и выбор Goden). Другой стек — отдельный ADR.
+Дополняет корневой [AGENTS.md](../AGENTS.md). Стек по умолчанию — Go + PostgreSQL. Другой стек — отдельный ADR.
 
 ## Стек
 

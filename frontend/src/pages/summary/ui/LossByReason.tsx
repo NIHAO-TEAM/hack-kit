@@ -1,7 +1,8 @@
-import { Card, Group, Text, Title } from '@mantine/core';
+import { Card, Group, Text, Title, Tooltip } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import classes from './LossByReason.module.css';
 import { reasonRows, type ReasonLoss } from '../model/loss-by-reason';
+import { formatCompact, formatMoney } from '@shared/lib';
 import { Money } from '@shared/ui';
 
 /** «Где теряем деньги»: ожидаемая потеря по причинам, по убыванию. Доли — по вкладу признаков. */
@@ -31,13 +32,20 @@ export function LossByReason({ items }: { items: readonly ReasonLoss[] }) {
                   <Money cents={r.lossCents} /> · {r.share}
                 </Text>
               </Group>
-              <div
-                className={classes.track}
-                role="img"
-                aria-label={`${r.title}: ${r.share} потери, клиентов ${r.customers}`}
+              <Tooltip
+                label={`${r.title}: ${formatMoney(r.lossCents)} · ${r.share} · клиентов ${formatCompact(r.customers)}`}
+                events={{ hover: true, focus: true, touch: true }}
+                openDelay={0}
               >
-                <div className={classes.fill} style={{ width: `${r.width}%` }} />
-              </div>
+                <div
+                  className={classes.track}
+                  role="img"
+                  tabIndex={0}
+                  aria-label={`${r.title}: ${r.share} потери, клиентов ${r.customers}`}
+                >
+                  <div className={classes.fill} style={{ width: `${r.width}%` }} />
+                </div>
+              </Tooltip>
             </li>
           ))}
         </ul>
