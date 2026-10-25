@@ -25,6 +25,8 @@ env:
   COOKIE_SECURE: "true"
   TRUSTED_PROXY: "true"
   SEED_ORGANIZERS: "false"
+  # Гостевой вход (роль viewer, только просмотр): кнопка «Посмотреть как гость» на экране входа.
+  GUEST_LOGIN_ENABLED: "true"
   # Мягкий предел памяти Go: ≈80 % от resources.limits.memory (1536Mi). Меняя лимит, меняйте и его.
   GOMEMLIMIT: "1200MiB"
   # Встраивание в контур — те же ключи, пример значений в values-aeza.example.yaml:

@@ -89,7 +89,7 @@ export function AboutModelPage() {
         </Text>
       </Stack>
 
-      {can(me.data?.role, 'model.view') ? <SensitivityBlock /> : null}
+      {can(me.data?.role, 'sensitivity.view') ? <SensitivityBlock /> : null}
 
       <Stack gap="xs">
         <Title order={2} size="h3">

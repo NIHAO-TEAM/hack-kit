@@ -9,7 +9,7 @@ export const Route = createFileRoute('/_app/audit')({
 function Section() {
   const { user } = Route.useRouteContext();
   return (
-    <RightGate role={user.role} right="model.view" section="Журнал">
+    <RightGate role={user.role} right="audit.view" section="Журнал">
       <AuditPage />
     </RightGate>
   );

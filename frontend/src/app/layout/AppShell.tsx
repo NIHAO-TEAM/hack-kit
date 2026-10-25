@@ -1,4 +1,5 @@
 import {
+  Alert,
   AppShell as MantineShell,
   Box,
   Burger,
@@ -27,7 +28,7 @@ const sections: {
   { to: '/summary', label: 'Сводка', right: 'summary.view' },
   { to: '/model', label: 'Модель', right: 'model.view' },
   { to: '/source', label: 'Источник', right: 'source.view' },
-  { to: '/audit', label: 'Журнал', right: 'model.view' },
+  { to: '/audit', label: 'Журнал', right: 'audit.view' },
   { to: '/about', label: 'О модели', right: 'summary.view' },
 ];
 
@@ -125,6 +126,11 @@ export function AppShell() {
           ))}
       </MantineShell.Navbar>
       <MantineShell.Main>
+        {user.role === 'viewer' ? (
+          <Alert variant="light" mb="md" role="status">
+            Гостевой вход — только просмотр
+          </Alert>
+        ) : null}
         <RealtimeProvider>
           <Outlet />
         </RealtimeProvider>

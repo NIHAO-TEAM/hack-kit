@@ -124,6 +124,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Гостевой вход без пароля, роль viewer — только просмотр (открыт)
+         * @description Включается переменной GUEST_LOGIN_ENABLED; выключенный отвечает 404.
+         */
+        post: operations["guestLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/me": {
         parameters: {
             query?: never;
@@ -669,7 +689,7 @@ export interface components {
             }[];
         };
         /** @enum {string} */
-        Role: "marketer" | "analyst" | "admin" | "jury";
+        Role: "marketer" | "analyst" | "admin" | "jury" | "viewer";
         User: {
             /** Format: int64 */
             id: number;
@@ -679,6 +699,8 @@ export interface components {
         AuthConfig: {
             /** @description Вход через SSO настроен на сервере. Адрес провайдера и другие настройки не раскрываются. */
             ssoEnabled: boolean;
+            /** @description Включён гостевой вход (POST /api/v1/auth/guest, роль viewer — только просмотр). */
+            guestEnabled: boolean;
         };
         LoginRequest: {
             login: string;
@@ -1762,6 +1784,28 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["TooManyRequests"];
             501: components["responses"]["NotImplemented"];
+        };
+    };
+    guestLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Сессия гостя создана */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResult"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     getMe: {

@@ -5,7 +5,7 @@ import { ApiError } from '@shared/api';
 import { StateError, StateLoading, StateOffline } from '@shared/ui';
 import { SettingsForm } from './SettingsForm';
 
-export function ModelPage() {
+export function ModelPage({ editable = true }: { editable?: boolean }) {
   const query = useQuery(settingsQuery);
   const error = query.error instanceof ApiError ? query.error : null;
 
@@ -38,7 +38,7 @@ export function ModelPage() {
         </Group>
       </Group>
       {query.isError ? <StateOffline onRetry={() => void query.refetch()} /> : null}
-      <SettingsForm key={query.data.version} settings={query.data} />
+      <SettingsForm key={query.data.version} settings={query.data} readOnly={!editable} />
     </Stack>
   );
 }

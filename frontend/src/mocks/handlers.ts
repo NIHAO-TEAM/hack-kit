@@ -21,6 +21,7 @@ const users: Record<string, User> = {
   marketer: { id: 1, login: 'marketer', role: 'marketer' },
   analyst: { id: 2, login: 'analyst', role: 'analyst' },
   jury: { id: 3, login: 'jury', role: 'jury' },
+  guest: { id: 4, login: 'guest', role: 'viewer' },
 };
 
 const SESSION_KEY = 'mock-session';
@@ -77,6 +78,14 @@ export const handlers = [
     }
     const user = users[body.login];
     if (!user || body.password !== 'demo') return problem(401, 'Неверный логин или пароль');
+    setCurrent(user);
+    return HttpResponse.json({ user, csrfToken: 'mock-csrf' });
+  }),
+  http.get(`${API}/auth/config`, () =>
+    HttpResponse.json({ ssoEnabled: false, guestEnabled: true }),
+  ),
+  http.post(`${API}/auth/guest`, () => {
+    const user = users['guest'] as User;
     setCurrent(user);
     return HttpResponse.json({ user, csrfToken: 'mock-csrf' });
   }),

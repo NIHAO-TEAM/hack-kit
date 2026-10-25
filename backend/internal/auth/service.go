@@ -23,6 +23,10 @@ const (
 	sessionTTL    = 12 * time.Hour
 	maxFailures   = 5
 	failureWindow = 5 * time.Minute
+	// Гостевой вход не защищает пароль, лимит только от залпа: зал за одним NAT входит гуртом.
+	guestMaxPerWindow = 300
+	guestWindow       = time.Minute
+	guestLogin        = "guest"
 	// dbWait — сколько запрос ждёт базу: зависшая база даёт DeadlineExceeded, то есть 503, а не вечное ожидание.
 	dbWait = 2 * time.Second
 )
@@ -63,12 +67,14 @@ type service struct {
 
 	mu       sync.Mutex
 	failures map[string][]time.Time
+	// guestHits — времена гостевых входов по адресу клиента.
+	guestHits map[string][]time.Time
 	// dummyHash выравнивает время ответа для несуществующего логина.
 	dummyHash string
 }
 
 func newService(pool *pgxpool.Pool, clk clock.Clock, cfg Config) *service {
-	s := &service{pool: pool, clk: clk, cfg: cfg, failures: map[string][]time.Time{}}
+	s := &service{pool: pool, clk: clk, cfg: cfg, failures: map[string][]time.Time{}, guestHits: map[string][]time.Time{}}
 	if pool != nil {
 		s.q = db.New(pool)
 	}
@@ -273,4 +279,32 @@ func (s *service) ssoLogin(ctx context.Context, login, role string) (Session, er
 	// Роль могла измениться: старая не должна жить в кэше других сессий пользователя.
 	s.cache.deleteUser(u.ID)
 	return s.issueSession(ctx, u.ID, u.Login, u.Role)
+}
+
+// reserveGuest занимает попытку гостевого входа адреса; при исчерпанном лимите отдаёт время до освобождения окна.
+func (s *service) reserveGuest(ip string) (time.Duration, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.clk.Now()
+	recent := s.guestHits[ip][:0]
+	for _, t := range s.guestHits[ip] {
+		if now.Sub(t) < guestWindow {
+			recent = append(recent, t)
+		}
+	}
+	if len(recent) >= guestMaxPerWindow {
+		s.guestHits[ip] = recent
+		return recent[0].Add(guestWindow).Sub(now), true
+	}
+	s.guestHits[ip] = append(recent, now)
+	return 0, false
+}
+
+// guestSession заводит служебного пользователя guest (пароля нет, хеш не распознаётся) и открывает сессию viewer.
+func (s *service) guestSession(ctx context.Context) (Session, error) {
+	sess, err := s.ssoLogin(ctx, guestLogin, RoleViewer)
+	if err != nil {
+		return Session{}, err
+	}
+	return sess, nil
 }
