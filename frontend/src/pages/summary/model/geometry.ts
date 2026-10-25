@@ -26,9 +26,18 @@ export interface Box {
   bottom: number;
 }
 
-/** Верх шкалы кратен 4: четыре деления с целыми подписями. */
+/** Круглый шаг сетки: 1, 2, 2,5 (от 10) или 5 × 10^k, не меньше `raw`; подписи целые. */
+export function niceStep(raw: number): number {
+  if (raw <= 1) return 1;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const m = raw / pow;
+  const mult = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 && pow >= 10 ? 2.5 : m <= 5 ? 5 : 10;
+  return mult * pow;
+}
+
+/** Верх шкалы — четыре круглых деления: подписи вида 25 000, а не 12 345,75. */
 export function niceMax(max: number): number {
-  return Math.max(4, Math.ceil(max / 4) * 4);
+  return 4 * niceStep(max / 4);
 }
 
 /** Переводит недели в координаты SVG. Чистая функция: тестируется без DOM. */
