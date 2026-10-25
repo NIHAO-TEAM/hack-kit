@@ -78,13 +78,25 @@ check_readers() {
   if [ "$READ_FAIL" != 0 ]; then
     echo "этап $1: ошибки чтения по коду ответа (0 — оборванный запрос):"
     jq -r '.metrics | to_entries[] | select(.key | startswith("read_err_")) | select(.value.count > 0) | "  \(.key | sub("read_err_"; "")): \(.value.count)"' "$f"
-    echo "этап $1: первые ошибки k6:"
-    grep 'ошибка чтения' "$OUT/k6-read-$1.log" | head -10 || true
+    echo "этап $1: ошибки k6 (первые 10 и по одной в секунду):"
+    grep "ошибка чтения" "$OUT/k6-read-$1.log" | head -60 || true
   fi
   [ "$READ_N" -gt 0 ] || fail "этап $1: читатели не сделали ни одного запроса"
   [ "$READ_FAIL" = 0 ] || fail "этап $1: ошибок чтения очереди (5xx и обрывы соединения): доля $READ_FAIL"
   # SSE обязаны вернуться: после обрыва есть живые окна, то есть клиенты переподключились к оставшейся реплике.
   [ "$(awk -v a="$SSE_ALIVE" 'BEGIN {print (a > 0) ? 1 : 0}')" = 1 ] || fail "этап $1: SSE-клиенты не переподключились"
+}
+
+# dump_pods МЕТКА — состояние реплик: Ready, перезапуски, причина последнего падения контейнера и конец его лога.
+dump_pods() {
+  echo "--- реплики ($1) $(date -u +%T)"
+  kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o wide || true
+  kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o json | jq -r '.items[] | "\(.metadata.name) ready=\(any(.status.conditions[]?; .type == "Ready" and .status == "True")) перезапусков=\(.status.containerStatuses[0].restartCount) прошлое падение: \(.status.containerStatuses[0].lastState.terminated | if . then "\(.reason) код \(.exitCode)" else "нет" end)"' || true
+}
+dump_prev_logs() {
+  for p in $(kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o name); do
+    echo "--- прошлый контейнер $p"; kubectl -n "$NS" logs "$p" --previous --tail=25 2>&1 || true
+  done
 }
 
 # ---- Этап A: убийство пода под залпом ----
@@ -103,6 +115,7 @@ VICTIM=$(ready_pods | grep -vx "$LEAD" | head -1)
 [ -n "$VICTIM" ] || { fail "этап A: нет второй реплики для удаления"; stop_readers; exit 1; }
 echo "ведёт поток: $LEAD; удаляю: $VICTIM"
 kubectl -n "$NS" delete pod "$VICTIM" --wait=false
+for t in 5 10 20; do sleep "$t"; dump_pods "через $t с после удаления"; done
 
 DEADLINE=$((SECONDS + 600))
 while :; do
@@ -113,6 +126,7 @@ while :; do
   sleep 2
 done
 kubectl -n "$NS" rollout status "deploy/$RELEASE-app" --timeout=300s
+dump_pods "конец этапа A"; dump_prev_logs
 stop_readers
 jq . <<<"$STATE" >"$OUT/stream-A.json"
 [ "$S" = done ] || fail "этап A: состояние прогона «$S», ошибка: $(jq -r '.error // ""' <<<"$STATE")"

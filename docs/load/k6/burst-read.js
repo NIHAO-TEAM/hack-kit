@@ -17,13 +17,17 @@ const errByStatus = {
   other: new Counter('read_err_other'),
 };
 let logged = 0;
+let lastLoggedSecond = 0;
 // noteError считает ошибку по коду и печатает первые 10 с адресом и текстом: по ним видно, кто ответил (Traefik или под).
 function noteError(res, what) {
   if (res.status === 200) return;
   (errByStatus[String(res.status)] || errByStatus.other).add(1);
-  if (logged < 10) {
+  // первые 10 ошибок и по одной за каждую секунду (до 120): по ним видно, когда ошибки шли
+  const sec = Math.floor(Date.now() / 1000);
+  if (logged < 130 && (logged < 10 || sec !== lastLoggedSecond)) {
     logged++;
-    console.error(`ошибка чтения ${what}: status=${res.status} error=${res.error || ''} body=${String(res.body || '').slice(0, 120)}`);
+    lastLoggedSecond = sec;
+    console.error(`${new Date().toISOString()} ошибка чтения ${what}: status=${res.status} error=${res.error || ''} body=${String(res.body || '').slice(0, 120)}`);
   }
 }
 
