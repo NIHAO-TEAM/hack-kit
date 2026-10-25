@@ -8,9 +8,9 @@ function signedInAs(role: 'analyst' | 'marketer') {
 }
 
 describe('журнал действий', () => {
-  it('на экране «Модель» запись показывает кто, когда и было → стало', async () => {
+  it('на экране «Журнал» запись показывает кто, когда и было → стало', async () => {
     signedInAs('analyst');
-    renderApp('/model');
+    renderApp('/audit');
     const log = await screen.findByRole('region', { name: 'Журнал действий' });
     expect(await within(log).findByText('Изменены настройки модели')).toBeInTheDocument();
     expect(within(log).getByText('Вес: Автопродление выключено: 0.55 → 0.6')).toBeInTheDocument();
@@ -19,7 +19,7 @@ describe('журнал действий', () => {
 
   it('правка задачи читается простыми словами', async () => {
     signedInAs('analyst');
-    renderApp('/model');
+    renderApp('/audit');
     const log = await screen.findByRole('region', { name: 'Журнал действий' });
     expect(await within(log).findByText('Статус задачи: В работе → Связались')).toBeInTheDocument();
     expect(within(log).getByText('Заметка: изменена')).toBeInTheDocument();
@@ -36,7 +36,7 @@ describe('журнал действий', () => {
       changes: [],
     }));
     server.use(http.get('/api/v1/audit', () => HttpResponse.json({ items, total: 25 })));
-    renderApp('/model');
+    renderApp('/audit');
     const log = await screen.findByRole('region', { name: 'Журнал действий' });
     expect(
       await within(log).findByRole('button', { name: 'Следующая страница' }),
@@ -48,17 +48,24 @@ describe('журнал действий', () => {
     );
   });
 
-  it('на экране «Источник» журнал тоже есть', async () => {
+  it('на «Модели» журнала нет', async () => {
+    signedInAs('analyst');
+    renderApp('/model');
+    await screen.findByRole('heading', { level: 1, name: 'Модель' });
+    expect(screen.queryByRole('region', { name: 'Журнал действий' })).not.toBeInTheDocument();
+  });
+
+  it('на «Источнике» журнала нет', async () => {
     signedInAs('analyst');
     renderApp('/source');
-    const log = await screen.findByRole('region', { name: 'Журнал действий' });
-    expect(await within(log).findByText('Вход в систему')).toBeInTheDocument();
+    await screen.findByRole('heading', { level: 1, name: 'Источник данных' });
+    expect(screen.queryByRole('region', { name: 'Журнал действий' })).not.toBeInTheDocument();
   });
 
   it('пустой журнал — приглашение, не пустое место', async () => {
     signedInAs('analyst');
     server.use(http.get('/api/v1/audit', () => HttpResponse.json({ items: [], total: 0 })));
-    renderApp('/source');
+    renderApp('/audit');
     expect(await screen.findByText('Записей пока нет')).toBeInTheDocument();
   });
 
@@ -72,8 +79,8 @@ describe('журнал действий', () => {
         ),
       ),
     );
-    renderApp('/model');
+    renderApp('/audit');
     expect(await screen.findByText('Не удалось загрузить журнал')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Модель' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Журнал' })).toBeInTheDocument();
   });
 });

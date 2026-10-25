@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppAboutRouteImport } from './routes/_app.about'
+import { Route as AppAuditRouteImport } from './routes/_app.audit'
 import { Route as AppModelRouteImport } from './routes/_app.model'
 import { Route as AppQueueRouteImport } from './routes/_app.queue'
 import { Route as AppSourceRouteImport } from './routes/_app.source'
@@ -38,6 +39,11 @@ const LoginRoute = LoginRouteImport.update({
 const AppAboutRoute = AppAboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuditRoute = AppAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => AppRoute,
 } as any)
 const AppModelRoute = AppModelRouteImport.update({
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/about': typeof AppAboutRoute
+  '/audit': typeof AppAuditRoute
   '/model': typeof AppModelRoute
   '/queue': typeof AppQueueRoute
   '/source': typeof AppSourceRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/about': typeof AppAboutRoute
+  '/audit': typeof AppAuditRoute
   '/model': typeof AppModelRoute
   '/queue': typeof AppQueueRoute
   '/source': typeof AppSourceRoute
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/about': typeof AppAboutRoute
+  '/_app/audit': typeof AppAuditRoute
   '/_app/model': typeof AppModelRoute
   '/_app/queue': typeof AppQueueRoute
   '/_app/source': typeof AppSourceRoute
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/about'
+    | '/audit'
     | '/model'
     | '/queue'
     | '/source'
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/about'
+    | '/audit'
     | '/model'
     | '/queue'
     | '/source'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/_app/about'
+    | '/_app/audit'
     | '/_app/model'
     | '/_app/queue'
     | '/_app/source'
@@ -188,6 +200,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AppAboutRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/audit': {
+      id: '/_app/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AppAuditRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/model': {
@@ -244,6 +263,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAboutRoute: typeof AppAboutRoute
+  AppAuditRoute: typeof AppAuditRoute
   AppModelRoute: typeof AppModelRoute
   AppQueueRoute: typeof AppQueueRoute
   AppSourceRoute: typeof AppSourceRoute
@@ -255,6 +275,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAboutRoute: AppAboutRoute,
+  AppAuditRoute: AppAuditRoute,
   AppModelRoute: AppModelRoute,
   AppQueueRoute: AppQueueRoute,
   AppSourceRoute: AppSourceRoute,
