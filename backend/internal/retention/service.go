@@ -245,7 +245,7 @@ func (s *Service) List(ctx context.Context, f ListFilter) ([]gen.RetentionTask, 
 
 // Assignees — сотрудники, которым можно назначить задачу.
 func (s *Service) Assignees(ctx context.Context) ([]gen.TaskAssignee, error) {
-	rows, err := s.pool.Query(ctx, "SELECT login, role FROM users WHERE role IN ('marketer', 'jury', 'admin') ORDER BY login")
+	rows, err := s.pool.Query(ctx, "SELECT login, role FROM users WHERE role IN ('marketer', 'analyst', 'jury', 'admin') ORDER BY login")
 	if err != nil {
 		return nil, fmt.Errorf("retention: сотрудники: %w", err)
 	}
@@ -265,7 +265,7 @@ func (s *Service) Assignees(ctx context.Context) ([]gen.TaskAssignee, error) {
 
 func (s *Service) canAssign(ctx context.Context, q queryer, login string) (bool, error) {
 	var n int
-	err := q.QueryRow(ctx, "SELECT count(*) FROM users WHERE login = $1 AND role IN ('marketer', 'jury', 'admin')", login).Scan(&n)
+	err := q.QueryRow(ctx, "SELECT count(*) FROM users WHERE login = $1 AND role IN ('marketer', 'analyst', 'jury', 'admin')", login).Scan(&n)
 	return n > 0, err
 }
 

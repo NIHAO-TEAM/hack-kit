@@ -312,15 +312,19 @@ func TestTaskEventsAndList(t *testing.T) {
 		t.Errorf("limit 0: %d", res.StatusCode())
 	}
 
-	// Исполнители: только те, кому можно назначать.
+	// Исполнители: все роли с правом работы с клиентом, включая аналитика.
 	as, _ := marketer.ListTaskAssigneesWithResponse(ctx)
 	if as.JSON200 == nil {
 		t.Fatalf("исполнители: %s", as.Body)
 	}
+	hasAnalyst := false
 	for _, a := range as.JSON200.Items {
 		if a.Role == gen.Role(auth.RoleAnalyst) {
-			t.Errorf("аналитик в исполнителях: %+v", a)
+			hasAnalyst = true
 		}
+	}
+	if !hasAnalyst {
+		t.Errorf("аналитика нет в исполнителях: %+v", as.JSON200.Items)
 	}
 	if len(as.JSON200.Items) < 2 {
 		t.Errorf("исполнители: %+v", as.JSON200.Items)
@@ -359,7 +363,7 @@ func TestTaskPermissions(t *testing.T) {
 	analyst := r.As(t, auth.RoleAnalyst)
 
 	// Маркетолог и аналитик — один пользователь: аналитик работает с задачами так же.
-	if res := take(t, analyst, 1); res.StatusCode() != http.StatusCreated {
+	if res := take(t, analyst, 3); res.StatusCode() != http.StatusCreated {
 		t.Errorf("аналитик берёт в работу: %d", res.StatusCode())
 	}
 	if res := patchTask(t, analyst, task.Id, gen.TaskPatch{Version: task.Version, Note: strPtr("x")}); res.StatusCode() != http.StatusOK {
