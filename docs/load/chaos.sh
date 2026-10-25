@@ -32,11 +32,24 @@ ready_pods() {
 
 if [ -n "${SOURCE_TOKEN:-}" ] && [ -n "${SNAPSHOT:-}" ]; then
   echo "Загрузка снимка $SNAPSHOT"
-  curl_api --max-time 600 -X PUT "$API/source/snapshot" -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $SOURCE_TOKEN" --data-binary "@$SNAPSHOT" -o /dev/null
+  # Код, заголовки ответа и время пишем в $OUT (токен в них не попадает): по ним видно, кто вернул 401, под или Traefik.
+  UP_CODE=$(curl -sS --max-time 600 -X PUT "$API/source/snapshot" -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $SOURCE_TOKEN" --data-binary "@$SNAPSHOT" -D "$OUT/snapshot-headers.txt" -o "$OUT/snapshot-body.txt" \
+    -w '%{http_code} total=%{time_total}s sent=%{size_upload}' || true)
+  echo "загрузка снимка: $UP_CODE"
+  case "$UP_CODE" in
+    2*) ;;
+    *) cat "$OUT/snapshot-headers.txt" "$OUT/snapshot-body.txt" >&2 || true
+       for p in $(kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o name); do
+         echo "--- лог $p" >&2; kubectl -n "$NS" logs "$p" --tail=40 >&2 || true
+       done
+       echo "--- лог Traefik" >&2; kubectl -n kube-system logs deploy/traefik --tail=40 >&2 || true
+       fail "загрузка снимка вернула $UP_CODE"; exit 1 ;;
+  esac
 fi
 TOKEN=$(curl_api -X POST "$API/auth/login" -H 'Content-Type: application/json' \
-  -d "{\"login\":\"$LOGIN\",\"password\":\"$ADMIN_PASSWORD\"}" | jq -r .token)
+  -d "{\"login\":\"$LOGIN\",\"password\":\"$ADMIN_PASSWORD\"}" | jq -r .token) \
+  || { fail "вход под $LOGIN не прошёл (401: проверь, что в Secret заданы ADMIN_LOGIN и ADMIN_PASSWORD)"; exit 1; }
 echo "::add-mask::$TOKEN"
 AUTH="Authorization: Bearer $TOKEN"
 

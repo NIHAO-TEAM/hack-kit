@@ -89,3 +89,14 @@
 - WHEN прогон потока идёт на одной реплике и приходит запуск на другую
 - THEN ответ 409, прогон продолжается
 - Тест: `TestStreamBusyOnOtherReplica` (`backend/internal/source/stream_http_test.go`)
+
+### Requirement: вход администратора в чарте без явного ADMIN_LOGIN
+
+Чарт SHALL заводить в Secret `ADMIN_LOGIN=admin`, если ключ не задан в `secretEnv`; заданное в `secretEnv` значение не перебивается.
+
+#### Scenario: установка чарта без ADMIN_LOGIN
+
+- WHEN чарт установлен с `secretEnv.ADMIN_PASSWORD` и без `secretEnv.ADMIN_LOGIN`
+- THEN `POST /auth/login` с логином `admin` и этим паролем возвращает токен, а не 401
+- Тест: `deploy-chaos.yml` (ручной; `docs/load/chaos.sh`, шаг входа)
+
