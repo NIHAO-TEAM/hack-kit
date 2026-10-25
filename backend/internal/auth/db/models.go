@@ -97,6 +97,12 @@ type SourceEventID struct {
 	SeenAt  time.Time
 }
 
+type StreamRun struct {
+	RunID     string
+	State     []byte
+	UpdatedAt time.Time
+}
+
 type Transaction struct {
 	ID          int64
 	Amount      int32
