@@ -11,16 +11,7 @@ const all: Right[] = [
 ];
 
 describe('can', () => {
-  it('маркетолог видит очередь, сводку и карточку, но не модель и источник', () => {
-    expect(all.filter((r) => can('marketer', r))).toEqual([
-      'queue.view',
-      'summary.view',
-      'customer.view',
-      'tasks.view',
-    ]);
-  });
-
-  it.each<Role>(['analyst', 'admin', 'jury'])('%s видит все разделы', (role) => {
+  it.each<Role>(['marketer', 'analyst', 'admin', 'jury'])('%s видит все разделы', (role) => {
     expect(all.every((r) => can(role, r))).toBe(true);
   });
 
@@ -30,20 +21,16 @@ describe('can', () => {
 });
 
 describe('can: tasks.edit', () => {
-  it.each<Role>(['marketer', 'admin', 'jury'])('%s работает с задачами', (role) => {
+  it.each<Role>(['marketer', 'analyst', 'admin', 'jury'])('%s работает с задачами', (role) => {
     expect(can(role, 'tasks.edit')).toBe(true);
-  });
-
-  it('аналитик задачи только смотрит', () => {
-    expect(can('analyst', 'tasks.edit')).toBe(false);
   });
 });
 
 describe('homePath', () => {
-  it('маркетолог и жюри начинают с очереди, аналитик и администратор с модели', () => {
+  it('пользователь (маркетолог, аналитик) и жюри начинают с очереди, администратор с модели', () => {
     expect(homePath('marketer')).toBe('/queue');
+    expect(homePath('analyst')).toBe('/queue');
     expect(homePath('jury')).toBe('/queue');
-    expect(homePath('analyst')).toBe('/model');
     expect(homePath('admin')).toBe('/model');
   });
 });

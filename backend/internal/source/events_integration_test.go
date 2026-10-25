@@ -27,7 +27,7 @@ func topUp(id string, account, balance int64) string {
 	return fmt.Sprintf(`{"eventId":%q,"kind":"top_up","accountId":%d,"balance":%d}`, id, account, balance)
 }
 
-// Права: без сессии 401, маркетолог 403, остальные роли и токен источника — 202.
+// Права: без сессии 401, остальные роли и токен источника — 202.
 func TestPostSourceEventsRoles(t *testing.T) {
 	s := apitest.New(t)
 	if res := put(t, s.As(t, "analyst"), organizers(t)); res.JSON200 == nil {
@@ -43,7 +43,7 @@ func TestPostSourceEventsRoles(t *testing.T) {
 		want int
 	}{
 		{"без сессии", s.Anonymous(t), http.StatusUnauthorized},
-		{"маркетолог", s.As(t, "marketer"), http.StatusForbidden},
+		{"маркетолог", s.As(t, "marketer"), http.StatusAccepted},
 		{"аналитик", s.As(t, "analyst"), http.StatusAccepted},
 		{"jury", s.As(t, "jury"), http.StatusAccepted},
 		{"токен источника", s.WithBearer(t, apitest.SourceToken), http.StatusAccepted},

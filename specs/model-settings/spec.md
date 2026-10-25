@@ -59,5 +59,5 @@
 #### Scenario: права
 
 - WHEN маркетолог вызывает чувствительность
-- THEN ответ `403`; без сессии — `401`; аналитик, `jury` и администратор получают `200`
+- THEN ответ `200`, как у аналитика, `jury` и администратора; без сессии — `401`
 - Тест: `TestModelSensitivityAccess` (`internal/auth/access_test.go`), `TestPermissionMatrixCoversEveryOperation`

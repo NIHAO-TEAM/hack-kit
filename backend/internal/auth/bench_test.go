@@ -40,6 +40,7 @@ func middlewareStand(tb testing.TB, cfg Config) (*AuthAPI, *clock.Fake, Session,
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	mux.Handle("GET /api/v1/customers", ok)
 	mux.Handle("GET /api/v1/model/sensitivity", ok)
+	mux.Handle("GET /debug/pprof/", ok)
 	mux.HandleFunc("POST /api/v1/auth/logout", api.Logout)
 	return api, clk, sess, api.Middleware(mux, mux)
 }

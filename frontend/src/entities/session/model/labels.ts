@@ -1,8 +1,8 @@
 import type { Right, Role } from './rights';
 
 export const roleLabel: Record<Role, string> = {
-  marketer: 'маркетолог',
-  analyst: 'аналитик',
+  marketer: 'пользователь',
+  analyst: 'пользователь',
   admin: 'администратор',
   jury: 'жюри',
 };
@@ -13,8 +13,8 @@ export const rightHolders: Record<Right, string> = {
   'summary.view': 'всем ролям',
   'customer.view': 'всем ролям',
   'tasks.view': 'всем ролям',
-  'tasks.edit': 'маркетологу, администратору и жюри',
-  'model.view': 'аналитику, администратору и жюри',
-  'model.edit': 'аналитику, администратору и жюри',
-  'source.view': 'аналитику, администратору и жюри',
+  'tasks.edit': 'пользователю, администратору и жюри',
+  'model.view': 'пользователю, администратору и жюри',
+  'model.edit': 'пользователю, администратору и жюри',
+  'source.view': 'пользователю, администратору и жюри',
 };

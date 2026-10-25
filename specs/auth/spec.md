@@ -56,13 +56,19 @@
 
 ### Requirement: права ролей на сервере
 
-Система SHALL запрещать маркетологу менять модель и данные, в том числе через API.
+Система SHALL давать ролям `marketer` и `analyst` одинаковые права («пользователь»): работа с клиентом, модель, источник, журнал. Права проверяются на сервере для каждой операции; операция без права — `403`, без сессии — `401`.
 
 #### Scenario: маркетолог меняет коэффициент
 
 - WHEN пользователь роли `marketer` отправляет `PATCH /api/v1/model/settings`
-- THEN ответ `403` `problem+json`, настройки не изменились
-- Тест: `TestMarketerCannotChangeModelOrData; матрица — TestPermissionMatrixCoversEveryOperation`
+- THEN запрос не отклонён по правам (не `401` и не `403`), как у `analyst`
+- Тест: `TestMarketerAndAnalystShareRights; матрица — TestPermissionMatrixCoversEveryOperation`
+
+#### Scenario: аналитик берёт клиента в работу
+
+- WHEN `analyst` отправляет `POST /api/v1/customers/{id}/task`
+- THEN `201`, как у `marketer`
+- Тест: `TestTaskPermissions`
 
 #### Scenario: путь жюри
 
@@ -148,7 +154,7 @@
 
 #### Scenario: права из кэша проверяются на каждый запрос
 
-- WHEN маркетолог с сессией из кэша вызывает операцию аналитика
+- WHEN пользователь с сессией из кэша вызывает служебную операцию, закрытую для всех ролей
 - THEN `403`, запрос в БД за сессией не делается
 - Тест: `middleware_cache_test.go` («права проверяются на каждый запрос из кэша»)
 
