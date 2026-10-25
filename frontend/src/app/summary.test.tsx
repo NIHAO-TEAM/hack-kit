@@ -94,4 +94,32 @@ describe('сводка', () => {
     await userEvent.setup().click(link);
     await waitFor(() => expect(router.state.location.search).toMatchObject({ reason: 'susp' }));
   }, 15_000);
+
+  it('точки графика: подсказка при наведении и фокусе с клавиатуры', async () => {
+    server.use(marketer());
+    renderApp('/summary');
+    const points = await screen.findAllByTestId('chart-point');
+    const user = userEvent.setup();
+    const fact = points.find((p) => p.getAttribute('aria-label')?.includes('удалено услуг'))!;
+    await user.hover(fact);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('удалено услуг');
+    await user.unhover(fact);
+    const forecast = points.find((p) =>
+      p.getAttribute('aria-label')?.includes('ожидается непродлений'),
+    )!;
+    await user.tab();
+    forecast.focus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('ожидается непродлений');
+  });
+
+  it('полоса «Где теряем деньги»: подсказка с суммой, долей и числом клиентов', async () => {
+    server.use(marketer(), summaryWith(null));
+    renderApp('/summary');
+    const bar = await screen.findByRole('img', { name: /Услуга приостановлена: 51,24/ });
+    await userEvent.setup().hover(bar);
+    const tip = await screen.findByRole('tooltip');
+    expect(tip).toHaveTextContent('51,24');
+    expect(tip).toHaveTextContent('клиентов 2');
+    expect(tip).toHaveTextContent(/1\s844,19/);
+  });
 });

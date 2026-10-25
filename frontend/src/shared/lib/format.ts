@@ -22,3 +22,14 @@ export function formatCountdown(ms: number): string {
   if (minutes > 0) return `${minutes}${NBSP}мин`;
   return 'меньше минуты';
 }
+
+const compactFmt = new Intl.NumberFormat('ru-RU', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+const plainFmt = new Intl.NumberFormat('ru-RU');
+
+/** Число для подписей осей и подсказок: до 1000 как есть, дальше «1,2 тыс.», «3,4 млн». */
+export function formatCompact(n: number): string {
+  return Math.abs(n) < 1000 ? plainFmt.format(n) : compactFmt.format(n);
+}
