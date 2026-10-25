@@ -95,6 +95,9 @@ dump_pods() {
 }
 dump_prev_logs() {
   for p in $(kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o name); do
+    echo "--- лог $p: пересчёты и «портфель не собран»"; kubectl -n "$NS" logs "$p" 2>&1 | grep -E "портфель не собран|пересчёт|поток" | head -40 || true
+  done
+  for p in $(kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o name); do
     echo "--- прошлый контейнер $p"; kubectl -n "$NS" logs "$p" --previous --tail=25 2>&1 || true
   done
 }

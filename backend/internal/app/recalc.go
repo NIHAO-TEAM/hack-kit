@@ -24,18 +24,19 @@ import (
 // Recalc — воркер пересчёта и то, что он читает. Модули друг о друге не знают, поэтому
 // склейку «снимок и настройки → ядро модели» делает сборка сервера.
 type Recalc struct {
-	Engine   *analytics.Engine[risk.Result]
-	Settings *model.Store
-	snaps    *snapshots
-	cache    cacheHolder
-	buildMu  sync.Mutex                                                   // одна сборка портфеля за раз (Portfolio)
-	build    func(risk.Result, risk.Snapshot, int64) *analytics.Portfolio // nil — buildPortfolio; подмена в тесте
-	observer *retention.Service
-	bus      *events.Bus
-	reads    *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
-	metrics  *analytics.RecalcMetrics
-	reader   *source.Reader
-	clk      clock.Clock
+	Engine     *analytics.Engine[risk.Result]
+	Settings   *model.Store
+	snaps      *snapshots
+	cache      cacheHolder
+	missLogged atomic.Int64                                                 // версия данных, о которой уже записано «портфель не собран» (Portfolio)
+	buildMu    sync.Mutex                                                   // одна сборка портфеля за раз (Portfolio)
+	build      func(risk.Result, risk.Snapshot, int64) *analytics.Portfolio // nil — buildPortfolio; подмена в тесте
+	observer   *retention.Service
+	bus        *events.Bus
+	reads      *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
+	metrics    *analytics.RecalcMetrics
+	reader     *source.Reader
+	clk        clock.Clock
 }
 
 // NewRecalc собирает воркер: настройки из model_settings, снимок из таблиц организаторов.

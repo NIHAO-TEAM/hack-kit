@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -36,6 +37,16 @@ func (s *snapshots) put(version int64, snap risk.Snapshot) {
 	if len(s.list) > 2 {
 		s.list = s.list[len(s.list)-2:]
 	}
+}
+
+func (s *snapshots) versions() []int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]int64, 0, len(s.list))
+	for _, e := range s.list {
+		out = append(out, e.version)
+	}
+	return out
 }
 
 func (s *snapshots) get(version int64) (risk.Snapshot, bool) {
@@ -76,6 +87,11 @@ func (r *Recalc) Portfolio() *analytics.Portfolio {
 	}
 	snap, ok := r.snaps.get(calc.DataVersion)
 	if !ok {
+		// Результат есть, снимка к нему нет: читатель получит 503. Один раз на версию — в лог, с тем, что хранится.
+		if r.missLogged.Swap(calc.DataVersion) != calc.DataVersion {
+			log.Printf("app: портфель не собран: результат %d (данные %d, частичный пересчёт %v), снимки в памяти %v",
+				calc.Version, calc.DataVersion, calc.Partial, r.snaps.versions())
+		}
 		return nil
 	}
 	build := r.build
