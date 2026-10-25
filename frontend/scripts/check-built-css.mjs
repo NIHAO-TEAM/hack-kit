@@ -1,4 +1,4 @@
-// Проверка собранного CSS: токены и шрифт не потерялись при сборке (идея RIMS, UMIRHack 2026).
+// Проверка собранного CSS: токены и шрифт не потерялись при сборке.
 // Запуск после vite build: node scripts/check-built-css.mjs dist
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
