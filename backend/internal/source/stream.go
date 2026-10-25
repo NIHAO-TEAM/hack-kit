@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -34,6 +35,10 @@ const (
 const (
 	streamRunTimeout = 15 * time.Minute
 	streamPollEvery  = 2 * time.Millisecond
+	// streamSaveEvery — не чаще раза за этот срок ведущая реплика пишет ход прогона в базу;
+	// streamStaleAfter — через сколько без записи прогон считается брошенным (если блокировка свободна).
+	streamSaveEvery  = time.Second
+	streamStaleAfter = 10 * time.Second
 )
 
 // streamSettleTimeout — переменная только ради теста сбоя пересчёта (SetStreamSettleTimeout).
@@ -89,8 +94,9 @@ func StreamCollectors() []prometheus.Collector {
 
 // streamRun — состояние прогона; один на SourceAPI.
 type streamRun struct {
-	mu    sync.Mutex
-	state gen.StreamState
+	mu        sync.Mutex
+	state     gen.StreamState
+	lastSaved time.Time
 }
 
 func newStreamRun() *streamRun { return &streamRun{state: gen.StreamState{State: gen.Idle}} }
@@ -117,6 +123,91 @@ func (r *streamRun) update(f func(*gen.StreamState)) gen.StreamState {
 	defer r.mu.Unlock()
 	f(&r.state)
 	return r.state
+}
+
+// saveStream пишет состояние прогона в базу, чтобы его видела любая реплика. Без force — не чаще
+// раза за streamSaveEvery. Сбой записи не прерывает прогон: он только виден в логе.
+func (a *SourceAPI) saveStream(st gen.StreamState, force bool) {
+	if st.RunId == nil {
+		return
+	}
+	a.stream.mu.Lock()
+	if !force && time.Since(a.stream.lastSaved) < streamSaveEvery {
+		a.stream.mu.Unlock()
+		return
+	}
+	a.stream.lastSaved = time.Now()
+	a.stream.mu.Unlock()
+	raw, err := json.Marshal(st)
+	if err != nil {
+		log.Printf("source: поток %s, состояние не записано: %v", *st.RunId, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := a.pool.Exec(ctx, `INSERT INTO stream_runs (run_id, state, updated_at) VALUES ($1, $2, now())
+		ON CONFLICT (run_id) DO UPDATE SET state = EXCLUDED.state, updated_at = EXCLUDED.updated_at`,
+		*st.RunId, raw); err != nil {
+		log.Printf("source: поток %s, состояние не записано: %v", *st.RunId, err)
+	}
+}
+
+// dropStream убирает запись прогона, который не начался.
+func (a *SourceAPI) dropStream(runID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := a.pool.Exec(ctx, "DELETE FROM stream_runs WHERE run_id = $1", runID); err != nil {
+		log.Printf("source: поток %s, запись не убрана: %v", runID, err)
+	}
+}
+
+// streamState — состояние прогона для GET: своё из памяти, пока прогон идёт на этой реплике, иначе
+// последнее записанное в базе. Прогон «идёт», но не обновлялся дольше streamStaleAfter, а блокировка
+// свободна — реплика, которая его вела, остановилась: он показывается как failed и так же записывается.
+func (a *SourceAPI) streamState(ctx context.Context) gen.StreamState {
+	local := a.stream.get()
+	if local.State == gen.Running {
+		return local
+	}
+	var raw []byte
+	var age time.Duration
+	rows, err := a.pool.Query(ctx, `SELECT state, now() - updated_at FROM stream_runs ORDER BY updated_at DESC LIMIT 1`)
+	if err != nil {
+		log.Printf("source: поток, состояние из базы: %v", err)
+		return local
+	}
+	found := rows.Next()
+	if found {
+		err = rows.Scan(&raw, &age)
+	}
+	rows.Close()
+	if err == nil {
+		err = rows.Err()
+	}
+	if err != nil {
+		log.Printf("source: поток, состояние из базы: %v", err)
+		return local
+	}
+	if !found {
+		return local
+	}
+	var st gen.StreamState
+	if err := json.Unmarshal(raw, &st); err != nil {
+		log.Printf("source: поток, состояние из базы не разобрано: %v", err)
+		return local
+	}
+	if st.State != gen.Running || age <= streamStaleAfter {
+		return st
+	}
+	release, err := a.lockStream(ctx)
+	if err != nil {
+		return st // блокировка занята: ведущая реплика жива, просто занята
+	}
+	defer release()
+	msg := "реплика, которая вела прогон, остановилась"
+	st.State, st.Error = gen.Failed, &msg
+	a.saveStream(st, true)
+	return st
 }
 
 // Ошибки запуска потока.
@@ -166,12 +257,14 @@ func (a *SourceAPI) startStream(ctx context.Context, n, rate int, seed int64) (s
 		log.Printf("source: поток, блокировка прогона: %v", err)
 		return "", httpError{"прогон не занят"}
 	}
+	a.saveStream(st, true)
 	base, err := a.streamBase(ctx)
 	if err == nil {
 		err = a.ensureSnapshot(ctx)
 	}
 	if err != nil {
 		release()
+		a.dropStream(runID)
 		a.stream.update(func(s *gen.StreamState) { *s = gen.StreamState{State: gen.Idle} })
 		log.Printf("source: поток, чтение снимка: %v", err)
 		return "", httpError{"снимок не прочитан"}
@@ -301,6 +394,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		log.Printf("source: поток %s: %v", runID, err)
 		msg := err.Error()
 		st := a.stream.update(func(s *gen.StreamState) { s.State, s.Error = gen.Failed, &msg })
+		a.saveStream(st, true)
 		a.bus.Publish(TopicStreamProgress, st)
 	}
 
@@ -353,6 +447,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		lastPublish = time.Now()
 		done := applied + failed
 		st := a.stream.update(func(s *gen.StreamState) { s.Applied = done })
+		a.saveStream(st, false)
 		a.bus.Publish(TopicStreamProgress, st)
 	}
 	// onBatch вызывает писатель из своей горутины, пока отправитель ждёт в submit или на паузе;
@@ -388,6 +483,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 		}
 		pts := win.tick(ing.queueLen(), recalcs)
 		st := a.stream.update(func(s *gen.StreamState) { s.Window = &pts })
+		a.saveStream(st, false)
 		a.bus.Publish(TopicStreamProgress, st)
 	}
 	stopTick := make(chan struct{})
@@ -469,6 +565,7 @@ func (a *SourceAPI) runStream(runID string, events []StreamEvent, n, rate int, b
 	st := a.stream.update(func(s *gen.StreamState) {
 		s.State, s.Applied, s.Report = gen.Done, applied+failed, &rep
 	})
+	a.saveStream(st, true)
 	a.bus.Publish(TopicStreamProgress, st)
 }
 

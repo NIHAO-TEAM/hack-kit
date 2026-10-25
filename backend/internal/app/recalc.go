@@ -24,18 +24,20 @@ import (
 // Recalc — воркер пересчёта и то, что он читает. Модули друг о друге не знают, поэтому
 // склейку «снимок и настройки → ядро модели» делает сборка сервера.
 type Recalc struct {
-	Engine   *analytics.Engine[risk.Result]
-	Settings *model.Store
-	snaps    *snapshots
-	cache    cacheHolder
-	buildMu  sync.Mutex                                                   // одна сборка портфеля за раз (Portfolio)
-	build    func(risk.Result, risk.Snapshot, int64) *analytics.Portfolio // nil — buildPortfolio; подмена в тесте
-	observer *retention.Service
-	bus      *events.Bus
-	reads    *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
-	metrics  *analytics.RecalcMetrics
-	reader   *source.Reader
-	clk      clock.Clock
+	Engine     *analytics.Engine[risk.Result]
+	Settings   *model.Store
+	snaps      *snapshots
+	cache      cacheHolder
+	peerPoll   time.Duration                                                // как часто сверять версию снимка с базой (watchPeers); 0 — не сверять
+	missLogged atomic.Int64                                                 // версия данных, о которой уже записано «портфель не собран» (Portfolio)
+	buildMu    sync.Mutex                                                   // одна сборка портфеля за раз (Portfolio)
+	build      func(risk.Result, risk.Snapshot, int64) *analytics.Portfolio // nil — buildPortfolio; подмена в тесте
+	observer   *retention.Service
+	bus        *events.Bus
+	reads      *atomic.Int64 // сколько раз пересчёт читал таблицы снимка целиком
+	metrics    *analytics.RecalcMetrics
+	reader     *source.Reader
+	clk        clock.Clock
 }
 
 // NewRecalc собирает воркер: настройки из model_settings, снимок из таблиц организаторов.
@@ -96,6 +98,7 @@ func NewRecalc(pool *pgxpool.Pool, bus *events.Bus, clk clock.Clock) *Recalc {
 		metrics:  metrics,
 		reader:   reader,
 		clk:      clk,
+		peerPoll: peerPollFromEnv(),
 	}
 	r.WithFullEvery(fullEveryFromEnv())
 	r.Engine.WithObserver(func(c *analytics.Calculation[risk.Result]) { metrics.ObserveRecalc(c.Partial, c.Duration) })
@@ -130,12 +133,14 @@ func (r *Recalc) TableReads() int64 { return r.reads.Load() }
 func (r *Recalc) Start(ctx context.Context) <-chan struct{} {
 	observed := r.observer.StartObserver(ctx) // подписка до первого расчёта, иначе его событие потеряется
 	warmed := r.warmReadModel(ctx)
+	peers := r.watchPeers(ctx, r.bus)
 	engine := r.Engine.Start(ctx)
 	stopped := make(chan struct{})
 	go func() {
 		<-engine
 		<-observed
 		<-warmed
+		<-peers
 		close(stopped)
 	}()
 	return stopped

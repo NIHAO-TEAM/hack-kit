@@ -303,8 +303,8 @@ func (a *SourceAPI) StartEmulatorStream(w http.ResponseWriter, r *http.Request) 
 }
 
 // GetEmulatorStream — GET /api/v1/source/emulator/stream.
-func (a *SourceAPI) GetEmulatorStream(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, a.stream.get())
+func (a *SourceAPI) GetEmulatorStream(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, a.streamState(r.Context()))
 }
 
 type badRequest struct{ error }

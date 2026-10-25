@@ -55,6 +55,19 @@ AUTH="Authorization: Bearer $TOKEN"
 
 [ "$(ready_pods | wc -l)" -ge 2 ] || { fail "нет двух Ready-реплик до начала"; exit 1; }
 
+# wait_calc — после загрузки снимка обе реплики пересчитывают его (≈20–30 с на 100 000 клиентов); пока у реплики нет
+# результата, она честно отвечает 503 «расчёт ещё не готов» (под при этом Ready: на пустой базе иначе нельзя
+# загрузить первый снимок, cmd/api/main.go ready). Читатели стартуют, когда 20 запросов подряд к Service вернули 200:
+# при двух репликах это значит, что готовы обе. Порог ошибок чтения не меняется: он считается с этого момента.
+wait_calc() {
+  local t0=$SECONDS ok=0
+  while [ $ok -lt 20 ]; do
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$API/customers?limit=1" -H "$AUTH")" = 200 ]; then ok=$((ok + 1)); else ok=0; sleep 1; fi
+    [ $((SECONDS - t0)) -lt 300 ] || { fail "расчёт после загрузки снимка не готов за 5 минут"; exit 1; }
+  done
+  echo "расчёт после загрузки снимка готов на обеих репликах через $((SECONDS - t0)) с"
+}
+
 start_readers() { # $1 — метка этапа; k6 идёт, пока ему не пошлют SIGINT
   K6PIDS=()
   k6 run --quiet --summary-export "$OUT/k6-read-$1.json" -e PASSWORD="$ADMIN_PASSWORD" -e LOGIN="$LOGIN" -e BASE_URL="$BASE_URL" \
@@ -75,14 +88,36 @@ check_readers() {
   SSE_DROPS=$(jq -r '.metrics.sse_drops.count // 0' "$s")
   SSE_ALIVE=$(jq -r '.metrics.sse_window_alive.value // 0' "$s")
   echo "этап $1: запросов чтения $READ_N, доля ошибок $READ_FAIL, обрывов SSE (переподключены) $SSE_DROPS, живых окон SSE $SSE_ALIVE"
+  if [ "$READ_FAIL" != 0 ]; then
+    echo "этап $1: ошибки чтения по коду ответа (0 — оборванный запрос):"
+    jq -r '.metrics | to_entries[] | select(.key | startswith("read_err_")) | select(.value.count > 0) | "  \(.key | sub("read_err_"; "")): \(.value.count)"' "$f"
+    echo "этап $1: ошибки k6 (первые 10 и по одной в секунду):"
+    grep "ошибка чтения" "$OUT/k6-read-$1.log" | head -60 || true
+  fi
   [ "$READ_N" -gt 0 ] || fail "этап $1: читатели не сделали ни одного запроса"
   [ "$READ_FAIL" = 0 ] || fail "этап $1: ошибок чтения очереди (5xx и обрывы соединения): доля $READ_FAIL"
   # SSE обязаны вернуться: после обрыва есть живые окна, то есть клиенты переподключились к оставшейся реплике.
   [ "$(awk -v a="$SSE_ALIVE" 'BEGIN {print (a > 0) ? 1 : 0}')" = 1 ] || fail "этап $1: SSE-клиенты не переподключились"
 }
 
+# dump_pods МЕТКА — состояние реплик: Ready, перезапуски, причина последнего падения контейнера и конец его лога.
+dump_pods() {
+  echo "--- реплики ($1) $(date -u +%T)"
+  kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o wide || true
+  kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o json | jq -r '.items[] | "\(.metadata.name) ready=\(any(.status.conditions[]?; .type == "Ready" and .status == "True")) перезапусков=\(.status.containerStatuses[0].restartCount) прошлое падение: \(.status.containerStatuses[0].lastState.terminated | if . then "\(.reason) код \(.exitCode)" else "нет" end)"' || true
+}
+dump_prev_logs() {
+  for p in $(kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o name); do
+    echo "--- лог $p: пересчёты и «портфель не собран»"; kubectl -n "$NS" logs "$p" 2>&1 | grep -E "портфель не собран|пересчёт|поток" | head -40 || true
+  done
+  for p in $(kubectl -n "$NS" get pods -l app.kubernetes.io/component=app -o name); do
+    echo "--- прошлый контейнер $p"; kubectl -n "$NS" logs "$p" --previous --tail=25 2>&1 || true
+  done
+}
+
 # ---- Этап A: убийство пода под залпом ----
 echo "=== Этап A: залп $EVENTS событий, $RATE/с, удаление пода без потока ==="
+wait_calc
 start_readers A
 curl_api -X POST "$API/source/emulator/stream" -H "$AUTH" -H 'Content-Type: application/json' \
   -d "{\"events\":$EVENTS,\"ratePerSecond\":$RATE,\"seed\":1}" -o /dev/null
@@ -97,6 +132,7 @@ VICTIM=$(ready_pods | grep -vx "$LEAD" | head -1)
 [ -n "$VICTIM" ] || { fail "этап A: нет второй реплики для удаления"; stop_readers; exit 1; }
 echo "ведёт поток: $LEAD; удаляю: $VICTIM"
 kubectl -n "$NS" delete pod "$VICTIM" --wait=false
+for t in 5 10 20; do sleep "$t"; dump_pods "через $t с после удаления"; done
 
 DEADLINE=$((SECONDS + 600))
 while :; do
@@ -107,6 +143,7 @@ while :; do
   sleep 2
 done
 kubectl -n "$NS" rollout status "deploy/$RELEASE-app" --timeout=300s
+dump_pods "конец этапа A"; dump_prev_logs
 stop_readers
 jq . <<<"$STATE" >"$OUT/stream-A.json"
 [ "$S" = done ] || fail "этап A: состояние прогона «$S», ошибка: $(jq -r '.error // ""' <<<"$STATE")"
